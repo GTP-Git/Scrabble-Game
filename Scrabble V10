@@ -571,7 +571,7 @@ def draw_options_menu(turn, dropdown_open, bag_count):
         options = ["Pass", "Exchange", "Quit"]
         for i, option in enumerate(options):
             rect = pygame.Rect(options_x, dropdown_y + i * OPTIONS_HEIGHT, OPTIONS_WIDTH, OPTIONS_HEIGHT)
-            if option == "Exchange" and bag_count < 8:
+            if (option == "Pass" and replay_mode) or (option == "Exchange" and (replay_mode or bag_count < 8)):
                 pygame.draw.rect(screen, GRAYED_OUT_COLOR, rect)
             else:
                 hover = rect.collidepoint(pygame.mouse.get_pos())
@@ -1593,6 +1593,10 @@ def main():
                             game_over_state = False
                             replay_mode = True
                             current_replay_turn = 0
+                            exchanging = False
+                            hinting = False
+                            showing_all_words = False
+                            dropdown_open = False
                         elif play_again_rect.collidepoint(x, y):
                             running = False  # Exit inner loop to restart
                             main()  # Restart the game
@@ -1622,6 +1626,11 @@ def main():
                     if event.button == 1:
                         # Handle replay controls
                         if replay_start_rect.collidepoint(x, y):
+                            if not replay_mode:  # Reset flags only if entering Replay Mode
+                                exchanging = False
+                                hinting = False
+                                showing_all_words = False
+                                dropdown_open = False
                             replay_mode = True
                             current_replay_turn = 0
                         elif replay_prev_rect.collidepoint(x, y) and current_replay_turn > 0:
@@ -1631,16 +1640,24 @@ def main():
                             replay_mode = True
                             current_replay_turn += 1
                         elif replay_end_rect.collidepoint(x, y):
+                            if not replay_mode:  # Optional: reset if entering from end
+                                exchanging = False
+                                hinting = False
+                                showing_all_words = False
+                                dropdown_open = False
                             replay_mode = True
                             current_replay_turn = len(move_history)
-                        if not replay_mode:
+                            exchanging = False        # Reset exchanging flag
+                            hinting = False           # Reset hinting flag
+                            showing_all_words = False # Reset showing_all_words flag
+                            dropdown_open = False     # Ensure dropdown starts closed
                             if not (exchanging or hinting or showing_all_words):
                                 if options_rect.collidepoint(x, y):
                                     dropdown_open = not dropdown_open
                                 elif dropdown_open:
                                     for i, rect in enumerate(dropdown_rects):
                                         if rect.collidepoint(x, y):
-                                            if i == 0:  # Pass
+                                            if i == 0 and not replay_mode:  # Pass
                                                 consecutive_zero_point_turns += 1
                                                 pass_count += 1
                                                 exchange_count = 0
@@ -1658,7 +1675,7 @@ def main():
                                                     'word': ''
                                                 })
                                                 current_replay_turn = len(move_history)
-                                            elif i == 1 and len(bag) >= 8:  # Exchange
+                                            elif i == 1 and not replay_mode and len(bag) >= 8:  # Exchange
                                                 exchanging = True
                                                 dropdown_open = False
                                             elif i == 2:  # Quit
@@ -2165,4 +2182,5 @@ if __name__ == "__main__":
     main()
 
 # End of Part 7
+
 
