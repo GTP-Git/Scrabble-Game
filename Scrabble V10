@@ -1,8 +1,4 @@
-# Stable: 21MAR25, 20:24
-
-#Scoring appears to be fixed! Word generation is better, but not 100%. Played GIG for 19 instead of FIG for 23, 2nd move of game.
-#Also, debug showed AI chose IGG, but actually played GIG.
-
+# Stable: 22MAR25, 12:09
 
 # Part 1
 
@@ -1226,7 +1222,7 @@ def draw_hint_dialog(moves, selected_index):
 # Part 6
 
 def draw_all_words_dialog(moves, selected_index, scroll_offset):
-    """Draw the dialog showing all valid moves with scrolling."""
+    """Draw the dialog showing all valid moves with a scrollbar."""
     dialog_x = (WINDOW_WIDTH - ALL_WORDS_DIALOG_WIDTH) // 2
     dialog_y = (WINDOW_HEIGHT - ALL_WORDS_DIALOG_HEIGHT) // 2
 
@@ -1243,13 +1239,36 @@ def draw_all_words_dialog(moves, selected_index, scroll_offset):
     start_index = max(0, int(scroll_offset // 30))
     end_index = min(len(moves), start_index + items_per_page + 1)
 
+    # Define scrollbar dimensions
+    scrollbar_width = 15
+    scrollbar_x = dialog_x + ALL_WORDS_DIALOG_WIDTH - scrollbar_width - 5
+    scrollbar_y = dialog_y + 40
+    scrollbar_height = visible_height
+    total_content_height = len(moves) * 30
+    if total_content_height > visible_height:
+        thumb_height = max(20, (visible_height / total_content_height) * visible_height)
+        max_scroll = total_content_height - visible_height
+        thumb_y = scrollbar_y + (scroll_offset / max_scroll) * (scrollbar_height - thumb_height) if max_scroll > 0 else scrollbar_y
+    else:
+        thumb_height = scrollbar_height
+        thumb_y = scrollbar_y
+
+    # Draw scrollbar track
+    pygame.draw.rect(screen, GRAY, (scrollbar_x, scrollbar_y, scrollbar_width, scrollbar_height))
+    # Draw scrollbar thumb
+    thumb_rect = pygame.Rect(scrollbar_x, thumb_y, scrollbar_width, thumb_height)
+    hover = thumb_rect.collidepoint(pygame.mouse.get_pos())
+    thumb_color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, thumb_color, thumb_rect)
+
+    # Adjust the width of move rectangles to leave space for the scrollbar
     for i in range(start_index, end_index):
         move = moves[i]
         y_pos = dialog_y + 40 + (i - start_index) * 30 - (scroll_offset % 30)
         if y_pos + 30 < dialog_y + 40 or y_pos >= dialog_y + 40 + visible_height:
             continue
         color = HINT_SELECTED_COLOR if i == selected_index else HINT_NORMAL_COLOR
-        rect = pygame.Rect(dialog_x + 10, y_pos, ALL_WORDS_DIALOG_WIDTH - 20, 30)
+        rect = pygame.Rect(dialog_x + 10, y_pos, ALL_WORDS_DIALOG_WIDTH - 40 - scrollbar_width, 30)  # Adjusted width
         pygame.draw.rect(screen, color, rect)
         
         word = move['word']
@@ -1296,7 +1315,7 @@ def draw_all_words_dialog(moves, selected_index, scroll_offset):
     ok_text_rect = ok_text.get_rect(center=(ok_button_rect.x + BUTTON_WIDTH // 2, ok_button_rect.y + BUTTON_HEIGHT // 2))
     screen.blit(ok_text, ok_text_rect)
 
-    return all_words_rects, play_button_rect, ok_button_rect
+    return all_words_rects, play_button_rect, ok_button_rect, thumb_rect  # Return thumb_rect for dragging
 
 def get_tile_under_mouse(x, y, rack_start_x, rack_y):
     """Determine which tile is under the mouse cursor."""
@@ -1542,6 +1561,8 @@ def main():
         final_scores = None
         reason = ""
         action = None
+        dragging_scrollbar = False
+        scrollbar_drag_start = 0
 
         while running:
             if turn != previous_turn and not replay_mode and not game_over_state:
@@ -1757,6 +1778,9 @@ def main():
                                     current_replay_turn = len(move_history)
                                 elif all_words_ok_rect.collidepoint(x, y):
                                     showing_all_words = False
+                                elif thumb_rect.collidepoint(x, y):
+                                    dragging_scrollbar = True
+                                    scrollbar_drag_start = y - thumb_rect.y
                             if not (hinting or showing_all_words or exchanging) and not is_ai[turn-1]:
                                 col = (x - 40) // SQUARE_SIZE
                                 row = (y - 40) // SQUARE_SIZE
@@ -1785,6 +1809,31 @@ def main():
                             typing_start = None
                             typing_direction = None
                             word_positions = []
+                    elif event.type == pygame.MOUSEWHEEL:
+                        if showing_all_words:
+                            visible_height = ALL_WORDS_DIALOG_HEIGHT - 120  # Space for title and buttons
+                            max_scroll = max(0, len(all_moves) * 30 - visible_height)  # Total scrollable height
+                            scroll_offset -= event.y * SCROLL_SPEED  # Adjust offset based on wheel direction
+                            scroll_offset = max(0, min(scroll_offset, max_scroll))  # Clamp offset within bounds
+                elif event.type == pygame.MOUSEMOTION and dragging_scrollbar:
+                    x, y = event.pos
+                    visible_height = ALL_WORDS_DIALOG_HEIGHT - 120
+                    total_content_height = len(all_moves) * 30
+                    max_scroll = max(0, total_content_height - visible_height)
+                    if total_content_height > visible_height:
+                        thumb_height = max(20, (visible_height / total_content_height) * visible_height)
+                        scrollbar_y = (WINDOW_HEIGHT - ALL_WORDS_DIALOG_HEIGHT) // 2 + 40
+                        scrollbar_height = visible_height
+                        # Calculate new thumb position
+                        new_thumb_y = y - scrollbar_drag_start
+                        # Clamp thumb position within scrollbar bounds
+                        new_thumb_y = max(scrollbar_y, min(new_thumb_y, scrollbar_y + scrollbar_height - thumb_height))
+                        # Calculate new scroll_offset based on thumb position
+                        scroll_ratio = (new_thumb_y - scrollbar_y) / (scrollbar_height - thumb_height)
+                        scroll_offset = scroll_ratio * max_scroll
+                        scroll_offset = max(0, min(scroll_offset, max_scroll))
+                    elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                        dragging_scrollbar = False
                 elif event.type == pygame.MOUSEMOTION and dragged_tile and not is_ai[turn-1] and not replay_mode:
                     drag_pos = event.pos
                 elif event.type == pygame.MOUSEBUTTONUP and dragged_tile and not is_ai[turn-1] and not replay_mode:
@@ -2067,7 +2116,7 @@ def main():
             elif hinting:
                 hint_rects, play_button_rect, ok_button_rect, all_words_button_rect = draw_hint_dialog(hint_moves, selected_hint_index)
             elif showing_all_words:
-                all_words_rects, all_words_play_rect, all_words_ok_rect = draw_all_words_dialog(all_moves, selected_hint_index, scroll_offset)
+                all_words_rects, all_words_play_rect, all_words_ok_rect, thumb_rect = draw_all_words_dialog(all_moves, selected_hint_index, scroll_offset)
 
             # Draw replay buttons only in replay mode
             if replay_mode:
@@ -2116,3 +2165,4 @@ if __name__ == "__main__":
     main()
 
 # End of Part 7
+
