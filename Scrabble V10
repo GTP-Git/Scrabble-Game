@@ -22,7 +22,7 @@
 # To-Do: ----DONE----remaining tile list should print out all tiles remaining, not just A:3 format
 # To-Do: ----DONE----allow the computer to play against itself
 # To-Do: ----DONE----fix scoring, likely not accounting for both vertical and horizontal words
-# To-Do: ----DONE----ensure bag draw is random, seems to be a lot of  blanks to start the game
+# To-Do: ----DONE----ensure bag draw is random, seems to be a lot of  blanks to start the gam
 # To-Do: ----DONE----change color of blanks, can't see against white background; maybe lowercase?
 # To-Do: ----DONE----add last play and score note, likely at the bottom of the remaining letters list
 # To-Do: ----DONE----Player 1 score text is overlaid on the bottom of the board, need to extend game window vertically
@@ -1483,6 +1483,7 @@ def get_replay_state(turn_idx, initial_racks):
             scores_state[player] += move['score']
             if 'drawn' in move:
                 racks_state[player].extend(move['drawn'])  # Add drawn tiles
+                racks_state[player].sort()  # Sort rack to alphabetize
         elif move['move_type'] == 'exchange':
             if 'exchanged_tiles' in move:
                 for tile in move['exchanged_tiles']:
@@ -1490,6 +1491,7 @@ def get_replay_state(turn_idx, initial_racks):
                         racks_state[player].remove(tile)  # Remove exchanged tiles
             if 'drawn' in move:
                 racks_state[player].extend(move['drawn'])  # Add drawn tiles
+                racks_state[player].sort()  # Sort rack to alphabetize
         # For 'pass', do nothing to racks
 
     return tiles_state, blanks_state, scores_state, racks_state
@@ -1651,58 +1653,67 @@ def main():
                             hinting = False           # Reset hinting flag
                             showing_all_words = False # Reset showing_all_words flag
                             dropdown_open = False     # Ensure dropdown starts closed
-                            if not (exchanging or hinting or showing_all_words):
-                                if options_rect.collidepoint(x, y):
-                                    dropdown_open = not dropdown_open
-                                elif dropdown_open:
-                                    for i, rect in enumerate(dropdown_rects):
-                                        if rect.collidepoint(x, y):
-                                            if i == 0 and not replay_mode:  # Pass
-                                                consecutive_zero_point_turns += 1
-                                                pass_count += 1
-                                                exchange_count = 0
-                                                print(f"Player {turn} passed")  # Add this line
-                                                turn = 3 - turn
-                                                human_played = True
-                                                dropdown_open = False
-                                                # Add to move_history
-                                                move_history.append({
-                                                    'player': 3 - turn,
-                                                    'move_type': 'pass',
-                                                    'positions': [],
-                                                    'blanks': set(),
-                                                    'score': 0,
-                                                    'word': ''
-                                                })
-                                                current_replay_turn = len(move_history)
-                                            elif i == 1 and not replay_mode and len(bag) >= 8:  # Exchange
-                                                exchanging = True
-                                                dropdown_open = False
-                                            elif i == 2:  # Quit
-                                                if confirm_quit():
-                                                    running = False
+                        if replay_mode and options_rect.collidepoint(x, y):
+                            dropdown_open = not dropdown_open
+                        elif replay_mode and dropdown_open:
+                            for i, rect in enumerate(dropdown_rects):
+                                if rect.collidepoint(x, y) and i == 2:  # Quit option
+                                    if confirm_quit():
+                                        running = False
+                                    dropdown_open = False
+                                    break
+                        if not (exchanging or hinting or showing_all_words):
+                            if options_rect.collidepoint(x, y):
+                                dropdown_open = not dropdown_open
+                            elif dropdown_open:
+                                for i, rect in enumerate(dropdown_rects):
+                                    if rect.collidepoint(x, y):
+                                        if i == 0 and not replay_mode:  # Pass
+                                            consecutive_zero_point_turns += 1
+                                            pass_count += 1
+                                            exchange_count = 0
+                                            print(f"Player {turn} passed")  # Add this line
+                                            turn = 3 - turn
+                                            human_played = True
                                             dropdown_open = False
-                                            break
-                                elif suggest_rect.collidepoint(x, y) and not is_ai[turn-1]:
-                                    if not all_moves:
-                                        all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
-                                    hint_moves = all_moves[:5]
-                                    hinting = True
-                                    selected_hint_index = 0 if hint_moves else None
-                                elif p1_alpha_rect.collidepoint(x, y) and turn == 1 and not is_ai[0]:
-                                    racks[0].sort()
-                                elif p1_rand_rect.collidepoint(x, y) and turn == 1 and not is_ai[0]:
-                                    random.shuffle(racks[0])
-                                elif p2_alpha_rect.collidepoint(x, y) and turn == 2 and not is_ai[1]:
-                                    racks[1].sort()
-                                elif p2_rand_rect.collidepoint(x, y) and turn == 2 and not is_ai[1]:
-                                    random.shuffle(racks[1])
-                                elif not is_ai[turn-1]:
-                                    rack_y = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
-                                    tile_idx = get_tile_under_mouse(x, y, rack_start_x, rack_y)
-                                    if tile_idx is not None and not dragged_tile:
-                                        dragged_tile = (turn, tile_idx)
-                                        drag_pos = (x, y)
+                                            # Add to move_history
+                                            move_history.append({
+                                                'player': 3 - turn,
+                                                'move_type': 'pass',
+                                                'positions': [],
+                                                'blanks': set(),
+                                                'score': 0,
+                                                'word': ''
+                                            })
+                                            current_replay_turn = len(move_history)
+                                        elif i == 1 and not replay_mode and len(bag) >= 8:  # Exchange
+                                            exchanging = True
+                                            dropdown_open = False
+                                        elif i == 2:  # Quit
+                                            if confirm_quit():
+                                                running = False
+                                        dropdown_open = False
+                                        break
+                            elif suggest_rect.collidepoint(x, y) and not is_ai[turn-1]:
+                                if not all_moves:
+                                    all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
+                                hint_moves = all_moves[:5]
+                                hinting = True
+                                selected_hint_index = 0 if hint_moves else None
+                            elif p1_alpha_rect.collidepoint(x, y) and turn == 1 and not is_ai[0]:
+                                racks[0].sort()
+                            elif p1_rand_rect.collidepoint(x, y) and turn == 1 and not is_ai[0]:
+                                random.shuffle(racks[0])
+                            elif p2_alpha_rect.collidepoint(x, y) and turn == 2 and not is_ai[1]:
+                                racks[1].sort()
+                            elif p2_rand_rect.collidepoint(x, y) and turn == 2 and not is_ai[1]:
+                                random.shuffle(racks[1])
+                            elif not is_ai[turn-1]:
+                                rack_y = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
+                                tile_idx = get_tile_under_mouse(x, y, rack_start_x, rack_y)
+                                if tile_idx is not None and not dragged_tile:
+                                    dragged_tile = (turn, tile_idx)
+                                    drag_pos = (x, y)
                             elif exchanging:
                                 for i, rect in enumerate(tile_rects):
                                     if rect.collidepoint(x, y):
@@ -2182,5 +2193,3 @@ if __name__ == "__main__":
     main()
 
 # End of Part 7
-
-
