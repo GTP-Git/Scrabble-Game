@@ -1,4 +1,4 @@
-# Stable: 21MAR25, 20:24
+# Stable: 23MAR25, 11:01
 
 #Scoring appears to be fixed! Word generation is better, but not 100%. Played GIG for 19 instead of FIG for 23, 2nd move of game.
 #Also, debug showed AI chose IGG, but actually played GIG.
