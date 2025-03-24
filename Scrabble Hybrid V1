@@ -1,0 +1,335 @@
+import pygame
+import random
+import sys
+import pickle
+from collections import Counter
+
+# Initialize Pygame
+pygame.init()
+
+# Constants (unchanged)
+# ... [Keep all your constants as they are] ...
+
+# DAWG Node (renamed from Dawg to match board.py)
+class Node:
+    def __init__(self):
+        self.is_terminal = False
+        self.children = {}  # Renamed from edges
+        self.id = id(self)  # Simple unique ID
+
+# Load DAWG (adjusted to convert your word list to pickle if needed)
+try:
+    with open("lexicon/scrabble_words_complete.pickle", "rb") as f:
+        DAWG_ROOT = pickle.load(f)
+except FileNotFoundError:
+    # Convert "All Words 2023.txt" to pickle
+    DAWG_ROOT = Node()
+    with open("All Words 2023.txt", "r") as f:
+        words = [w.strip().upper() for w in f]
+    for word in words:
+        node = DAWG_ROOT
+        for char in word:
+            if char not in node.children:
+                node.children[char] = Node()
+            node = node.children[char]
+        node.is_terminal = True
+    with open("lexicon/scrabble_words_complete.pickle", "wb") as f:
+        pickle.dump(DAWG_ROOT, f)
+
+# Tile distribution and bag (unchanged)
+TILE_DISTRIBUTION = {
+    'A': (9, 1), 'B': (2, 3), 'C': (2, 3), 'D': (4, 2), 'E': (12, 1), 'F': (2, 4),
+    'G': (3, 2), 'H': (2, 4), 'I': (9, 1), 'J': (1, 8), 'K': (1, 5), 'L': (4, 1),
+    'M': (2, 3), 'N': (6, 1), 'O': (8, 1), 'P': (2, 3), 'Q': (1, 10), 'R': (6, 1),
+    'S': (4, 1), 'T': (6, 1), 'U': (4, 1), 'V': (2, 4), 'W': (2, 4), 'X': (1, 8),
+    'Y': (2, 4), 'Z': (1, 10), ' ': (2, 0)
+}
+bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
+
+# Scrabble Board Logic (adapted from board.py)
+class ScrabbleBoard:
+    def __init__(self, dawg_root):
+        self.board = [[None for _ in range(15)] for _ in range(15)]  # Will hold letters
+        self.cross_checks_0 = [[1] * 26 for _ in range(15) for _ in range(15)]  # Horizontal
+        self.cross_checks_1 = [[1] * 26 for _ in range(15) for _ in range(15)]  # Vertical
+        self.is_transpose = False
+        self.dawg_root = dawg_root
+        self.word_rack = []
+        self.word_score_dict = {}
+        self.best_word = ""
+        self.highest_score = 0
+        self.dist_from_anchor = 0
+        self.letters_from_rack = []
+        self.best_row = 0
+        self.best_col = 0
+        self.upper_cross_check = []
+        self.lower_cross_check = []
+        self.point_dict = {
+            "A": 1, "B": 3, "C": 3, "D": 2, "E": 1, "F": 4, "G": 2, "H": 4,
+            "I": 1, "J": 8, "K": 5, "L": 1, "M": 3, "N": 1, "O": 1, "P": 3,
+            "Q": 10, "R": 1, "S": 1, "T": 1, "U": 1, "V": 4, "W": 4, "X": 8,
+            "Y": 8, "Z": 10, "%": 0
+        }
+        self.words_on_board = []
+
+    def _score_word(self, word, squares, dist_from_anchor):
+        score = 0
+        score_multiplier = 1
+        if self.is_transpose:
+            cross_sum_ind = "-"
+        else:
+            cross_sum_ind = "+"
+        board_word = word.replace("%", "")
+        if board_word in self.words_on_board:
+            return board_word, 0
+        word = re.sub("[A-Z]%", "%", word)
+        rack_tiles = []
+        for letter, square in zip(word, squares):
+            if cross_sum_ind in square.modifier:
+                score += int(square.modifier[-1])
+            if square.modifier:
+                rack_tiles.append(letter)
+            if "2LS" in square.modifier:
+                score += (self.point_dict[letter] * 2)
+            elif "3LS" in square.modifier:
+                score += (self.point_dict[letter] * 3)
+            elif "2WS" in square.modifier:
+                score_multiplier *= 2
+                score += self.point_dict[letter]
+            elif "3WS" in square.modifier:
+                score_multiplier *= 3
+                score += self.point_dict[letter]
+            else:
+                score += self.point_dict[letter]
+        score *= score_multiplier
+        if len(rack_tiles) == 7:
+            score += 50
+        if score > self.highest_score:
+            self.best_word = board_word
+            self.highest_score = score
+            self.dist_from_anchor = dist_from_anchor
+            self.letters_from_rack = rack_tiles
+        return board_word, score
+
+    def _extend_right(self, start_node, square_row, square_col, rack, word, squares, dist_from_anchor):
+        if not (0 <= square_row < 15 and 0 <= square_col < 15):
+            return
+        square_letter = self.board[square_row][square_col]
+        cross_checks = self.cross_checks_1 if self.is_transpose else self.cross_checks_0
+        square_cross = cross_checks[square_row * 15 + square_col]
+        if not square_letter:
+            if start_node.is_terminal:
+                self._score_word(word, squares, dist_from_anchor)
+            for letter in start_node.children:
+                if self.board[square_row + 1][square_col] and self.board[square_row - 1][square_col]:
+                    continue
+                if letter in rack:
+                    wildcard = False
+                elif "%" in rack:
+                    wildcard = True
+                else:
+                    continue
+                if letter in rack and self._cross_check(letter, square_row, square_col):
+                    new_node = start_node.children[letter]
+                    new_rack = rack.copy()
+                    if wildcard:
+                        new_word = word + letter + "%"
+                        new_rack.remove("%")
+                    else:
+                        new_word = word + letter
+                        new_rack.remove(letter)
+                    new_squares = squares + [(square_row, square_col, self.get_modifier(square_row, square_col))]
+                    self._extend_right(new_node, square_row, square_col + 1 if not self.is_transpose else square_row + 1, 
+                                       square_col + 1 if self.is_transpose else square_col, new_rack, new_word, new_squares, dist_from_anchor)
+        else:
+            if square_letter in start_node.children:
+                new_node = start_node.children[square_letter]
+                new_word = word + square_letter
+                new_squares = squares + [(square_row, square_col, self.get_modifier(square_row, square_col))]
+                self._extend_right(new_node, square_row, square_col + 1 if not self.is_transpose else square_row + 1, 
+                                   square_col + 1 if self.is_transpose else square_col, rack, new_word, new_squares, dist_from_anchor)
+
+    def _left_part(self, start_node, anchor_square_row, anchor_square_col, rack, word, squares, limit, dist_from_anchor):
+        potential_row = anchor_square_row - dist_from_anchor if not self.is_transpose else anchor_square_row
+        potential_col = anchor_square_col - dist_from_anchor if self.is_transpose else anchor_square_col
+        if not (0 <= potential_row < 15 and 0 <= potential_col < 15) or self.board[potential_row][potential_col]:
+            return
+        self._extend_right(start_node, anchor_square_row, anchor_square_col, rack, word, squares, dist_from_anchor)
+        cross_checks = self.cross_checks_1 if self.is_transpose else self.cross_checks_0
+        if 0 in cross_checks[potential_row * 15 + potential_col]:
+            return
+        if limit > 0:
+            for letter in start_node.children:
+                if letter in rack:
+                    wildcard = False
+                elif "%" in rack:
+                    wildcard = True
+                else:
+                    continue
+                new_node = start_node.children[letter]
+                new_rack = rack.copy()
+                if wildcard:
+                    new_word = word + letter + "%"
+                    new_rack.remove("%")
+                else:
+                    new_word = word + letter
+                    new_rack.remove(letter)
+                new_squares = squares + [(potential_row, potential_col, self.get_modifier(potential_row, potential_col))]
+                self._left_part(new_node, anchor_square_row, anchor_square_col, new_rack, new_word, new_squares, limit - 1, dist_from_anchor + 1)
+
+    def _cross_check(self, letter, row, col):
+        cross_checks = self.cross_checks_1 if self.is_transpose else self.cross_checks_0
+        chr_val = 65  # 'A'
+        for i, ind in enumerate(cross_checks[row * 15 + col]):
+            if ind == 1 and chr(chr_val + i) == letter:
+                return True
+        return False
+
+    def get_all_words(self, square_row, square_col, rack):
+        self.word_rack = rack
+        self.best_word = ""
+        self.highest_score = 0
+        self.dist_from_anchor = 0
+        self.letters_from_rack = []
+        self._extend_right(self.dawg_root, square_row, square_col, rack, "", [], 0)
+        if square_col > 0 and not self.board[square_row][square_col - 1]:
+            for i, letter in enumerate(rack):
+                temp_rack = rack[:i] + rack[i + 1:]
+                self.board[square_row][square_col - 1] = letter
+                self._left_part(self.dawg_root, square_row, square_col - 1, temp_rack, "", [], 6, 1)
+                self.board[square_row][square_col - 1] = None
+        return self.best_word, self.highest_score, self.dist_from_anchor, self.letters_from_rack
+
+    def get_modifier(self, row, col):
+        tw = [(0, 0), (0, 7), (0, 14), (7, 0), (7, 14), (14, 0), (14, 7), (14, 14)]
+        dw = [(1, 1), (2, 2), (3, 3), (4, 4), (10, 10), (11, 11), (12, 12), (13, 13),
+              (1, 13), (2, 12), (3, 11), (4, 10), (10, 4), (11, 3), (12, 2), (13, 1)]
+        tl = [(1, 5), (1, 9), (5, 1), (5, 5), (5, 9), (5, 13), (9, 1), (9, 5),
+              (9, 9), (9, 13), (13, 5), (13, 9)]
+        dl = [(0, 3), (0, 11), (2, 6), (2, 8), (3, 0), (3, 7), (3, 14), (6, 2),
+              (6, 6), (6, 8), (6, 12), (7, 3), (7, 11), (8, 2), (8, 6), (8, 8),
+              (8, 12), (11, 0), (11, 7), (11, 14), (12, 6), (12, 8), (14, 3), (14, 11)]
+        if (row, col) in tw:
+            return "3WS"
+        elif (row, col) in dw:
+            return "2WS"
+        elif (row, col) in tl:
+            return "3LS"
+        elif (row, col) in dl:
+            return "2LS"
+        return ""
+
+    def _transpose(self):
+        self.board = [list(row) for row in zip(*self.board)]
+        self.is_transpose = not self.is_transpose
+
+    def get_best_move(self, word_rack, tiles):
+        self.word_rack = word_rack
+        self.board = [row[:] for row in tiles]
+        self.best_word = ""
+        self.highest_score = 0
+        self.best_row = 0
+        self.best_col = 0
+        transposed = False
+        for row in range(15):
+            for col in range(15):
+                if self.board[row][col] and (col == 0 or not self.board[row][col - 1]):
+                    prev_best_score = self.highest_score
+                    self.get_all_words(row, col, word_rack)
+                    if self.highest_score > prev_best_score:
+                        self.best_row = row
+                        self.best_col = col
+        self._transpose()
+        for row in range(15):
+            for col in range(15):
+                if self.board[row][col] and (col == 0 or not self.board[row][col - 1]):
+                    prev_best_score = self.highest_score
+                    self.get_all_words(row, col, word_rack)
+                    if self.highest_score > prev_best_score:
+                        transposed = True
+                        self.best_row = row
+                        self.best_col = col
+        if not self.best_word:
+            self._transpose()
+            return None, 0, None, None
+        return self.best_word, self.highest_score, (self.best_row, self.best_col - self.dist_from_anchor if transposed else self.best_col - self.dist_from_anchor), "down" if transposed else "right"
+
+# UI Functions (unchanged)
+# ... [Keep all your draw functions, mode selection, etc., as they are] ...
+
+def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names):
+    global move_history, current_replay_turn
+    scrabble = ScrabbleBoard(DAWG_ROOT)
+    word, score, start, direction = scrabble.get_best_move(racks[turn-1], tiles)
+    if word:
+        row, col = start
+        coord = f"{LETTERS[col]}{row + 1}" if direction == "down" else f"{row + 1}{LETTERS[col]}"
+        print(f"AI {turn} played: {word} at {coord} for {score} points")
+        for i, letter in enumerate(word):
+            r = row + i if direction == "down" else row
+            c = col + i if direction == "right" else col
+            if not tiles[r][c]:
+                tiles[r][c] = letter
+                if letter in racks[turn-1]:
+                    racks[turn-1].remove(letter)
+                elif ' ' in racks[turn-1]:
+                    racks[turn-1].remove(' ')
+                    blanks.add((r, c))
+        scores[turn-1] += score
+        drawn_tiles = [bag.pop() for _ in range(7 - len(racks[turn-1])) if bag]
+        racks[turn-1].extend(drawn_tiles)
+        racks[turn-1].sort()
+        move_history.append({
+            'player': turn,
+            'move_type': 'place',
+            'positions': [(row + i if direction == "down" else row, col + i if direction == "right" else col, letter) for i, letter in enumerate(word)],
+            'blanks': blanks.copy(),
+            'score': score,
+            'word': word,
+            'drawn': drawn_tiles,
+            'coord': coord
+        })
+        current_replay_turn = len(move_history)
+        return 3 - turn, False, 0, 0, 0, [], False, False, False
+    else:
+        if len(bag) >= 7:
+            exchange_tiles = racks[turn-1][:3]
+            drawn_tiles = [bag.pop() for _ in range(len(exchange_tiles))]
+            racks[turn-1] = racks[turn-1][3:] + drawn_tiles
+            bag.extend(exchange_tiles)
+            random.shuffle(bag)
+            move_history.append({
+                'player': turn,
+                'move_type': 'exchange',
+                'exchanged_tiles': exchange_tiles,
+                'drawn': drawn_tiles,
+                'score': 0,
+                'word': ''
+            })
+            return 3 - turn, first_play, 0, exchange_count + 1, consecutive_zero_point_turns + 1, [], False, False, False
+        else:
+            move_history.append({
+                'player': turn,
+                'move_type': 'pass',
+                'positions': [],
+                'blanks': set(),
+                'score': 0,
+                'word': ''
+            })
+            return 3 - turn, first_play, pass_count + 1, 0, consecutive_zero_point_turns + 1, [], False, False, False
+
+# Main game loop (adjusted to use new logic)
+def main():
+    # ... [Keep your existing setup, mode selection, etc.] ...
+    scrabble = ScrabbleBoard(DAWG_ROOT)
+    while running:
+        # ... [Event handling unchanged] ...
+        if is_ai[turn-1] and not replay_mode and not game_over_state:
+            turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words = ai_turn(
+                turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names
+            )
+            pygame.time.wait(AI_DELAY)
+        # ... [Rest of the loop unchanged] ...
+
+if __name__ == "__main__":
+    main()
