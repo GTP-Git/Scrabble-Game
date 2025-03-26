@@ -1,0 +1,620 @@
+import pygame
+import random
+import math
+import sys
+import time
+from itertools import permutations, product
+from collections import Counter
+
+# Constants - moved from JSON file
+GRID_SIZE = 15
+SQUARE_SIZE = 40
+BOARD_SIZE = GRID_SIZE * SQUARE_SIZE
+FONT_SIZE = 20
+TILE_WIDTH = 35
+TILE_HEIGHT = 35
+TILE_GAP = 5
+BUTTON_WIDTH = 100
+BUTTON_HEIGHT = 30
+BUTTON_GAP = 10
+CENTER_SQUARE = (7, 7)
+OPTIONS_WIDTH = 100
+OPTIONS_HEIGHT = 30
+DROPDOWN_HEIGHT = 90
+DOUBLE_CLICK_TIME = 300
+SECOND_CLICK_TIME = 500
+ALL_WORDS_DIALOG_WIDTH = 500
+ALL_WORDS_DIALOG_HEIGHT = 600
+SCROLL_SPEED = 20
+DIALOG_WIDTH = 400
+DIALOG_HEIGHT = 250
+AI_DELAY = 200
+
+COLORS = {
+    "WHITE": (255, 255, 255),
+    "BLACK": (0, 0, 0),
+    "RED": (255, 100, 100),
+    "PINK": (255, 182, 193),
+    "BLUE": (0, 102, 204),
+    "LIGHT_BLUE": (135, 206, 250),
+    "HIGHLIGHT_BLUE": (191, 238, 255),
+    "YELLOW": (255, 255, 153),
+    "GRAY": (200, 200, 200),
+    "GREEN": (144, 238, 144),
+    "DARK_GREEN": (100, 200, 100),
+    "BUTTON_COLOR": (180, 180, 180),
+    "BUTTON_HOVER": (220, 220, 220),
+    "TURN_INDICATOR_COLOR": (255, 215, 0),
+    "DIALOG_COLOR": (150, 150, 150),
+    "DROPDOWN_COLOR": (200, 200, 200),
+    "SELECTED_TILE_COLOR": (255, 165, 0),
+    "GRAYED_OUT_COLOR": (100, 100, 100),
+    "ARROW_COLOR": (0, 0, 255),
+    "HINT_NORMAL_COLOR": (220, 220, 220),
+    "HINT_SELECTED_COLOR": (180, 180, 255)
+}
+
+TILE_DISTRIBUTION = {
+    "A": [9, 1],
+    "B": [2, 3],
+    "C": [2, 3],
+    "D": [4, 2],
+    "E": [12, 1],
+    "F": [2, 4],
+    "G": [3, 2],
+    "H": [2, 4],
+    "I": [9, 1],
+    "J": [1, 8],
+    "K": [1, 5],
+    "L": [4, 1],
+    "M": [2, 3],
+    "N": [6, 1],
+    "O": [8, 1],
+    "P": [2, 3],
+    "Q": [1, 10],
+    "R": [6, 1],
+    "S": [4, 1],
+    "T": [6, 1],
+    "U": [4, 1],
+    "V": [2, 4],
+    "W": [2, 4],
+    "X": [1, 8],
+    "Y": [2, 4],
+    "Z": [1, 10],
+    " ": [2, 0]
+}
+
+SPECIAL_SQUARES = {
+    "TW": [[0, 0], [0, 7], [0, 14], [7, 0], [7, 14], [14, 0], [14, 7], [14, 14]],
+    "DW": [[1, 1], [2, 2], [3, 3], [4, 4], [10, 10], [11, 11], [12, 12], [13, 13], [1, 13], [2, 12], [3, 11], [4, 10], [10, 4], [11, 3], [12, 2], [13, 1]],
+    "TL": [[1, 5], [1, 9], [5, 1], [5, 5], [5, 9], [5, 13], [9, 1], [9, 5], [9, 9], [9, 13], [13, 5], [13, 9]],
+    "DL": [[0, 3], [0, 11], [2, 6], [2, 8], [3, 0], [3, 7], [3, 14], [6, 2], [6, 6], [6, 8], [6, 12], [7, 3], [7, 11], [8, 2], [8, 6], [8, 8], [8, 12], [11, 0], [11, 7], [11, 14], [12, 6], [12, 8], [14, 3], [14, 11]],
+    "CENTER": [7, 7]
+}
+
+# Colors (accessed directly)
+WHITE = COLORS["WHITE"]
+BLACK = COLORS["BLACK"]
+RED = COLORS["RED"]
+PINK = COLORS["PINK"]
+BLUE = COLORS["BLUE"]
+LIGHT_BLUE = COLORS["LIGHT_BLUE"]
+HIGHLIGHT_BLUE = COLORS["HIGHLIGHT_BLUE"]
+YELLOW = COLORS["YELLOW"]
+GRAY = COLORS["GRAY"]
+GREEN = COLORS["GREEN"]
+DARK_GREEN = COLORS["DARK_GREEN"]
+BUTTON_COLOR = COLORS["BUTTON_COLOR"]
+BUTTON_HOVER = COLORS["BUTTON_HOVER"]
+TURN_INDICATOR_COLOR = COLORS["TURN_INDICATOR_COLOR"]
+DIALOG_COLOR = COLORS["DIALOG_COLOR"]
+DROPDOWN_COLOR = COLORS["DROPDOWN_COLOR"]
+SELECTED_TILE_COLOR = COLORS["SELECTED_TILE_COLOR"]
+GRAYED_OUT_COLOR = COLORS["GRAYED_OUT_COLOR"]
+ARROW_COLOR = COLORS["ARROW_COLOR"]
+HINT_NORMAL_COLOR = COLORS["HINT_NORMAL_COLOR"]
+HINT_SELECTED_COLOR = COLORS["HINT_SELECTED_COLOR"]
+
+LETTERS = "ABCDEFGHIJKLMNO"  # For column labels
+
+# Pygame initialization
+pygame.init()
+display_info = pygame.display.Info()
+WINDOW_WIDTH = min(1400, display_info.current_w - 50)
+WINDOW_HEIGHT = min(900, display_info.current_h - 50)
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption("Scrabble Game")
+font = pygame.font.SysFont("Arial", FONT_SIZE, bold=True)
+ui_font = pygame.font.SysFont("Arial", 20)
+button_font = pygame.font.SysFont("Arial", 16)
+tile_count_font = pygame.font.SysFont("Arial", 14)
+dialog_font = pygame.font.SysFont("Arial", 24)
+
+# Game modes
+MODE_HVH = "Human vs Human"
+MODE_HVA = "Human vs AI"
+MODE_AVA = "AI vs AI"
+
+# --- Classes ---
+
+class Tile:
+    """Represents a Scrabble tile."""
+    def __init__(self, letter, value):
+        self.letter = letter
+        self.value = value
+        self.is_blank = (letter == ' ')
+
+    def draw(self, screen, x, y):
+        """Draw the tile on the screen."""
+        if self.is_blank:
+            center = (x + TILE_WIDTH // 2, y + TILE_HEIGHT // 2)
+            radius = TILE_WIDTH // 2 - 2
+            pygame.draw.circle(screen, BLACK, center, radius)
+            text = font.render('?', True, WHITE)
+            text_rect = text.get_rect(center=center)
+            screen.blit(text, text_rect)
+        else:
+            pygame.draw.rect(screen, GREEN, (x, y, TILE_WIDTH, TILE_HEIGHT))
+            text = font.render(self.letter, True, BLACK)
+            screen.blit(text, (x + 5, y + 5))
+
+class Rack:
+    """Represents a player's tile rack."""
+    def __init__(self, player_number):
+        self.player_number = player_number
+        self.tiles = []  # list of letters
+        self.alpha_button_rect = None
+        self.rand_button_rect = None
+
+    def draw(self, screen, scores, turn, player_names, dragged_tile=None, drag_pos=None, display_scores=None):
+        """Draw the rack with tiles and buttons."""
+        if display_scores is None:
+            display_scores = scores
+        rack_width = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
+        start_x = (BOARD_SIZE - rack_width) // 2 + OPTIONS_WIDTH + BUTTON_GAP
+        rack_y = BOARD_SIZE + 80 if self.player_number == 1 else BOARD_SIZE + 150
+
+        if turn == self.player_number:
+            center_x = start_x - 20
+            center_y = rack_y + TILE_HEIGHT // 2
+            radius = 10
+            points = []
+            for i in range(10):
+                angle = i * math.pi / 5
+                r = radius if i % 2 == 0 else radius / 2
+                x = center_x + r * math.cos(angle)
+                y = center_y + r * math.sin(angle)
+                points.append((x, y))
+            pygame.draw.polygon(screen, TURN_INDICATOR_COLOR, points)
+
+        for i, letter in enumerate(self.tiles):
+            tile_x = start_x + i * (TILE_WIDTH + TILE_GAP)
+            if dragged_tile == (self.player_number, i) and drag_pos:
+                continue  # Skip drawing the dragged tile here
+            Tile(letter, TILE_DISTRIBUTION[letter][1]).draw(screen, tile_x, rack_y)
+
+        if dragged_tile and dragged_tile[0] == self.player_number:
+            tile_x, tile_y = drag_pos
+            tile = self.tiles[dragged_tile[1]]
+            Tile(tile, TILE_DISTRIBUTION[tile][1]).draw(screen, tile_x - TILE_WIDTH // 2, tile_y - TILE_HEIGHT // 2)
+
+        button_x = start_x + rack_width + BUTTON_GAP
+        self.alpha_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (button_x, rack_y, BUTTON_WIDTH, BUTTON_HEIGHT))
+        self.rand_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (button_x + BUTTON_WIDTH + BUTTON_GAP, rack_y, BUTTON_WIDTH, BUTTON_HEIGHT))
+
+        alpha_text = button_font.render("Alphabetize", True, BLACK)
+        alpha_rect = alpha_text.get_rect(center=(button_x + BUTTON_WIDTH // 2, rack_y + BUTTON_HEIGHT // 2))
+        screen.blit(alpha_text, alpha_rect)
+        rand_text = button_font.render("Randomize", True, BLACK)
+        rand_rect = rand_text.get_rect(center=(button_x + BUTTON_WIDTH + BUTTON_GAP + BUTTON_WIDTH // 2, rack_y + BUTTON_HEIGHT // 2))
+        screen.blit(rand_text, rand_rect)
+
+        score_text = ui_font.render(f"{player_names[self.player_number-1]} Score: {display_scores[self.player_number-1]}", True, BLACK)
+        screen.blit(score_text, (start_x, rack_y - 20))
+
+    def sort(self):
+        """Sort the rack alphabetically."""
+        self.tiles.sort()
+
+    def randomize(self):
+        """Randomize the order of tiles in the rack."""
+        random.shuffle(self.tiles)
+
+    def add_tiles(self, tiles):
+        self.tiles.extend(tiles)
+
+    def remove_tile(self, letter):
+        if letter in self.tiles:
+            self.tiles.remove(letter)
+
+    def get_insertion_index(self, x, rack_start_x):
+        """Determine the insertion index (0 to 7) based on mouse x-position."""
+        if x < rack_start_x:
+            return 0
+        for i in range(7):
+            tile_left = rack_start_x + i * (TILE_WIDTH + TILE_GAP)
+            tile_center = tile_left + TILE_WIDTH // 2
+            tile_right = tile_left + TILE_WIDTH
+            if x < tile_center:
+                return i
+            elif x < tile_right:
+                return i + 1
+        return 7
+
+class Board:
+    """Represents the Scrabble board."""
+    def __init__(self):
+        self.grid = [[WHITE for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)] # Background of the board
+        self.tiles = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]  # Tile placement
+        self.labels = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)] # Labels (not used yet)
+        self.special_squares = SPECIAL_SQUARES # load the squares
+
+        self._initialize_special_squares()
+
+    def _initialize_special_squares(self):
+        """Initialize the board with special squares."""
+        for square_type, coordinates in self.special_squares.items():
+            color = WHITE  # Default
+            if square_type == 'TW':
+                color = RED
+            elif square_type == 'DW':
+                color = PINK
+            elif square_type == 'TL':
+                color = BLUE
+            elif square_type == 'DL':
+                color = LIGHT_BLUE
+            elif square_type == 'CENTER':
+                color = PINK
+                r, c = coordinates
+                self.grid[r][c] = color
+                return
+
+            for r, c in coordinates:
+                self.grid[r][c] = color
+
+    def draw(self, screen, blanks):
+        """Draw the board and its tiles."""
+        for r in range(GRID_SIZE):
+            for c in range(GRID_SIZE):
+                pygame.draw.rect(screen, self.grid[r][c], (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+                pygame.draw.rect(screen, BLACK, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
+                if self.tiles[r][c]:
+                    if (r, c) in blanks:
+                        # Draw blank tiles
+                        center = (40 + c * SQUARE_SIZE + SQUARE_SIZE // 2, 40 + r * SQUARE_SIZE + SQUARE_SIZE // 2)
+                        radius = SQUARE_SIZE // 2 - 2
+                        pygame.draw.circle(screen, BLACK, center, radius)
+                        text = font.render(self.tiles[r][c], True, WHITE)
+                        text_rect = text.get_rect(center=center)
+                        screen.blit(text, text_rect)
+                    else:
+                        pygame.draw.rect(screen, GREEN, (40 + c * SQUARE_SIZE + 2, 40 + r * SQUARE_SIZE + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4))
+                        text = font.render(self.tiles[r][c], True, BLACK)
+                        screen.blit(text, (40 + c * SQUARE_SIZE + 5, 40 + r * SQUARE_SIZE + 5))
+
+    def place_tile(self, row, col, letter):
+        """Place a tile on the board."""
+        self.tiles[row][col] = letter
+
+    def remove_tile(self, row, col):
+        """Remove a tile from the board."""
+        self.tiles[row][col] = ''
+
+    def is_empty(self, row, col):
+        """Check if a square is empty."""
+        return not self.tiles[row][col]
+
+class Player:
+    """Represents a player (human or AI)."""
+    def __init__(self, player_number, is_ai=False, name=None):
+        self.player_number = player_number
+        self.is_ai = is_ai
+        self.name = name if name else f"Player {player_number}"
+        self.score = 0
+        self.rack = Rack(player_number) # Rack is initialized on Player creation
+
+    def draw_rack(self, screen, scores, turn, player_names, dragged_tile=None, drag_pos=None, display_scores=None):
+        """Draw player's rack and handle UI for it."""
+        self.rack.draw(screen, scores, turn, player_names, dragged_tile, drag_pos, display_scores)
+
+class GameState:
+    """Enumerates different game states."""
+    MODE_SELECTION = 0
+    PLAYING = 1
+    EXCHANGING = 2
+    HINTING = 3
+    SHOWING_ALL_WORDS = 4
+    GAME_OVER = 5
+    REPLAY = 6
+
+class Game:
+    """Orchestrates the game flow."""
+    def __init__(self):
+        self.board = Board() # Creates an instance of Board
+        self.bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
+        random.shuffle(self.bag)
+        self.players = [] # List of Players
+        self.current_turn = 1
+        self.word_positions = []
+        self.blanks = set()
+        self.first_play = True
+        self.running = True
+        self.dropdown_open = False
+        self.pass_count = 0
+        self.exchange_count = 0
+        self.consecutive_zero_point_turns = 0
+        self.exchanging = False
+        self.hinting = False
+        self.showing_all_words = False
+        self.selected_tiles = set()
+        self.typing = False
+        self.typing_start = None
+        self.typing_direction = None
+        self.current_r = None
+        self.current_c = None
+        self.last_left_click_time = 0
+        self.last_left_click_pos = None
+        self.hint_moves = []
+        self.all_moves = []
+        self.selected_hint_index = None
+        self.scroll_offset = 0
+        self.last_clicked_pos = None
+        self.last_word = ""
+        self.last_score = 0
+        self.last_start = None
+        self.last_direction = None
+        self.human_played = False
+        self.dragged_tile = None
+        self.drag_pos = None
+        self.selected_square = None
+        self.original_tiles = None
+        self.move_history = []  # Reset move history
+        self.replay_mode = False
+        self.current_replay_turn = 0
+        self.previous_turn = 0
+        self.final_scores = None
+        self.reason = ""
+
+        # Game over and dialog state variables
+        self.game_over_state = False
+        self.dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2
+        self.dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2
+        self.dragging = False
+        self.drag_offset = (0, 0)
+
+        self.game_state = GameState.MODE_SELECTION
+
+    def start_game(self, game_mode, player_names, human_player):
+
+        self.players = []
+        if game_mode == MODE_HVA:
+            is_ai = [False, True] if human_player == 1 else [True, False]
+            self.players.append(Player(1, is_ai=is_ai[0], name=player_names[0]))
+            self.players.append(Player(2, is_ai=is_ai[1], name=player_names[1]))
+        elif game_mode == MODE_AVA:
+            self.players.append(Player(1, is_ai=True, name=player_names[0]))
+            self.players.append(Player(2, is_ai=True, name=player_names[1]))
+        else: #MODE_HVH
+            self.players.append(Player(1, is_ai=False, name=player_names[0]))
+            self.players.append(Player(2, is_ai=False, name=player_names[1]))
+
+        # Initialize racks
+        for player in self.players:
+            player.rack.tiles = [self.bag.pop() for _ in range(7)]
+            player.rack.sort()
+
+    def handle_event(self, event, ui): # Event handling by game state.  Takes UI instance
+        if self.game_state == GameState.MODE_SELECTION:
+            self.handle_mode_selection_events(event, ui)
+        elif self.game_state == GameState.PLAYING:
+            self.handle_playing_events(event)
+        elif self.game_state == GameState.GAME_OVER:
+            self.handle_game_over_events(event, ui)
+
+    def handle_mode_selection_events(self, event, ui):
+        """Handles events during the mode selection screen."""
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            x, y = event.pos
+            # Check if a mode button was clicked
+            if ui.hvh_rect and ui.hvh_rect.collidepoint(x, y):
+                self.start_game(MODE_HVH, ["Player 1", "Player 2"], None)
+                self.game_state = GameState.PLAYING
+            elif ui.hva_rect and ui.hva_rect.collidepoint(x, y):
+                self.start_game(MODE_HVA, ["Player", "AI"], 1)  # Default human player 1
+                self.game_state = GameState.PLAYING
+            elif ui.ava_rect and ui.ava_rect.collidepoint(x, y):
+                self.start_game(MODE_AVA, ["AI 1", "AI 2"], None)
+                self.game_state = GameState.PLAYING
+
+
+    def handle_playing_events(self, event): # Playing State Events
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # Handle mouse clicks for move input and ui elements
+            pass # TODO Implement in UI class
+        elif event.type == pygame.KEYDOWN:
+            # Handle keyboard input for word entry, etc.
+            pass # TODO Implement in UI class
+
+    def handle_game_over_events(self, event, ui): # Game Over events # now takes ui
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # If clicking the dialogs buttons the function return those rects
+            pass # TODO Implement in UI class
+        elif event.type == pygame.KEYDOWN:
+            pass # TODO Implement in UI class
+
+    def draw(self, screen): # High level draw function
+        """Draw the game elements on the screen."""
+        if self.game_state == GameState.MODE_SELECTION:
+            pass
+        else:
+            self.board.draw(screen, self.blanks) # Draws the board
+            for player in self.players:
+                self.draw_player_rack(screen, player) # Call per player
+            #TODO call to draw UI overlay etc.
+
+    def draw_player_rack(self, screen, player):
+        player.draw_rack(screen, [p.score for p in self.players], self.current_turn, [p.name for p in self.players],
+                        self.dragged_tile, self.drag_pos, [p.score for p in self.players])
+
+    def generate_valid_moves(self):
+        """Generates valid moves for the current player using the DAWG."""
+        # TODO: Deeply integrate the DAWG here, use it to traverse.
+        # Your existing code for generating valid moves can be adapted,
+        # but it should now use the DAWG to validate prefixes and words more efficiently.
+        pass # TODO Implement with DAWG
+
+class UI:
+    def __init__(self, game):
+        self.game = game # Take game as argument.
+        self.hvh_rect = None
+        self.hva_rect = None
+        self.ava_rect = None
+
+    def draw_mode_selection_screen(self,screen):
+        """Draws the game mode selection screen with clickable buttons."""
+        screen.fill(WHITE) # Fill screen
+        title_text = dialog_font.render("Select Game Mode", True, BLACK)
+        title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, 100))
+        screen.blit(title_text, title_rect)
+
+        # Define button positions and sizes
+        button_y = 250
+        button_width = 200
+        button_height = 50
+        button_spacing = 50
+
+        # Create buttons
+        self.hvh_rect = pygame.Rect(WINDOW_WIDTH // 2 - button_width - button_spacing // 2, button_y, button_width, button_height)
+        self.hva_rect = pygame.Rect(WINDOW_WIDTH // 2 - button_width // 2, button_y, button_width, button_height)
+        self.ava_rect = pygame.Rect(WINDOW_WIDTH // 2 + button_width // 2 + button_spacing // 2, button_y, button_width, button_height)
+
+        # Draw buttons
+        pygame.draw.rect(screen, BUTTON_COLOR, self.hvh_rect)
+        pygame.draw.rect(screen, BUTTON_COLOR, self.hva_rect)
+        pygame.draw.rect(screen, BUTTON_COLOR, self.ava_rect)
+
+        # Add button labels
+        hvh_text = button_font.render("Human vs Human", True, BLACK)
+        hvh_text_rect = hvh_text.get_rect(center=self.hvh_rect.center)
+        screen.blit(hvh_text, hvh_text_rect)
+
+        hva_text = button_font.render("Human vs AI", True, BLACK)
+        hva_text_rect = hva_text.get_rect(center=self.hva_rect.center)
+        screen.blit(hva_text, hva_text_rect)
+
+        ava_text = button_font.render("AI vs AI", True, BLACK)
+        ava_text_rect = ava_text.get_rect(center=self.ava_rect.center)
+        screen.blit(ava_text, ava_text_rect)
+
+    def draw_game_over_dialog(self, dialog_x, dialog_y, final_scores, reason, player_names):
+        """Draw the game over dialog and return button rectangles."""
+        pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT))
+        pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT), 2)
+
+        title_text = dialog_font.render(f"Game Over - {reason}", True, BLACK)
+        p1_score_text = ui_font.render(f"{player_names[0]} Score: {final_scores[0]}", True, BLACK)
+        p2_score_text = ui_font.render(f"{player_names[1]} Score: {final_scores[1]}", True, BLACK)
+        quit_text = button_font.render("Quit (Q)", True, BLACK)
+        replay_text = button_font.render("Replay (R)", True, BLACK)
+        play_again_text = button_font.render("Play Again (P)", True, BLACK)
+
+        screen.blit(title_text, (dialog_x + 10, dialog_y + 20))
+        screen.blit(p1_score_text, (dialog_x + 10, dialog_y + 60))
+        screen.blit(p2_score_text, (dialog_x + 10, dialog_y + 90))
+
+        quit_rect = pygame.Rect(dialog_x + 10, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+        replay_rect = pygame.Rect(dialog_x + DIALOG_WIDTH // 2 - BUTTON_WIDTH // 2, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+        play_again_rect = pygame.Rect(dialog_x + DIALOG_WIDTH - BUTTON_WIDTH - 10, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+        pygame.draw.rect(screen, BUTTON_COLOR, quit_rect)
+        pygame.draw.rect(screen, BUTTON_COLOR, replay_rect)
+        pygame.draw.rect(screen, BUTTON_COLOR, play_again_rect)
+
+        screen.blit(quit_text, quit_text.get_rect(center=quit_rect.center))
+        screen.blit(replay_text, replay_text.get_rect(center=replay_rect.center))
+        screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center))
+
+        return quit_rect, replay_rect, play_again_rect
+
+# --- DAWG ---
+class DawgNode: # Same DAWG class structure
+    def __init__(self):
+        self.edges = {}
+        self.is_terminal = False
+
+class Dawg:
+    def __init__(self):
+        self.root = DawgNode()
+
+    def insert(self, word):
+        node = self.root
+        for char in word:
+            if char not in node.edges:
+                node.edges[char] = DawgNode()
+            node = node.edges[char]
+        node.is_terminal = True
+
+DAWG = Dawg()
+with open("All Words 2023.txt", "r") as f:
+    for word in (w.strip().upper() for w in f):
+        DAWG.insert(word)
+
+# --- Main Function ---
+def main():
+    """Main game loop."""
+    game = Game() # Instance of Game class to handle high level logic.
+    ui = UI(game) # Instance of UI class, given an instance of game as an argument.
+
+    # Game loop
+    while game.running:
+        # Mode Selection Phase
+        while game.game_state == GameState.MODE_SELECTION and game.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    game.running = False
+                else:
+                    game.handle_event(event, ui) # Pass the UI instance
+
+            screen.fill(WHITE)
+            ui.draw_mode_selection_screen(screen) # Draws mode selection screen
+            pygame.display.flip()
+
+        # Playing Phase
+        while game.game_state == GameState.PLAYING and game.running:
+            for event in pygame.event.get(): # Call game event handler
+                if event.type == pygame.QUIT:
+                    game.running = False
+                else:
+                    game.handle_event(event, ui)
+
+            # AI turn (if applicable)
+            if game.players[game.current_turn - 1].is_ai: # Call method on current player
+                game.generate_valid_moves() # TODO Implement logic in game class
+                time.sleep(AI_DELAY / 1000)  # Delay for AI turn (adjust as needed)
+
+            # Drawing and update
+            screen.fill(WHITE) # Drawing handled by Game class
+            game.draw(screen) # Draw function in Game class.
+            pygame.display.flip() # Update screen
+
+        # Game Over Phase
+        while game.game_state == GameState.GAME_OVER and game.running:
+            for event in pygame.event.get(): # Calls game event handler.
+                if event.type == pygame.QUIT:
+                    game.running = False
+                else:
+                    game.handle_event(event, ui) # Event handling in Game class
+
+            # Drawing the dialog (handled in the UI class for separation)
+            screen.fill(WHITE) # Drawing in Game class
+            #Call game draw
+            quit_rect, replay_rect, play_again_rect = ui.draw_game_over_dialog(
+                game.dialog_x, game.dialog_y, [p.score for p in game.players], game.reason, [p.name for p in game.players]
+            )
+            pygame.display.flip() # Update Screen
+
+    pygame.quit() # On Quit
+    sys.exit()
+
+if __name__ == "__main__":
+    main()
