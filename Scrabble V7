@@ -1,5 +1,5 @@
 
-# Stable: 25MAR25, 19:32
+# Stable: 26MAR25, 14:28
 
 
 # Part 1
@@ -72,7 +72,7 @@ ALL_WORDS_DIALOG_HEIGHT = 600
 SCROLL_SPEED = 20
 
 # Dialog dimensions for game over dialog
-DIALOG_WIDTH = 400
+DIALOG_WIDTH = 480
 DIALOG_HEIGHT = 250
 LETTERS = "ABCDEFGHIJKLMNO"  # For column labels
 
@@ -123,6 +123,121 @@ TILE_DISTRIBUTION = {
     'Y': (2, 4), 'Z': (1, 10), ' ': (2, 0)
 }
 bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
+
+
+# Part 1
+def save_game_to_gcg(player_names, move_history, initial_racks, final_scores):
+    """Save the game to GCG format using move_history directly."""
+    gcg_lines = [
+        "#",
+        f"#player1 {player_names[0]}",
+        f"#player2 {player_names[1]}"
+    ]
+    cumulative_scores = [0, 0]
+
+    for move in move_history:
+        player = move['player'] - 1  # 0-based index
+        rack = ''.join(sorted(tile if tile != ' ' else '?' for tile in move['rack']))
+
+        if move['move_type'] == 'place':
+            # Use the stored full word with blanks
+            word_with_blanks = move['word_with_blanks']
+            score = move['score']
+            cumulative_scores[player] += score
+            gcg_lines.append(
+                f">{player_names[player]}: {rack} {move['coord']} {word_with_blanks} +{score} {cumulative_scores[player]}"
+            )
+        elif move['move_type'] == 'exchange':
+            exchanged = ''.join(sorted(tile if tile != ' ' else '?' for tile in move['exchanged_tiles']))
+            gcg_lines.append(
+                f">{player_names[player]}: {rack} ({exchanged}) +0 {cumulative_scores[player]}"
+            )
+        elif move['move_type'] == 'pass':
+            gcg_lines.append(
+                f">{player_names[player]}: {rack} -- +0 {cumulative_scores[player]}"
+            )
+
+    gcg_lines.append(f"Final score: {player_names[0]} {final_scores[0]}, {player_names[1]} {final_scores[1]}")
+
+    return '\n'.join(gcg_lines)
+
+def load_game_from_gcg(filename):
+    """Load a game from a GCG file, returning data to enter replay mode."""
+    move_history = []
+    player_names = ["Player1", "Player2"]
+    final_scores = [0, 0]
+    
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("#player1"):
+                player_names[0] = line.split()[1]
+            elif line.startswith("#player2"):
+                player_names[1] = line.split()[1]
+            elif line.startswith("Final score:"):
+                parts = line.split()
+                final_scores[0] = int(parts[2].strip(','))
+                final_scores[1] = int(parts[4])
+            elif line.startswith(">"):
+                parts = line.split()
+                player_name = parts[0][1:-1]  # Remove > and :
+                player = 1 if player_name == player_names[0] else 2
+                rack = parts[1]
+                move_details = parts[2]
+                score = int(parts[3][1:])
+                cumulative_score = int(parts[4])
+                
+                if move_details == "--":
+                    move_history.append({
+                        'player': player,
+                        'move_type': 'pass',
+                        'score': score,
+                        'word': '',
+                        'coord': ''
+                    })
+                elif move_details.startswith("("):
+                    exchanged = move_details[1:-1]
+                    move_history.append({
+                        'player': player,
+                        'move_type': 'exchange',
+                        'exchanged_tiles': list(exchanged),
+                        'score': score,
+                        'word': '',
+                        'coord': ''
+                    })
+                else:
+                    position = parts[2]
+                    word = parts[3]
+                    if position[0].isalpha():  # Vertical: e.g., H8
+                        col = LETTERS.index(position[0])
+                        row = int(position[1:]) - 1
+                        direction = "down"
+                    else:  # Horizontal: e.g., 8H
+                        row = int(position[0]) - 1
+                        col = LETTERS.index(position[1])
+                        direction = "right"
+                    positions = []
+                    blanks = set()
+                    for i, letter in enumerate(word):
+                        r = row if direction == "right" else row + i
+                        c = col + i if direction == "right" else col
+                        positions.append((r, c, letter))
+                        if letter.islower():  # GCG uses lowercase for blanks
+                            blanks.add((r, c))
+                    move_history.append({
+                        'player': player,
+                        'move_type': 'place',
+                        'positions': positions,
+                        'blanks': blanks,
+                        'score': score,
+                        'word': word.upper(),
+                        'start': (row, col),
+                        'direction': direction,
+                        'coord': position
+                    })
+    
+    return player_names, move_history, final_scores
+
 
 # Trie for efficient word prefix matching
 class TrieNode:
@@ -222,6 +337,21 @@ def get_coord(start, direction):
         return f"{row + 1}{LETTERS[col]}"
     else:  # "down"
         return f"{LETTERS[col]}{row + 1}"
+
+def parse_coord(coord):
+    """Parse a GCG coordinate (e.g., '8H' or 'H8') into (row, col) and direction."""
+    if coord[0].isalpha():  # Vertical: e.g., H8 or H10
+        col = LETTERS.index(coord[0])
+        row = int(coord[1:]) - 1
+        direction = "down"
+    else:  # Horizontal: e.g., 8H or 10A
+        i = 0
+        while i < len(coord) and coord[i].isdigit():
+            i += 1
+        row = int(coord[:i]) - 1
+        col = LETTERS.index(coord[i])
+        direction = "right"
+    return (row, col), direction
 
 def create_board():
     """Initialize the Scrabble board with special squares and labels."""
@@ -746,7 +876,7 @@ def confirm_quit():
 
 
 
-def get_blank_input():
+'''def get_blank_input():
     """Prompt the user to input a letter for a blank tile."""
     input_active = True
     user_input = ""
@@ -779,7 +909,7 @@ def get_blank_input():
         
         pygame.display.flip()
 
-    return None
+    return None'''
 
 def draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names):
     """Draw the game over dialog and return button rectangles."""
@@ -789,6 +919,7 @@ def draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names
     title_text = dialog_font.render(f"Game Over - {reason}", True, BLACK)
     p1_score_text = ui_font.render(f"{player_names[0]} Score: {final_scores[0]}", True, BLACK)
     p2_score_text = ui_font.render(f"{player_names[1]} Score: {final_scores[1]}", True, BLACK)
+    save_text = button_font.render("Save (S)", True, BLACK)
     quit_text = button_font.render("Quit (Q)", True, BLACK)
     replay_text = button_font.render("Replay (R)", True, BLACK)
     play_again_text = button_font.render("Play Again (P)", True, BLACK)
@@ -797,19 +928,24 @@ def draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names
     screen.blit(p1_score_text, (dialog_x + 10, dialog_y + 60))
     screen.blit(p2_score_text, (dialog_x + 10, dialog_y + 90))
 
-    quit_rect = pygame.Rect(dialog_x + 10, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
-    replay_rect = pygame.Rect(dialog_x + DIALOG_WIDTH // 2 - BUTTON_WIDTH // 2, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
-    play_again_rect = pygame.Rect(dialog_x + DIALOG_WIDTH - BUTTON_WIDTH - 10, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    # Position buttons with even spacing: 25px margin, 10px gaps between buttons
+    save_rect = pygame.Rect(dialog_x + 25, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    quit_rect = pygame.Rect(dialog_x + 25 + BUTTON_WIDTH + BUTTON_GAP, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    replay_rect = pygame.Rect(dialog_x + 25 + 2 * (BUTTON_WIDTH + BUTTON_GAP), dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    play_again_rect = pygame.Rect(dialog_x + 25 + 3 * (BUTTON_WIDTH + BUTTON_GAP), dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
 
+    pygame.draw.rect(screen, BUTTON_COLOR, save_rect)
     pygame.draw.rect(screen, BUTTON_COLOR, quit_rect)
     pygame.draw.rect(screen, BUTTON_COLOR, replay_rect)
     pygame.draw.rect(screen, BUTTON_COLOR, play_again_rect)
 
+    screen.blit(save_text, save_text.get_rect(center=save_rect.center))
     screen.blit(quit_text, quit_text.get_rect(center=quit_rect.center))
     screen.blit(replay_text, replay_text.get_rect(center=replay_rect.center))
     screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center))
 
-    return quit_rect, replay_rect, play_again_rect
+    return save_rect, quit_rect, replay_rect, play_again_rect
+
 
 # End of Part 3
 
@@ -1174,7 +1310,11 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
                         'start': word_positions[0][:2] if word_positions else (r, c),
                         'direction': direction,
                         'leave': leave,
-                        'is_bingo': is_bingo
+                        'is_bingo': is_bingo,
+                        'word_with_blanks': ''.join(
+                        letter.lower() if ub else letter.upper()
+                        for _, _, letter, ub in word_positions
+                        )
                     })
         if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
             return
@@ -1437,6 +1577,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         #print(f"AI {turn} rack and bag are empty, returning early")
         return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words
 
+    move_rack = racks[turn-1][:]
     moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
 
     if moves:
@@ -1452,12 +1593,14 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         move_history.append({
             'move_type': 'place',
             'player': 3-turn,
+            'rack': move_rack[:],
             'positions': best_move['positions'],
             'blanks': best_move['blanks'],
             'score': best_move['score'],
             'word': best_move['word'],
             'drawn': drawn_tiles,
-            'coord': coord
+            'coord': coord,
+            'word_with_blanks': best_move['word_with_blanks']
         })
         current_replay_turn = len(move_history)
         
@@ -1477,6 +1620,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             move_history.append({
                 'player': turn,
                 'move_type': 'exchange',
+                'rack': move_rack[:],
                 'exchanged_tiles': exchange_tiles,
                 'drawn': drawn_tiles,
                 'score': 0,
@@ -1492,6 +1636,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             move_history.append({
                 'player': turn,
                 'move_type': 'pass',
+                'rack': move_rack[:],
                 'positions': [],
                 'blanks': set(),
                 'score': 0,
@@ -1634,6 +1779,14 @@ def main():
                         if dialog_x <= x < dialog_x + DIALOG_WIDTH and dialog_y <= y < dialog_y + 20:
                             dragging = True
                             drag_offset = (x - dialog_x, y - dialog_y)
+                        elif save_rect.collidepoint(x, y):  # Added
+                            gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                            with open("last_game.gcg", "w") as f:
+                                f.write(gcg_content)
+                            print("Game saved to last_game.gcg")
+                            print("--- Saved GCG content ---")
+                            print(gcg_content)
+                            print("--- End of GCG content ---")
                         elif quit_rect.collidepoint(x, y):
                             running = False  # Exit the game loop
                         elif replay_rect.collidepoint(x, y):
@@ -1654,6 +1807,14 @@ def main():
                     elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                         dragging = False
                     elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_s:  # Added
+                            gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                            with open("last_game.gcg", "w") as f:
+                                f.write(gcg_content)
+                            print("Game saved to last_game.gcg")
+                            print("--- Saved GCG content ---")
+                            print(gcg_content)
+                            print("--- End of GCG content ---")
                         if event.key == pygame.K_q:
                             running = False  # Exit the game loop
                         elif event.key == pygame.K_r:
@@ -1696,10 +1857,12 @@ def main():
                                                 turn = 3 - turn
                                                 human_played = True
                                                 dropdown_open = False
+                                                move_rack = racks[turn-1][:]
                                                 # Add to move_history
                                                 move_history.append({
                                                     'player': 3 - turn,
                                                     'move_type': 'pass',
+                                                    'rack': move_rack[:],
                                                     'positions': [],
                                                     'blanks': set(),
                                                     'score': 0,
@@ -1743,6 +1906,7 @@ def main():
                                             selected_tiles.add(i)
                                         break
                                 if exchange_button_rect.collidepoint(x, y) and selected_tiles and len(bag) >= len(selected_tiles):
+                                    move_rack = racks[turn-1][:]
                                     tiles_to_exchange = [racks[turn-1][i] for i in sorted(selected_tiles)]
                                     drawn_tiles = [bag.pop() for _ in range(len(tiles_to_exchange))]
                                     racks[turn-1] = [racks[turn-1][i] for i in range(len(racks[turn-1])) if i not in selected_tiles] + drawn_tiles
@@ -1760,6 +1924,7 @@ def main():
                                     move_history.append({
                                         'player': 3 - turn,
                                         'move_type': 'exchange',
+                                        'rack': move_rack[:],
                                         'exchanged_tiles': tiles_to_exchange,
                                         'drawn': drawn_tiles,
                                         'score': 0,
@@ -1776,6 +1941,7 @@ def main():
                                         selected_hint_index = i
                                         break
                                 if play_button_rect.collidepoint(x, y) and selected_hint_index is not None:
+                                    move_rack = racks[turn-1][:]
                                     turn, drawn_tiles = play_hint_move(hint_moves[selected_hint_index], tiles, racks, blanks, scores, turn, bag, board)
                                     consecutive_zero_point_turns = 0
                                     human_played = True
@@ -1786,6 +1952,7 @@ def main():
                                     move_history.append({
                                         'player': 3 - turn,
                                         'move_type': 'place',
+                                        'rack': move_rack[:],
                                         'positions': hint_moves[selected_hint_index]['positions'][:],
                                         'blanks': hint_moves[selected_hint_index]['blanks'].copy(),
                                         'score': hint_moves[selected_hint_index]['score'],
@@ -1808,6 +1975,7 @@ def main():
                                         break
                                 if all_words_play_rect.collidepoint(x, y) and selected_hint_index is not None:
                                     selected_move = all_moves[selected_hint_index]
+                                    move_rack = racks[turn-1][:]
                                     turn, drawn_tiles = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                     human_played = True
                                     showing_all_words = False
@@ -1817,6 +1985,7 @@ def main():
                                     move_history.append({
                                         'player': 3 - turn,
                                         'move_type': 'place',
+                                        'rack': move_rack[:],
                                         'positions': selected_move['positions'][:],
                                         'blanks': selected_move['blanks'].copy(),
                                         'score': selected_move['score'],
@@ -1916,10 +2085,16 @@ def main():
                                 end_r = max(r for r, _, _ in word_positions)
                                 full_word = ''.join(tiles[r][start_c] for r in range(start_r, end_r + 1))
                             initial_rack_size = len(original_rack)  # Use original_rack instead of recalculating
-                            valid, is_bingo = is_valid_play(word_positions, tiles, first_play, initial_rack_size, original_tiles, racks[turn-1])
+                            valid, is_bingo = is_valid_play(word_positions, tiles, first_play, len(original_rack), original_tiles, racks[turn-1])
                             if valid:
+                                main_word, _ = find_main_word(word_positions, tiles)
+                                full_word = ''.join(letter for _, _, letter in main_word)
+                                word_with_blanks = ''.join(
+                                    letter.lower() if (r, c) in blanks else letter.upper()
+                                    for r, c, letter in main_word
+                                )
                                 consecutive_zero_point_turns = 0
-                                score = calculate_score(word_positions, board, tiles, blanks,)
+                                score = calculate_score(word_positions, board, tiles, blanks)
                                 scores[turn-1] += score
                                 print(f"Player {turn} played: {full_word} at {typing_start} direction {typing_direction} for {score} points")
                                 first_play = False
@@ -1927,22 +2102,23 @@ def main():
                                 exchange_count = 0
                                 drawn_tiles = [bag.pop() for _ in range(7 - len(racks[turn-1])) if bag]
                                 racks[turn-1].extend(drawn_tiles)
-                                coord = get_coord(typing_start, typing_direction)  # Compute coord here
+                                coord = get_coord(typing_start, typing_direction)
                                 turn = 3 - turn
                                 human_played = True
                                 typing = False
                                 typing_start = None
                                 typing_direction = None
-                                # Add to move_history with coord
                                 move_history.append({
                                     'player': 3 - turn,
                                     'move_type': 'place',
+                                    'rack': original_rack[:],
                                     'positions': word_positions[:],
                                     'blanks': blanks.copy() & set((r, c) for r, c, _ in word_positions),
                                     'score': score,
                                     'word': full_word,
                                     'drawn': drawn_tiles,
-                                    'coord': coord  # Include coord
+                                    'coord': coord,
+                                    'word_with_blanks': word_with_blanks
                                 })
                                 current_replay_turn = len(move_history)
 
@@ -2143,7 +2319,7 @@ def main():
                 draw_arrow(selected_square[0], selected_square[1], selected_square[2])
 
             if game_over_state:
-                quit_rect, replay_rect, play_again_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
+                save_rect, quit_rect, replay_rect, play_again_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
 
             pygame.display.flip()
 
