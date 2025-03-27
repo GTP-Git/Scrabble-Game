@@ -512,7 +512,7 @@ def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_sc
         elif move['move_type'] == 'exchange':
             text = f"{i+1}: {player} - Exchange (+0) Total: {display_score}"
         text_surface = ui_font.render(text, True, BLACK)
-        if y_pos >= 0 and y_pos + 20 <= scoreboard_height:  # Only render visible entries
+        if y_pos < scoreboard_height and y_pos + 20 > 0:  # Render if any part is visible
             if (i // 2) % 2 == 0:  # Highlight moves 1-2, 5-6, etc.
                 rect_width = 10 + text_surface.get_width() + 10
                 highlight_rect = pygame.Rect(0, y_pos, rect_width, 20)
@@ -525,7 +525,7 @@ def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_sc
         y_pos += 20  # Add spacing after last move
         final_text = f"Final Scores: P1: {final_scores[0]}, P2: {final_scores[1]}"
         final_surface = ui_font.render(final_text, True, BLACK)
-        if y_pos >= 0 and y_pos + 20 <= scoreboard_height:
+        if y_pos < scoreboard_height and y_pos + 20 > 0:
             scoreboard_surface.blit(final_surface, (10, y_pos))
 
     screen.blit(scoreboard_surface, (scoreboard_x, scoreboard_y))
@@ -941,6 +941,23 @@ def draw_score_row(screen, dialog_x, y_pos, final_scores):
     screen.blit(p1_score_text, (dialog_x + 120, y_pos))
     screen.blit(p2_score_text, (dialog_x + 230, y_pos))
 
+def calculate_moves_per_player(move_history):
+    """Calculate the number of moves made by each player from move_history."""
+    moves_count = {1: 0, 2: 0}
+    for move in move_history:
+        player = move['player']
+        moves_count[player] += 1
+    return moves_count[1], moves_count[2]
+
+def draw_moves_row(screen, dialog_x, y_pos, moves_p1, moves_p2):
+    """Draw the moves row for the statistics dialog."""
+    moves_label = ui_font.render("Moves:", True, BLACK)
+    p1_moves_text = ui_font.render(str(moves_p1), True, BLACK)
+    p2_moves_text = ui_font.render(str(moves_p2), True, BLACK)
+    screen.blit(moves_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_moves_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_moves_text, (dialog_x + 230, y_pos))
+
 def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores):
     """Draw the statistics dialog with player scores and an OK button."""
     stats_dialog_width, stats_dialog_height = 400, 300
@@ -958,6 +975,10 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores):
 
     # Draw score row
     draw_score_row(screen, dialog_x, dialog_y + 70, final_scores)
+
+    # Calculate and draw moves row
+    moves_p1, moves_p2 = calculate_moves_per_player(move_history)
+    draw_moves_row(screen, dialog_x, dialog_y + 100, moves_p1, moves_p2)
 
     # OK button
     ok_button_rect = pygame.Rect(dialog_x + stats_dialog_width - BUTTON_WIDTH - 10, 
@@ -1841,6 +1862,7 @@ def main():
         final_scores = None
         reason = ""
         action = None
+        scoreboard_height = WINDOW_HEIGHT - 80  # Matches draw_scoreboard definition
 
         while running:
             if turn != previous_turn and not replay_mode and not game_over_state:
@@ -2130,6 +2152,14 @@ def main():
                             player_rack.insert(insert_idx, tile)
                     dragged_tile = None
                     drag_pos = None
+                elif event.type == pygame.MOUSEWHEEL:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    scoreboard_x = BOARD_SIZE + 250 # these three lines simply duplicate this values to provide a local refrence
+                    scoreboard_y = 40
+                    scoreboard_width = max(200, WINDOW_WIDTH - BOARD_SIZE - 20)
+                    if scoreboard_x <= mouse_x <= scoreboard_x + scoreboard_width and scoreboard_y <= mouse_y <= scoreboard_y + WINDOW_HEIGHT - 80:  # Check if mouse is over scoreboard
+                        scroll_offset += event.y * 20  # Adjust scroll offset
+                        scroll_offset = max(0, min(scroll_offset, (len(move_history) * 20) - (WINDOW_HEIGHT - 140))) # set scroll limits
                 elif event.type == pygame.KEYDOWN and not is_ai[turn-1] and not replay_mode:
                     if selected_square and not typing and event.unicode.isalpha():
                         typing = True
@@ -2270,11 +2300,16 @@ def main():
                                         current_r += 1
                                         while current_r < GRID_SIZE and tiles[current_r][current_c]:
                                             current_r += 1
-                elif event.type == pygame.MOUSEWHEEL and not (exchanging or hinting or showing_all_words):
-                    mouse_x, mouse_y = pygame.mouse.get_pos()
-                    if BOARD_SIZE + 10 <= mouse_x <= WINDOW_WIDTH - 10 and 40 <= mouse_y <= WINDOW_HEIGHT - 40:
-                        scroll_offset -= event.y * 20  # Scroll up/down by 20 pixels per wheel notch
-                        scroll_offset = max(0, scroll_offset)  # Prevent scrolling above top
+                        elif event.type == pygame.MOUSEWHEEL and not (exchanging or hinting or showing_all_words):
+                            mouse_x, mouse_y = pygame.mouse.get_pos()
+                            if BOARD_SIZE + 10 <= mouse_x <= WINDOW_WIDTH - 10 and 40 <= mouse_y <= WINDOW_HEIGHT - 40:
+                                scroll_offset -= event.y * 20  # Scroll up/down by 20 pixels per wheel notch
+                                # Calculate total content height
+                                total_content_height = len(move_history) * 20  # Each move is 20 pixels
+                            if game_over_state and final_scores is not None:
+                                total_content_height += 40  # Add 20px spacing + 20px for final scores
+                            max_scroll = max(0, total_content_height - scoreboard_height)
+                            scroll_offset = max(0, min(scroll_offset, max_scroll))  # Clamp between 0 and max_scroll
                                             
             #print(f"Turn: {turn}, is_ai[turn-1]: {is_ai[turn-1]}, replay_mode: {replay_mode}, game_over_state: {game_over_state}")
             if is_ai[turn-1] and not replay_mode and not game_over_state:
