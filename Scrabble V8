@@ -496,7 +496,7 @@ def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_sc
     scoreboard_surface = pygame.Surface((scoreboard_width, scoreboard_height))
     scoreboard_surface.fill(WHITE)
 
-    # Running totals for display
+    # Running totals for display during game
     running_scores = [0, 0]  # [P1, P2]
     y_pos = 10 - scroll_offset
 
@@ -504,11 +504,7 @@ def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_sc
         player_idx = move['player'] - 1
         running_scores[player_idx] += move['score']
         player = "AI" if is_ai[player_idx] else f"P{move['player']}"
-        # Determine the displayed score
         display_score = running_scores[player_idx]
-        if game_over_state and i == len(move_history) - 1:
-            # If this is the last move and the game is over, use final_scores
-            display_score = final_scores[player_idx]
         if move['move_type'] == 'place':
             text = f"{i+1}: {player} - {move['word']} at {move['coord']} (+{move['score']}) Total: {display_score}"
         elif move['move_type'] == 'pass':
@@ -523,6 +519,14 @@ def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_sc
                 pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE, highlight_rect)
             scoreboard_surface.blit(text_surface, (10, y_pos))
         y_pos += 20
+
+    # Display final scores when game is over, matching draw_stats_dialog
+    if game_over_state and final_scores is not None:
+        y_pos += 20  # Add spacing after last move
+        final_text = f"Final Scores: P1: {final_scores[0]}, P2: {final_scores[1]}"
+        final_surface = ui_font.render(final_text, True, BLACK)
+        if y_pos >= 0 and y_pos + 20 <= scoreboard_height:
+            scoreboard_surface.blit(final_surface, (10, y_pos))
 
     screen.blit(scoreboard_surface, (scoreboard_x, scoreboard_y))
 
@@ -2314,7 +2318,7 @@ def main():
                 dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2
                 #print("Game is in game over state, waiting for user action")
 
-            # 4. Draw the screen
+                        # 4. Draw the screen
             screen.fill(WHITE)
 
             # Determine display state
@@ -2398,9 +2402,9 @@ def main():
                     draw_replay_icon(screen, rect, icon_type)
 
             if replay_mode:
-                draw_scoreboard(screen, move_history[:current_replay_turn], scroll_offset, scores_to_display,is_ai)
+                draw_scoreboard(screen, move_history[:current_replay_turn], scroll_offset, scores_to_display, is_ai, final_scores=final_scores, game_over_state=game_over_state and current_replay_turn == len(move_history))
             else:
-                draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai)
+                draw_scoreboard(screen, move_history, scroll_offset, scores_to_display, is_ai, final_scores=final_scores, game_over_state=game_over_state)
 
             if selected_square and not typing:
                 draw_arrow(selected_square[0], selected_square[1], selected_square[2])
