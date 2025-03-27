@@ -318,7 +318,7 @@ with open("All Words 2023.txt", "r") as f:
 MODE_HVH = "Human vs Human"
 MODE_HVA = "Human vs AI"
 MODE_AVA = "AI vs AI"
-AI_DELAY = 200  # 1-second delay for AI moves
+#AI_DELAY = 200  # 1-second delay for AI moves
 
 # Replay button positions
 REPLAY_BUTTON_Y = OPTIONS_Y + OPTIONS_HEIGHT + 10  # 660 + 30 + 10 = 700, below Options and Suggest
@@ -515,8 +515,7 @@ def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai):
             if (i // 2) % 2 == 0:  # Highlight moves 1-2, 5-6, etc.
                 rect_width = 10 + text_surface.get_width() + 10
                 highlight_rect = pygame.Rect(0, y_pos, rect_width, 20)
-                pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE
-, highlight_rect)
+                pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE, highlight_rect)
             scoreboard_surface.blit(text_surface, (10, y_pos))
         y_pos += 20
 
@@ -1179,6 +1178,8 @@ def get_anchor_points(tiles, is_first_play):
 
 # Part 5
 
+# Part 5
+
 def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
     """Generate all valid moves using a backtracking algorithm with a DAWG."""
     moves = []
@@ -1302,19 +1303,24 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
                 if move_id not in unique_moves:
                     unique_moves.add(move_id)
                     leave = list(rack_remaining.elements())
+                    # MODIFIED: Capture the full word from the board
+                    main_word, orientation = find_main_word(word_positions_three, temp_tiles)
+                    word = ''.join(letter for _, _, letter in main_word) if main_word else partial_word
+                    word_with_blanks = ''.join(
+                        letter.lower() if ub else letter.upper()
+                        for _, _, letter, ub in word_positions
+                    )
+
                     moves.append({
                         'positions': word_positions_three,
                         'blanks': {(r, c) for r, c, _, ub in word_positions if ub},
-                        'word': partial_word,
+                        'word': word, #MODIFIED FULL WORD
                         'score': score,
                         'start': word_positions[0][:2] if word_positions else (r, c),
                         'direction': direction,
                         'leave': leave,
                         'is_bingo': is_bingo,
-                        'word_with_blanks': ''.join(
-                        letter.lower() if ub else letter.upper()
-                        for _, _, letter, ub in word_positions
-                        )
+                        'word_with_blanks': word_with_blanks
                     })
         if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
             return
@@ -1567,14 +1573,17 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
     drawn_tiles = [bag.pop() for _ in range(7 - len(racks[turn-1])) if bag]
     racks[turn-1].extend(drawn_tiles)
     racks[turn-1].sort()
-    return 3 - turn, drawn_tiles
+    return 3 - turn, drawn_tiles, newly_placed  # Added newly_placed
+
+# Part 6
+
+# Part 6
 
 def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False):
     print("AI turn started")
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn
 
     if len(racks[turn-1]) == 0 and len(bag) == 0:
-        #print(f"AI {turn} rack and bag are empty, returning early")
         return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words
 
     move_rack = racks[turn-1][:]
@@ -1583,27 +1592,76 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     if moves:
         print(f"AI found {len(moves)} moves, playing best move")
         best_move = moves[0]
-        row, col = best_move['start']
-        coord = get_coord(best_move['start'], best_move['direction'])
-        print(f"AI {turn} chose to play: {best_move['word']} at {coord} for {best_move['score']} points")
-        turn, drawn_tiles = play_hint_move(best_move, tiles, racks, blanks, scores, turn, bag, board)
-        first_play = False  # Added line: Set first_play to False after AI plays a word
+
+        # Capture necessary info from best_move
+        positions = [(r, c, letter) for r, c, letter in best_move['positions']]  # Create a DEEP COPY!
+        blanks_used = best_move['blanks'].copy()  # Create a COPY!
+        score = best_move['score']  # Capture score
+
+        # Play the move and get newly placed tiles
+        turn, drawn_tiles, newly_placed = play_hint_move(best_move, tiles, racks, blanks, scores, turn, bag, board)
+        
+
+        # Recompute orientation to ensure correctness
+        rows = set(r for r, _, _ in newly_placed)
+        cols = set(c for r, c, _ in newly_placed)
+        if len(rows) == 1:
+            orientation = "horizontal"
+        elif len(cols) == 1:
+            orientation = "vertical"
+        else:
+            orientation = "vertical"  # Default to vertical if ambiguous
+
+        direction = "right" if orientation == "horizontal" else "down"
+
+        # Use the earliest position for start to match GCG notation
+        start_row = min(r for r, _, _ in newly_placed)
+        start_col = min(c for r, c, _ in newly_placed if r == start_row) if orientation == "horizontal" else min(c for _, c, _ in newly_placed)
+        start = (start_row, start_col)
+        coord = get_coord(start, direction)
+        # Construct the full word here using tiles on the board
+        start_row, start_col = start
+        if direction == "right":
+            c = start_col
+            word = ""
+            while c < GRID_SIZE and tiles[start_row][c]:
+                word += tiles[start_row][c]
+                c += 1
+        else:
+            r = start_row
+            word = ""
+            while r < GRID_SIZE and tiles[r][start_col]:
+                word += tiles[r][start_col]
+                r += 1
+        
+        word_with_blanks = ''.join(
+            letter.lower() if (r, c) in blanks else letter.upper()
+            for r, c, letter in best_move['positions'] # Use best_move here
+
+        ) if positions else best_move['word_with_blanks']
+        
+
+        print(f"AI {turn} chose to play: {word} at {coord} for {score} points")
+
+        first_play = False
         consecutive_zero_point_turns = 0
-        #print(f"AI {3 - turn} found {len(moves)} valid moves, played: {best_move['word']} at {coord} for {best_move['score']} points, consecutive_zero_point_turns reset to 0")
+
         move_history.append({
             'move_type': 'place',
-            'player': 3-turn,
+            'player': 3 - turn,
             'rack': move_rack[:],
-            'positions': best_move['positions'],
-            'blanks': best_move['blanks'],
-            'score': best_move['score'],
-            'word': best_move['word'],
+            'start': start,
+            'direction': direction,
+            'positions': positions,
+            'blanks': blanks_used,
+            'score': score,
+            'word': word,
             'drawn': drawn_tiles,
             'coord': coord,
-            'word_with_blanks': best_move['word_with_blanks']
+            'word_with_blanks': word_with_blanks
         })
         current_replay_turn = len(move_history)
-        
+
     else:
         print(f"AI {turn} found no valid moves, rack: {racks[turn-1]}, bag size: {len(bag)}")
         if len(bag) >= 7:
@@ -1616,7 +1674,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             consecutive_zero_point_turns += 1
             exchange_count += 1
             pass_count = 0
-            #print(f"AI {turn} exchanged {len(exchange_tiles)} tiles, consecutive_zero_point_turns = {consecutive_zero_point_turns}")
             move_history.append({
                 'player': turn,
                 'move_type': 'exchange',
@@ -2192,7 +2249,7 @@ def main():
                     turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names,
                     dropdown_open, hinting, showing_all_words
                 )
-                pygame.time.wait(AI_DELAY)
+                #pygame.time.wait(AI_DELAY)
                 human_played = False
 
             # Check if moves are possible for either player
@@ -2331,4 +2388,3 @@ if __name__ == "__main__":
     main()
 
 # End of Part 7
-
