@@ -957,7 +957,33 @@ def draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names
     screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center))
     screen.blit(stats_text, stats_text.get_rect(center=stats_rect.center))
 
-    return save_rect, quit_rect, replay_rect, play_again_rect, stats_rect  # Updated return
+    return save_rect, quit_rect, replay_rect, play_again_rect, stats_rect
+
+def draw_stats_dialog(dialog_x, dialog_y):
+    """Draw the statistics dialog with an OK button."""
+    stats_dialog_width, stats_dialog_height = 400, 300  # Sized for two columns and future scrolling
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height), 2)
+
+    title_text = dialog_font.render("Game Statistics", True, BLACK)
+    screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+
+    # Placeholder text
+    placeholder_text = ui_font.render("Statistics will be displayed here.", True, BLACK)
+    screen.blit(placeholder_text, (dialog_x + 10, dialog_y + 50))
+
+    # OK button
+    ok_button_rect = pygame.Rect(dialog_x + stats_dialog_width - BUTTON_WIDTH - 10, 
+                                 dialog_y + stats_dialog_height - BUTTON_HEIGHT - 10, 
+                                 BUTTON_WIDTH, BUTTON_HEIGHT)
+    hover = ok_button_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, ok_button_rect)
+    ok_text = button_font.render("OK", True, BLACK)
+    ok_text_rect = ok_text.get_rect(center=ok_button_rect.center)
+    screen.blit(ok_text, ok_text_rect)
+
+    return ok_button_rect
 
 
 # End of Part 3
@@ -1820,6 +1846,7 @@ def main():
 
         # Game over and dialog state variables
         game_over_state = False
+        showing_stats = False  # Added to track stats window state
         dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2
         dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2
         dragging = False
@@ -1850,24 +1877,30 @@ def main():
                         if dialog_x <= x < dialog_x + DIALOG_WIDTH and dialog_y <= y < dialog_y + 20:
                             dragging = True
                             drag_offset = (x - dialog_x, y - dialog_y)
-                        elif save_rect.collidepoint(x, y):  # Added
-                            gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
-                            with open("last_game.gcg", "w") as f:
-                                f.write(gcg_content)
-                            print("Game saved to last_game.gcg")
-                            print("--- Saved GCG content ---")
-                            print(gcg_content)
-                            print("--- End of GCG content ---")
-                        elif quit_rect.collidepoint(x, y):
-                            running = False  # Exit the game loop
-                        elif replay_rect.collidepoint(x, y):
-                            # Reset for replay
-                            game_over_state = False
-                            replay_mode = True
-                            current_replay_turn = 0
-                        elif play_again_rect.collidepoint(x, y):
-                            running = False  # Exit inner loop to restart
-                            main()  # Restart the game
+                        elif showing_stats:
+                            if ok_button_rect.collidepoint(x, y):
+                                showing_stats = False  # Close the stats window
+                        else:
+                            if save_rect.collidepoint(x, y):  # Added
+                                gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                                with open("last_game.gcg", "w") as f:
+                                    f.write(gcg_content)
+                                print("Game saved to last_game.gcg")
+                                print("--- Saved GCG content ---")
+                                print(gcg_content)
+                                print("--- End of GCG content ---")
+                            elif quit_rect.collidepoint(x, y):
+                                running = False  # Exit the game loop
+                            elif replay_rect.collidepoint(x, y):
+                                # Reset for replay
+                                game_over_state = False
+                                replay_mode = True
+                                current_replay_turn = 0
+                            elif play_again_rect.collidepoint(x, y):
+                                running = False  # Exit inner loop to restart
+                                main()  # Restart the game
+                            elif stats_rect.collidepoint(x, y):
+                                showing_stats = True  # Open the stats window
                     elif event.type == pygame.MOUSEMOTION and dragging:
                         x, y = event.pos
                         dialog_x = x - drag_offset[0]
@@ -2391,6 +2424,8 @@ def main():
 
             if game_over_state:
                 save_rect, quit_rect, replay_rect, play_again_rect, stats_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
+                if showing_stats:
+                    ok_button_rect = draw_stats_dialog(dialog_x + 20, dialog_y + 20)  # Slightly offset from game over dialog
 
             pygame.display.flip()
 
