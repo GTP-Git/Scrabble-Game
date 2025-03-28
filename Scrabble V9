@@ -1786,8 +1786,22 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     print("AI turn started")
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn
 
+    # Add a flag to indicate if we should pause due to a power tile
+    paused_for_power_tile = False
+
+    # Check for power tiles if in practice mode
+    if practice_mode == "power_tiles":
+        power_tiles_on_rack = [tile for tile in racks[turn-1] if tile in POWER_TILES]
+        if power_tiles_on_rack:
+            power_tile = power_tiles_on_rack[0]
+            message = f"{power_tile} is on {player_names[turn-1]}'s rack.\nFind the highest scoring play with {power_tile}!"
+            show_power_tile_dialog(message)
+            paused_for_power_tile = True
+            # Return early to pause the game, keeping the current turn
+            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile
+
     if len(racks[turn-1]) == 0 and len(bag) == 0:
-        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words
+        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile
 
     move_rack = racks[turn-1][:]
     moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
@@ -1804,7 +1818,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         # Play the move and get newly placed tiles
         turn, drawn_tiles, newly_placed = play_hint_move(best_move, tiles, racks, blanks, scores, turn, bag, board)
         
-
         # Recompute orientation to ensure correctness
         rows = set(r for r, _, _ in newly_placed)
         cols = set(c for r, c, _ in newly_placed)
@@ -1906,7 +1919,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             current_replay_turn = len(move_history)
             turn = 3 - turn
 
-    return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], False, False, False
+    return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile
 
 def power_tile_practice():
     """Start AI vs AI mode until a power tile is drawn, then show a dialog."""
@@ -1965,10 +1978,12 @@ def main():
     practice_mode = None  # Added as global
     while True:
         game_mode, player_names, human_player, practice_mode = mode_selection_screen()  # Updated
-        # is_ai already set by power_tile_practice if applicable
-        if game_mode == MODE_HVA and not practice_mode:  # Updated condition
+        # Set is_ai based on game mode and practice mode
+        if practice_mode == "power_tiles":
+            is_ai = [True, True]  # Enforce AVA mode for power tiles practice
+        elif game_mode == MODE_HVA:
             is_ai[2 - human_player] = True
-        elif game_mode == MODE_AVA and not practice_mode:  # Updated condition
+        elif game_mode == MODE_AVA:
             is_ai = [True, True]
 
         board, labels, tiles = create_board()
@@ -2029,6 +2044,7 @@ def main():
         reason = ""
         action = None
         scoreboard_height = WINDOW_HEIGHT - 80  # Matches draw_scoreboard definition
+        paused_for_power_tile = False  # Add flag to track pause state
 
         while running:
             if turn != previous_turn and not replay_mode and not game_over_state:
@@ -2481,14 +2497,8 @@ def main():
                             scroll_offset = max(0, min(scroll_offset, max_scroll))  # Clamp between 0 and max_scroll
                                             
             #print(f"Turn: {turn}, is_ai[turn-1]: {is_ai[turn-1]}, replay_mode: {replay_mode}, game_over_state: {game_over_state}")
-            if is_ai[turn-1] and not replay_mode and not game_over_state:
-                if practice_mode == "power_tiles":
-                    power_tiles_on_rack = [tile for tile in racks[turn-1] if tile in POWER_TILES]
-                    if power_tiles_on_rack:
-                        power_tile = power_tiles_on_rack[0]
-                        message = f"{power_tile} is on {player_names[turn-1]}'s rack.\nFind the highest scoring play with {power_tile}!"
-                        show_power_tile_dialog(message)
-                turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words = ai_turn(
+            if is_ai[turn-1] and not replay_mode and not game_over_state and not paused_for_power_tile:
+                turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile = ai_turn(
                     turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names,
                     dropdown_open, hinting, showing_all_words
                 )
