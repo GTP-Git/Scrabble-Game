@@ -1,5 +1,5 @@
 
-# Stable: 26MAR25, 14:28
+# Stable: 28MAR25, 06:21
 
 
 # Part 1
@@ -480,7 +480,7 @@ def draw_replay_icon(screen, rect, icon_type):
 
 
 def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_scores=None, game_over_state=False):
-    scoreboard_x = BOARD_SIZE + 375  # Right of the board
+    scoreboard_x = BOARD_SIZE + 275  # Right of the board
     scoreboard_y = 40  # Align with board top
     scoreboard_width = max(200, WINDOW_WIDTH - BOARD_SIZE - 20)  # Ensure minimum width of 200
     scoreboard_height = WINDOW_HEIGHT - 80  # Full height minus margins
@@ -2464,6 +2464,10 @@ def main():
             rack_start_x = (BOARD_SIZE - (7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP)) // 2 + OPTIONS_WIDTH + BUTTON_GAP
             p1_alpha_rect, p1_rand_rect = draw_rack(1, racks_to_display[0], scores, turn_to_display, player_names, None, None, display_scores=scores_to_display)
             p2_alpha_rect, p2_rand_rect = draw_rack(2, racks_to_display[1], scores, turn_to_display, player_names, None, None, display_scores=scores_to_display)
+
+            # Add these lines to compute and draw remaining tiles
+            remaining = get_remaining_tiles(racks_to_display[turn_to_display-1], tiles_to_display, blanks_to_display)
+            draw_remaining_tiles(remaining, turn_to_display)
 
             options_rect, dropdown_rects = draw_options_menu(turn, dropdown_open, len(bag))
             suggest_rect = draw_suggest_button()
