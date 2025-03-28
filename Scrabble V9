@@ -1,5 +1,5 @@
 
-# Stable: 28MAR25, 11:50
+# Stable: 28MAR25, 15:43
 
 
 # Part 1
@@ -1789,6 +1789,9 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     # Add a flag to indicate if we should pause due to a power tile
     paused_for_power_tile = False
 
+    # Generate moves before checking for power tiles
+    moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
+
     # Check for power tiles if in practice mode
     if practice_mode == "power_tiles":
         power_tiles_on_rack = [tile for tile in racks[turn-1] if tile in POWER_TILES]
@@ -1798,7 +1801,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             show_power_tile_dialog(message)
             paused_for_power_tile = True
             # Return early to pause the game, keeping the current turn
-            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile
+            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile
 
     if len(racks[turn-1]) == 0 and len(bag) == 0:
         return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile
@@ -2152,8 +2155,8 @@ def main():
                                                 turn = 3 - turn
                                                 human_played = True
                                                 dropdown_open = False
+                                                paused_for_power_tile = False
                                                 move_rack = racks[turn-1][:]
-                                                # Add to move_history
                                                 move_history.append({
                                                     'player': 3 - turn,
                                                     'move_type': 'pass',
@@ -2172,21 +2175,21 @@ def main():
                                                     running = False
                                             dropdown_open = False
                                             break
-                                elif suggest_rect.collidepoint(x, y) and not is_ai[turn-1]:
+                                elif suggest_rect.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
                                     if not all_moves:
                                         all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
                                     hint_moves = all_moves[:5]
                                     hinting = True
                                     selected_hint_index = 0 if hint_moves else None
-                                elif p1_alpha_rect.collidepoint(x, y) and turn == 1 and not is_ai[0]:
+                                elif p1_alpha_rect.collidepoint(x, y) and turn == 1 and (not is_ai[0] or paused_for_power_tile):
                                     racks[0].sort()
-                                elif p1_rand_rect.collidepoint(x, y) and turn == 1 and not is_ai[0]:
+                                elif p1_rand_rect.collidepoint(x, y) and turn == 1 and (not is_ai[0] or paused_for_power_tile):
                                     random.shuffle(racks[0])
-                                elif p2_alpha_rect.collidepoint(x, y) and turn == 2 and not is_ai[1]:
+                                elif p2_alpha_rect.collidepoint(x, y) and turn == 2 and (not is_ai[1] or paused_for_power_tile):
                                     racks[1].sort()
-                                elif p2_rand_rect.collidepoint(x, y) and turn == 2 and not is_ai[1]:
+                                elif p2_rand_rect.collidepoint(x, y) and turn == 2 and (not is_ai[1] or paused_for_power_tile):
                                     random.shuffle(racks[1])
-                                elif not is_ai[turn-1]:
+                                elif (not is_ai[turn-1] or paused_for_power_tile):
                                     rack_y = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
                                     tile_idx = get_tile_under_mouse(x, y, rack_start_x, rack_y)
                                     if tile_idx is not None and not dragged_tile:
@@ -2216,6 +2219,7 @@ def main():
                                     human_played = True
                                     exchange_count += 1
                                     pass_count = 0
+                                    paused_for_power_tile = False
                                     move_history.append({
                                         'player': 3 - turn,
                                         'move_type': 'exchange',
@@ -2242,8 +2246,8 @@ def main():
                                     human_played = True
                                     hinting = False
                                     all_moves = []
+                                    paused_for_power_tile = False
                                     coord = get_coord(hint_moves[selected_hint_index]['start'], hint_moves[selected_hint_index]['direction'])  # Compute coord
-                                    # Add to move_history
                                     move_history.append({
                                         'player': 3 - turn,
                                         'move_type': 'place',
@@ -2293,7 +2297,7 @@ def main():
                                     current_replay_turn = len(move_history)
                                 elif all_words_ok_rect.collidepoint(x, y):
                                     showing_all_words = False
-                            if not (hinting or showing_all_words or exchanging) and not is_ai[turn-1]:
+                            if not (hinting or showing_all_words or exchanging) and (not is_ai[turn-1] or paused_for_power_tile):
                                 col = (x - 40) // SQUARE_SIZE
                                 row = (y - 40) // SQUARE_SIZE
                                 if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE and not tiles[row][col]:
@@ -2323,7 +2327,7 @@ def main():
                             word_positions = []
                 elif event.type == pygame.MOUSEMOTION and dragged_tile and not is_ai[turn-1] and not replay_mode:
                     drag_pos = event.pos
-                elif event.type == pygame.MOUSEBUTTONUP and dragged_tile and not is_ai[turn-1] and not replay_mode:
+                elif event.type == pygame.MOUSEBUTTONUP and dragged_tile and (not is_ai[turn-1] or paused_for_power_tile) and not replay_mode:
                     x, y = event.pos
                     rack_y = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
                     if rack_y <= y < rack_y + TILE_HEIGHT:
@@ -2344,7 +2348,7 @@ def main():
                     if scoreboard_x <= mouse_x <= scoreboard_x + scoreboard_width and scoreboard_y <= mouse_y <= scoreboard_y + WINDOW_HEIGHT - 80:  # Check if mouse is over scoreboard
                         scroll_offset += event.y * 20  # Adjust scroll offset
                         scroll_offset = max(0, min(scroll_offset, (len(move_history) * 20) - (WINDOW_HEIGHT - 140))) # set scroll limits
-                elif event.type == pygame.KEYDOWN and not is_ai[turn-1] and not replay_mode:
+                elif event.type == pygame.KEYDOWN and (not is_ai[turn-1] or paused_for_power_tile) and not replay_mode:
                     if selected_square and not typing and event.unicode.isalpha():
                         typing = True
                         original_tiles = [row[:] for row in tiles]
@@ -2413,6 +2417,7 @@ def main():
                                 typing = False
                                 typing_start = None
                                 typing_direction = None
+                                paused_for_power_tile = False #but may not be correct w/ other functionality added...
                                 move_history.append({
                                     'player': 3 - turn,
                                     'move_type': 'place',
