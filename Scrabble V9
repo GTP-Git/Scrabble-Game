@@ -1,5 +1,5 @@
 
-# Stable: 28MAR25, 15:43
+# Stable: 28MAR25, 15:54
 
 
 # Part 1
@@ -2241,7 +2241,7 @@ def main():
                                         break
                                 if play_button_rect.collidepoint(x, y) and selected_hint_index is not None:
                                     move_rack = racks[turn-1][:]
-                                    turn, drawn_tiles = play_hint_move(hint_moves[selected_hint_index], tiles, racks, blanks, scores, turn, bag, board)
+                                    turn, drawn_tiles, newly_placed = play_hint_move(hint_moves[selected_hint_index], tiles, racks, blanks, scores, turn, bag, board)
                                     consecutive_zero_point_turns = 0
                                     human_played = True
                                     hinting = False
@@ -2276,7 +2276,7 @@ def main():
                                 if all_words_play_rect.collidepoint(x, y) and selected_hint_index is not None:
                                     selected_move = all_moves[selected_hint_index]
                                     move_rack = racks[turn-1][:]
-                                    turn, drawn_tiles = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
+                                    turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                     human_played = True
                                     showing_all_words = False
                                     coord = get_coord(selected_move['start'], selected_move['direction'])  # Compute coord
