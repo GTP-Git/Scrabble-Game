@@ -480,7 +480,7 @@ def draw_replay_icon(screen, rect, icon_type):
 
 
 def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_scores=None, game_over_state=False):
-    scoreboard_x = BOARD_SIZE + 250  # Right of the board
+    scoreboard_x = BOARD_SIZE + 375  # Right of the board
     scoreboard_y = 40  # Align with board top
     scoreboard_width = max(200, WINDOW_WIDTH - BOARD_SIZE - 20)  # Ensure minimum width of 200
     scoreboard_height = WINDOW_HEIGHT - 80  # Full height minus margins
@@ -949,6 +949,14 @@ def calculate_moves_per_player(move_history):
         moves_count[player] += 1
     return moves_count[1], moves_count[2]
 
+def calculate_bingos_per_player(move_history):
+    bingo_count = {1: 0, 2: 0}
+    for move in move_history:
+        if move['move_type'] == 'place' and move.get('is_bingo', False):
+            player = move['player']
+            bingo_count[player] += 1
+    return bingo_count[1], bingo_count[2]
+
 def draw_moves_row(screen, dialog_x, y_pos, moves_p1, moves_p2):
     """Draw the moves row for the statistics dialog."""
     moves_label = ui_font.render("Moves:", True, BLACK)
@@ -958,9 +966,47 @@ def draw_moves_row(screen, dialog_x, y_pos, moves_p1, moves_p2):
     screen.blit(p1_moves_text, (dialog_x + 120, y_pos))
     screen.blit(p2_moves_text, (dialog_x + 230, y_pos))
 
-def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores):
-    """Draw the statistics dialog with player scores and an OK button."""
-    stats_dialog_width, stats_dialog_height = 400, 300
+def draw_avg_score_row(screen, dialog_x, y_pos, avg_p1, avg_p2):
+    """Draw the average score per move row for the statistics dialog."""
+    avg_label = ui_font.render("Avg Score:", True, BLACK)
+    p1_avg_text = ui_font.render(f"{avg_p1:.2f}", True, BLACK)
+    p2_avg_text = ui_font.render(f"{avg_p2:.2f}", True, BLACK)
+    screen.blit(avg_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_avg_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_avg_text, (dialog_x + 230, y_pos))
+
+def draw_bingos_row(screen, dialog_x, y_pos, bingos_p1, bingos_p2):
+    """Draw the bingos row for the statistics dialog."""
+    bingos_label = ui_font.render("Bingos:", True, BLACK)
+    p1_bingos_text = ui_font.render(str(bingos_p1), True, BLACK)
+    p2_bingos_text = ui_font.render(str(bingos_p2), True, BLACK)
+    screen.blit(bingos_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_bingos_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_bingos_text, (dialog_x + 230, y_pos))
+
+def calculate_blanks_per_player(move_history):
+    blanks_p1 = 0
+    blanks_p2 = 0
+    for move in move_history:
+        if move['move_type'] == 'place':
+            player = move['player']
+            blanks_count = len(move['blanks'])
+            if player == 1:
+                blanks_p1 += blanks_count
+            elif player == 2:
+                blanks_p2 += blanks_count
+    return blanks_p1, blanks_p2
+
+def draw_blanks_row(screen, dialog_x, y_pos, blanks_p1, blanks_p2):
+    blanks_label = ui_font.render("Blanks:", True, BLACK)
+    p1_blanks_text = ui_font.render(str(blanks_p1), True, BLACK)
+    p2_blanks_text = ui_font.render(str(blanks_p2), True, BLACK)
+    screen.blit(blanks_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_blanks_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_blanks_text, (dialog_x + 230, y_pos))
+
+def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
+    stats_dialog_width, stats_dialog_height = 400, 330
     pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height))
     pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height), 2)
 
@@ -979,6 +1025,21 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores):
     # Calculate and draw moves row
     moves_p1, moves_p2 = calculate_moves_per_player(move_history)
     draw_moves_row(screen, dialog_x, dialog_y + 100, moves_p1, moves_p2)
+
+    # Calculate total score from moves and average score per move
+    total_score_p1 = sum(move['score'] for move in move_history if move['player'] == 1)
+    total_score_p2 = sum(move['score'] for move in move_history if move['player'] == 2)
+    avg_p1 = total_score_p1 / moves_p1 if moves_p1 > 0 else 0
+    avg_p2 = total_score_p2 / moves_p2 if moves_p2 > 0 else 0
+    draw_avg_score_row(screen, dialog_x, dialog_y + 130, avg_p1, avg_p2)
+
+    # Calculate and draw bingos row
+    bingos_p1, bingos_p2 = calculate_bingos_per_player(move_history)
+    draw_bingos_row(screen, dialog_x, dialog_y + 160, bingos_p1, bingos_p2)
+
+    # Calculate and draw blanks row
+    blanks_p1, blanks_p2 = calculate_blanks_per_player(move_history)
+    draw_blanks_row(screen, dialog_x, dialog_y + 190, blanks_p1, blanks_p2)
 
     # OK button
     ok_button_rect = pygame.Rect(dialog_x + stats_dialog_width - BUTTON_WIDTH - 10, 
@@ -1706,7 +1767,8 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             'word': word,
             'drawn': drawn_tiles,
             'coord': coord,
-            'word_with_blanks': word_with_blanks
+            'word_with_blanks': word_with_blanks,
+            'is_bingo': best_move['is_bingo']
         })
         current_replay_turn = len(move_history)
 
@@ -2071,7 +2133,8 @@ def main():
                                         'score': hint_moves[selected_hint_index]['score'],
                                         'word': hint_moves[selected_hint_index]['word'],
                                         'drawn': drawn_tiles,
-                                        'coord': coord  # Include coord
+                                        'coord': coord,
+                                        'is_bingo': hint_moves[selected_hint_index]['is_bingo']
                                     })
                                     current_replay_turn = len(move_history)
                                 elif ok_button_rect.collidepoint(x, y):
@@ -2104,7 +2167,8 @@ def main():
                                         'score': selected_move['score'],
                                         'word': selected_move['word'],
                                         'drawn': drawn_tiles,
-                                        'coord': coord  # Include coord
+                                        'coord': coord,
+                                        'is_bingo': selected_move['is_bingo']
                                     })
                                     current_replay_turn = len(move_history)
                                 elif all_words_ok_rect.collidepoint(x, y):
@@ -2239,7 +2303,8 @@ def main():
                                     'word': full_word,
                                     'drawn': drawn_tiles,
                                     'coord': coord,
-                                    'word_with_blanks': word_with_blanks
+                                    'word_with_blanks': word_with_blanks,
+                                    'is_bingo': is_bingo
                                 })
                                 current_replay_turn = len(move_history)
 
@@ -2447,7 +2512,7 @@ def main():
             if game_over_state:
                 save_rect, quit_rect, replay_rect, play_again_rect, stats_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
                 if showing_stats:
-                    ok_button_rect = draw_stats_dialog(dialog_x + 20, dialog_y + 20, player_names, final_scores)  # Pass player_names and final_scores
+                    ok_button_rect = draw_stats_dialog(dialog_x + 20, dialog_y + 20, player_names, final_scores, tiles)  # Pass tiles
 
             pygame.display.flip()
 
