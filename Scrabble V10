@@ -1,5 +1,5 @@
 
-# Stable: 29MAR25, 12:47
+# Stable: 29MAR25, 08:06
 
 
 
@@ -869,7 +869,7 @@ def mode_selection_screen():
         
         pygame.display.flip()
 
-    return selected_mode, player_names, human_player if selected_mode == MODE_HVA else None, practice_mode
+    return selected_mode, player_names, human_player, practice_mode, letter_checks if practice_mode == "power_tiles" else None
 
 def draw_options_menu(turn, dropdown_open, bag_count):
     """Draw the options menu with dropdown functionality."""
@@ -1871,7 +1871,7 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
 
 # Part 6
 
-def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False):
+def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
     print("AI turn started")
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn
 
@@ -1881,8 +1881,9 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     # Generate moves before checking for power tiles
     moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
 
-    if practice_mode == "power_tiles":
-        power_tiles_on_rack = [tile for tile in racks[turn-1] if tile in POWER_TILES]
+    if practice_mode == "power_tiles" and letter_checks:
+        checked_power_tiles = {letter for i, letter in enumerate(['J', 'Q', 'X', 'Z']) if letter_checks[i]}
+        power_tiles_on_rack = [tile for tile in racks[turn-1] if tile in checked_power_tiles]
         if power_tiles_on_rack:
             power_tile = power_tiles_on_rack[0]
             message = f"{power_tile} is on {player_names[turn-1]}'s rack.\nFind the highest scoring play with {power_tile}!"
@@ -2069,7 +2070,7 @@ def main():
     is_ai = [False, False]  # Added as global
     practice_mode = None  # Added as global
     while True:
-        game_mode, player_names, human_player, practice_mode = mode_selection_screen()  # Updated
+        game_mode, player_names, human_player, practice_mode, letter_checks = mode_selection_screen()
         # Set is_ai based on game mode and practice mode
         if practice_mode == "power_tiles":
             is_ai = [True, True]  # Enforce AVA mode for power tiles practice
@@ -2662,7 +2663,7 @@ def main():
             if is_ai[turn-1] and not replay_mode and not game_over_state and not paused_for_power_tile:
                 turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile = ai_turn(
                     turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names,
-                    dropdown_open, hinting, showing_all_words
+                    dropdown_open, hinting, showing_all_words, letter_checks
                 )
                 human_played = False
 
