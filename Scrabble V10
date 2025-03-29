@@ -1803,7 +1803,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, power_tile
 
     if len(racks[turn-1]) == 0 and len(bag) == 0:
-            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, None
+        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, None
 
     move_rack = racks[turn-1][:]
     moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
@@ -1881,6 +1881,8 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         })
         current_replay_turn = len(move_history)
 
+        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, None
+
     else:
         print(f"AI {turn} found no valid moves, rack: {racks[turn-1]}, bag size: {len(bag)}")
         if len(bag) >= 7:
@@ -1921,7 +1923,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             current_replay_turn = len(move_history)
             turn = 3 - turn
 
-    return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile
+        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, None
 
 def power_tile_practice():
     """Start AI vs AI mode until a power tile is drawn, then show a dialog."""
