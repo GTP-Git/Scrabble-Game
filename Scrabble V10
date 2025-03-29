@@ -2,6 +2,7 @@
 # Stable: 29MAR25, 08:06
 
 
+
 # Part 1
 
 # To-Do: ...then complete endgames with full analysis (multiple parts and steps here)
@@ -822,7 +823,7 @@ def mode_selection_screen():
                         player_names[idx] += event.unicode
 
         if showing_power_tiles_dialog:
-            dialog_width, dialog_height = 300, 200
+            dialog_width, dialog_height = 300, 250  # Changed from 200 to 250
             dialog_x = (WINDOW_WIDTH - dialog_width) // 2
             dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
             pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
@@ -843,8 +844,8 @@ def mode_selection_screen():
                 text = ui_font.render(num, True, BLACK)
                 screen.blit(text, (dialog_x + 180, dialog_y + 40 + i*30))
             
-            go_rect = pygame.Rect(dialog_x + 50, dialog_y + 180, 100, 30)
-            cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 180, 100, 30)
+            go_rect = pygame.Rect(dialog_x + 50, dialog_y + 220, 100, 30)  # Changed from 180 to 220
+            cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 220, 100, 30)  # Changed from 180 to 220
             pygame.draw.rect(screen, BUTTON_COLOR, go_rect)
             pygame.draw.rect(screen, BUTTON_COLOR, cancel_rect)
             go_text = button_font.render("Go", True, BLACK)
