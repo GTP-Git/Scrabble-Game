@@ -2004,6 +2004,16 @@ def main():
         first_play = True
         running = True
         dropdown_open = False
+        all_words_ok_rect = None
+        all_words_play_rect = None
+        hint_rects = [] # is this a dupe?
+        hint_rect = None # is this a dupe?
+        play_button_rect = None
+        ok_button_rect = None
+        all_words_button_rect = None
+        tile_rects = []
+        exchange_button_rect = None
+        cancel_button_rect = None
         pass_count = 0
         exchange_count = 0
         consecutive_zero_point_turns = 0
@@ -2132,23 +2142,20 @@ def main():
                         elif event.key == pygame.K_p:
                             running = False  # Exit inner loop to restart
                             main()  # Restart the game
-                elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = event.pos
                     current_time = pygame.time.get_ticks()
                     if event.button == 1:
-                        # Handle replay controls
-                        if replay_start_rect.collidepoint(x, y):
-                            replay_mode = True
-                            current_replay_turn = 0
-                        elif replay_prev_rect.collidepoint(x, y) and current_replay_turn > 0:
-                            replay_mode = True
-                            current_replay_turn -= 1
-                        elif replay_next_rect.collidepoint(x, y) and current_replay_turn < len(move_history):
-                            replay_mode = True
-                            current_replay_turn += 1
-                        elif replay_end_rect.collidepoint(x, y):
-                            replay_mode = True
-                            current_replay_turn = len(move_history)
+                        # Handle replay controls only when in replay mode
+                        if replay_mode:
+                            if replay_start_rect.collidepoint(x, y):
+                                current_replay_turn = 0
+                            elif replay_prev_rect.collidepoint(x, y) and current_replay_turn > 0:
+                                current_replay_turn -= 1
+                            elif replay_next_rect.collidepoint(x, y) and current_replay_turn < len(move_history):
+                                current_replay_turn += 1
+                            elif replay_end_rect.collidepoint(x, y):
+                                current_replay_turn = len(move_history)
                         if not replay_mode:
                             if not (exchanging or hinting or showing_all_words):
                                 if options_rect.collidepoint(x, y):
@@ -2185,6 +2192,7 @@ def main():
                                             dropdown_open = False
                                             break
                                 elif suggest_rect.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
+                                    replay_mode = False
                                     if not all_moves:
                                         all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
                                     if paused_for_power_tile:
@@ -2192,6 +2200,14 @@ def main():
                                         hint_moves = sorted(power_moves, key=lambda m: m['score'], reverse=True)[:5]
                                     else:
                                         hint_moves = all_moves[:5]
+                                    hinting = True
+                                    selected_hint_index = 0 if hint_moves else None
+                                elif paused_for_power_tile and hint_rect and hint_rect.collidepoint(x, y):
+                                    replay_mode = False
+                                    if not all_moves:
+                                        all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
+                                    power_moves = [move for move in all_moves if any(letter == current_power_tile for _, _, letter in move['newly_placed'])]
+                                    hint_moves = sorted(power_moves, key=lambda m: m['score'], reverse=True)[:5]
                                     hinting = True
                                     selected_hint_index = 0 if hint_moves else None
                                 elif p1_alpha_rect.collidepoint(x, y) and turn == 1 and (not is_ai[0] or paused_for_power_tile):
@@ -2300,7 +2316,9 @@ def main():
                                             'is_bingo': selected_move['is_bingo']
                                         })
                                         current_replay_turn = len(move_history)
-                                elif all_words_ok_rect.collidepoint(x, y):
+                                elif ok_button_rect.collidepoint(x, y):
+                                    hinting = False
+                                elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y):
                                     showing_all_words = False
                             if not (hinting or showing_all_words or exchanging) and (not is_ai[turn-1] or paused_for_power_tile):
                                 col = (x - 40) // SQUARE_SIZE
@@ -2641,7 +2659,7 @@ def main():
             if paused_for_power_tile:
                 hint_x = suggest_rect.x
                 hint_y = suggest_rect.y + suggest_rect.height + BUTTON_GAP
-                hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT)
+                hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT)  # Assign to the outer variable
                 hover = hint_rect.collidepoint(pygame.mouse.get_pos())
                 color = BUTTON_HOVER if hover else BUTTON_COLOR
                 pygame.draw.rect(screen, color, hint_rect)
