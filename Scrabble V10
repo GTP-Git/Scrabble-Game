@@ -1,5 +1,5 @@
 
-# Stable: 28MAR25, 15:43
+# Stable: 28MAR25, 20:32
 
 
 # Part 1
@@ -1117,17 +1117,32 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
 
     return ok_button_rect
 
+# Part 3
 def show_power_tile_dialog(message):
-    """Display a dialog with a power tile message and an OK button."""
+    """Display a dialog with a power tile message and an OK button, wrapping text to fit."""
     dialog_width, dialog_height = 400, 150
     dialog_x = (WINDOW_WIDTH - dialog_width) // 2
     dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    # Split message into words and wrap based on dialog width
+    words = message.split(' ')
+    lines = []
+    current_line = ''
+    for word in words:
+        test_line = current_line + word + ' '
+        if dialog_font.size(test_line)[0] < dialog_width - 20:  # 20px padding
+            current_line = test_line
+        else:
+            lines.append(current_line.strip())
+            current_line = word + ' '
+    if current_line:
+        lines.append(current_line.strip())
 
     while True:
         screen.fill(DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
         pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
 
-        lines = message.split('\n')
+        # Render each line
         for i, line in enumerate(lines):
             text = dialog_font.render(line, True, BLACK)
             screen.blit(text, (dialog_x + 10, dialog_y + 10 + i * 30))
@@ -2191,7 +2206,7 @@ def main():
                                                     running = False
                                             dropdown_open = False
                                             break
-                                elif suggest_rect.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
+                                elif not replay_mode and suggest_rect and suggest_rect.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
                                     replay_mode = False
                                     if not all_moves:
                                         all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
@@ -2271,7 +2286,10 @@ def main():
                                 if play_button_rect.collidepoint(x, y) and selected_hint_index is not None:
                                     selected_move = hint_moves[selected_hint_index]
                                     if paused_for_power_tile:
-                                        if selected_move['score'] == max_power_score:
+                                        # Recalculate power moves and max score to ensure consistency
+                                        power_moves = [move for move in all_moves if any(letter == current_power_tile for _, _, letter in move['newly_placed'])]
+                                        max_power_score = max(move['score'] for move in power_moves) if power_moves else 0
+                                        if selected_move['score'] >= max_power_score:  # Accept if it matches or exceeds
                                             move_rack = racks[turn-1][:]
                                             turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                             human_played = True
@@ -2295,6 +2313,7 @@ def main():
                                         else:
                                             show_power_tile_dialog("This is not the highest-scoring move")
                                     else:
+                                        # Normal play logic remains unchanged
                                         move_rack = racks[turn-1][:]
                                         turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                         consecutive_zero_point_turns = 0
@@ -2428,7 +2447,10 @@ def main():
                                 score = calculate_score(word_positions, board, tiles, blanks)
                                 if paused_for_power_tile:
                                     uses_power_tile = any(letter == current_power_tile for _, _, letter in word_positions)
-                                    if uses_power_tile and score == max_power_score:
+                                    # Recalculate power moves and max score to ensure consistency
+                                    power_moves = [move for move in all_moves if any(letter == current_power_tile for _, _, letter in move['newly_placed'])]
+                                    max_power_score = max(move['score'] for move in power_moves) if power_moves else 0
+                                    if uses_power_tile and score >= max_power_score:
                                         show_power_tile_dialog(f"Congratulations! You found the highest-scoring move with {current_power_tile}")
                                         scores[turn-1] += score
                                         first_play = False
@@ -2655,7 +2677,10 @@ def main():
             draw_remaining_tiles(remaining, turn_to_display)
 
             options_rect, dropdown_rects = draw_options_menu(turn, dropdown_open, len(bag))
-            suggest_rect = draw_suggest_button()
+            if not replay_mode:
+                suggest_rect = draw_suggest_button()
+            else:
+                suggest_rect = None  # Ensure suggest_rect is defined even in replay mode
             if paused_for_power_tile:
                 hint_x = suggest_rect.x
                 hint_y = suggest_rect.y + suggest_rect.height + BUTTON_GAP
