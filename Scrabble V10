@@ -657,6 +657,10 @@ def mode_selection_screen():
     dropdown_open = False  # State for Player 2 dropdown
     showing_power_tiles_dialog = False
 
+    # Add these lines before the while loop
+    letter_checks = [True, True, True, True]  # For J, Q, X, Z, all initially checked
+    number_checks = [True, True, True, True, False, False]  # For 2,3,4,5,6,7+, 2-5 checked, 6,7+ unchecked
+
     while selected_mode is None:
         if modes[current_input] == MODE_HVH and dropdown_open:
             dropdown_x = content_left + (content_width - 200) // 2  # Same as name_rect_x
@@ -751,17 +755,28 @@ def mode_selection_screen():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if showing_power_tiles_dialog:
                     dialog_x = (WINDOW_WIDTH - 300) // 2
-                    dialog_y = (WINDOW_HEIGHT - 200) // 2
-                    go_rect = pygame.Rect(dialog_x + 50, dialog_y + 180, 100, 30)
-                    cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 180, 100, 30)
-                    if event.type == pygame.MOUSEBUTTONDOWN:
-                        x, y = event.pos
-                        if go_rect.collidepoint(x, y):
-                            practice_mode = "power_tiles"
-                            selected_mode = MODE_AVA
-                            showing_power_tiles_dialog = False
-                        elif cancel_rect.collidepoint(x, y):
-                            showing_power_tiles_dialog = False
+                    dialog_y = (WINDOW_HEIGHT - 250) // 2  # Updated height to 250
+                    # Define checkbox rectangles
+                    letter_rects = [pygame.Rect(dialog_x + 20, dialog_y + 40 + i*30, 20, 20) for i in range(4)]
+                    number_rects = [pygame.Rect(dialog_x + 150, dialog_y + 40 + i*30, 20, 20) for i in range(6)]
+                    go_rect = pygame.Rect(dialog_x + 50, dialog_y + 220, 100, 30)  # Updated y to 220
+                    cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 220, 100, 30)  # Updated y to 220
+                    x, y = event.pos
+                    # Check clicks on letter checkboxes
+                    for i, rect in enumerate(letter_rects):
+                        if rect.collidepoint(x, y):
+                            letter_checks[i] = not letter_checks[i]
+                    # Check clicks on number checkboxes
+                    for i, rect in enumerate(number_rects):
+                        if rect.collidepoint(x, y):
+                            number_checks[i] = not number_checks[i]
+                    # Existing button handling
+                    if go_rect.collidepoint(x, y):
+                        practice_mode = "power_tiles"
+                        selected_mode = MODE_AVA
+                        showing_power_tiles_dialog = False
+                    elif cancel_rect.collidepoint(x, y):
+                        showing_power_tiles_dialog = False
                 else:
                     x, y = event.pos
                     for i, rect in enumerate(mode_rects):
@@ -833,14 +848,13 @@ def mode_selection_screen():
             
             letters = ['J', 'Q', 'X', 'Z']
             for i, letter in enumerate(letters):
-                draw_checkbox(screen, dialog_x + 20, dialog_y + 40 + i*30, True)
+                draw_checkbox(screen, dialog_x + 20, dialog_y + 40 + i*30, letter_checks[i])
                 text = ui_font.render(letter, True, BLACK)
                 screen.blit(text, (dialog_x + 50, dialog_y + 40 + i*30))
-            
+
             numbers = ['2', '3', '4', '5', '6', '7+']
             for i, num in enumerate(numbers):
-                checked = i < 4
-                draw_checkbox(screen, dialog_x + 150, dialog_y + 40 + i*30, checked)
+                draw_checkbox(screen, dialog_x + 150, dialog_y + 40 + i*30, number_checks[i])
                 text = ui_font.render(num, True, BLACK)
                 screen.blit(text, (dialog_x + 180, dialog_y + 40 + i*30))
             
