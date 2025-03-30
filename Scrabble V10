@@ -1,5 +1,5 @@
 
-# Stable: 29MAR25, 08:06
+# Stable: 29MAR25, 19:53
 
 
 
@@ -2198,6 +2198,8 @@ def main():
                                 game_over_state = False
                                 replay_mode = True
                                 current_replay_turn = 0
+                                practice_mode = None  # Disable practice mode during replay
+                                paused_for_power_tile = False  # Reset power tile pause flag
                             elif play_again_rect.collidepoint(x, y):
                                 running = False  # Exit inner loop to restart
                                 main()  # Restart the game
@@ -2755,10 +2757,10 @@ def main():
                 suggest_rect = draw_suggest_button()
             else:
                 suggest_rect = None  # Ensure suggest_rect is defined even in replay mode
-            if paused_for_power_tile:
+            if not replay_mode and suggest_rect and paused_for_power_tile and suggest_rect is not None:
                 hint_x = suggest_rect.x
                 hint_y = suggest_rect.y + suggest_rect.height + BUTTON_GAP
-                hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT)  # Assign to the outer variable
+                hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT)
                 hover = hint_rect.collidepoint(pygame.mouse.get_pos())
                 color = BUTTON_HOVER if hover else BUTTON_COLOR
                 pygame.draw.rect(screen, color, hint_rect)
