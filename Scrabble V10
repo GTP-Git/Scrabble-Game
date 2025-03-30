@@ -1,6 +1,6 @@
 
 
-# Stable: 30MAR25, 06:14
+# Stable: 30MAR25, 07:43
 
 
 
@@ -2469,13 +2469,38 @@ def main():
                                     showing_all_words = True
                                     selected_hint_index = 0 if all_moves else None  # Reset selection
                                     scroll_offset = 0  # Reset scroll position
-                            elif showing_all_words:  # New block for all-words dialog
+                            elif showing_all_words:  # Handle all-words dialog interactions
                                 for rect, idx in all_words_rects:
                                     if rect.collidepoint(x, y):
                                         selected_hint_index = idx
                                         break
-                            elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y):
-                                showing_all_words = False
+                                if all_words_play_rect and all_words_play_rect.collidepoint(x, y) and selected_hint_index is not None:
+                                    # Play the selected move
+                                    selected_move = all_moves[selected_hint_index]
+                                    move_rack = racks[turn-1][:]
+                                    turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
+                                    consecutive_zero_point_turns = 0
+                                    human_played = True
+                                    showing_all_words = False
+                                    all_moves = []
+                                    paused_for_power_tile = False
+                                    coord = get_coord(selected_move['start'], selected_move['direction'])
+                                    move_history.append({
+                                        'player': 3 - turn,
+                                        'move_type': 'place',
+                                        'rack': move_rack[:],
+                                        'positions': selected_move['positions'][:],
+                                        'blanks': selected_move['blanks'].copy(),
+                                        'score': selected_move['score'],
+                                        'word': selected_move['word'],
+                                        'drawn': drawn_tiles,
+                                        'coord': coord,
+                                        'word_with_blanks': selected_move['word_with_blanks'],
+                                        'is_bingo': selected_move['is_bingo']
+                                    })
+                                    current_replay_turn = len(move_history)
+                                elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y):
+                                    showing_all_words = False
                             if not (hinting or showing_all_words or exchanging) and (not is_ai[turn-1] or paused_for_power_tile):
                                 col = (x - 40) // SQUARE_SIZE
                                 row = (y - 40) // SQUARE_SIZE
