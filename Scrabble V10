@@ -1,6 +1,6 @@
 
 
-# Stable: 30MAR25, 07:43
+# Stable: 30MAR25, 13:13
 
 
 
@@ -639,6 +639,63 @@ def calculate_score(new_tiles, board, tiles, blanks):
         total_score += 50
     return total_score
 
+def eight_letter_practice():
+    """Handle 8-letter practice mode: open word list files and display probability dialog."""
+    # Open the word list files
+    with open("7-letter-list.txt", "r") as seven_file, open("8-letter-list.txt", "r") as eight_file:
+        pass  # Placeholder for future file processing
+
+    # Dialog dimensions and position
+    dialog_width, dialog_height = 300, 150
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    # Variables to return
+    proceed = False
+
+    # Dialog loop
+    while True:
+        # Draw dialog
+        screen.fill(WHITE)  # Clear screen before drawing dialog
+        pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+        pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+        # Title
+        title_text = dialog_font.render("8-Letter Bingo Options", True, BLACK)
+        screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+
+        # Probability label and text box
+        prob_text = ui_font.render("Probability", True, BLACK)
+        screen.blit(prob_text, (dialog_x + 20, dialog_y + 50))
+        text_box_rect = pygame.Rect(dialog_x + 120, dialog_y + 45, 150, 30)
+        pygame.draw.rect(screen, WHITE, text_box_rect)
+        pygame.draw.rect(screen, BLACK, text_box_rect, 1)
+
+        # Buttons
+        go_rect = pygame.Rect(dialog_x + 50, dialog_y + 100, 100, 30)
+        cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 100, 100, 30)
+        pygame.draw.rect(screen, BUTTON_COLOR, go_rect)
+        pygame.draw.rect(screen, BUTTON_COLOR, cancel_rect)
+        go_text = button_font.render("Go", True, BLACK)
+        cancel_text = button_font.render("Cancel", True, BLACK)
+        screen.blit(go_text, go_text.get_rect(center=go_rect.center))
+        screen.blit(cancel_text, cancel_text.get_rect(center=cancel_rect.center))
+
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                x, y = event.pos
+                if go_rect.collidepoint(x, y):
+                    proceed = True
+                    return proceed  # Exit function and proceed to game
+                elif cancel_rect.collidepoint(x, y):
+                    return proceed  # Exit function without proceeding
+
+        pygame.display.flip()
+
 def mode_selection_screen():
     """Display and handle the game mode selection screen."""
     # Load and prepare the background image
@@ -657,6 +714,9 @@ def mode_selection_screen():
     practice_mode = None  # Initialize practice_mode
     dropdown_open = False  # State for Player 2 dropdown
     showing_power_tiles_dialog = False
+    #showing_bingo_dialog = False
+    #seven_letter_file = None
+    #eight_letter_file = None
 
     # Add these lines before the while loop
     letter_checks = [True, True, True, True]  # For J, Q, X, Z, all initially checked
@@ -694,7 +754,7 @@ def mode_selection_screen():
             screen.blit(text, text_rect)
             mode_rects.append(rect)
 
-        #Draw Play Later button in lower-right corner
+        # Draw Play Later button in lower-right corner
         play_later_rect = pygame.Rect(WINDOW_WIDTH - BUTTON_WIDTH - 10, WINDOW_HEIGHT - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
         hover = play_later_rect.collidepoint(pygame.mouse.get_pos())
         color = BUTTON_HOVER if hover else BUTTON_COLOR
@@ -798,49 +858,55 @@ def mode_selection_screen():
                                 selected_mode = MODE_AVA
                                 player_names[1] = "AI 2"
                             # For HVA (i == 1), it's handled later
-                if selected_mode:
-                    break
-                if play_later_rect.collidepoint(x, y):
+                    if selected_mode:
+                        break
+                    if play_later_rect.collidepoint(x, y):
                         pygame.quit()
                         sys.exit()
-                if current_input == 0:  # HvH name input (optional)
-                    for i in range(2):
+                    if current_input == 0:  # HvH name input (optional)
+                        for i in range(2):
+                            name_rect_x = content_left + (content_width - 200) // 2
+                            name_rect = pygame.Rect(name_rect_x, name_y_start + i * 60, 200, BUTTON_HEIGHT)
+                            if name_rect.collidepoint(x, y):
+                                input_active[i] = True
+                                input_active[1-i] = False
+                    elif current_input == 1:  # HvA
                         name_rect_x = content_left + (content_width - 200) // 2
-                        name_rect = pygame.Rect(name_rect_x, name_y_start + i * 60, 200, BUTTON_HEIGHT)
+                        name_rect = pygame.Rect(name_rect_x, name_y_start, 200, BUTTON_HEIGHT)
                         if name_rect.collidepoint(x, y):
-                            input_active[i] = True
-                            input_active[1-i] = False
-                elif current_input == 1:  # HvA
-                    name_rect_x = content_left + (content_width - 200) // 2
-                    name_rect = pygame.Rect(name_rect_x, name_y_start, 200, BUTTON_HEIGHT)
-                    if name_rect.collidepoint(x, y):
-                        input_active[0] = True
-                        input_active[1] = False
-                    if p1_rect and p1_rect.collidepoint(x, y):
-                        human_player = 1
-                        selected_mode = MODE_HVA
-                        player_names[1] = "AI"
-                        break
-                    elif p2_rect and p2_rect.collidepoint(x, y):
-                        human_player = 2
-                        selected_mode = MODE_HVA
-                        player_names[0] = "AI"
-                        break
-                
-                # Toggle dropdown if Practice button is clicked
-                if modes[current_input] == MODE_HVH:
-                    dropdown_rect = pygame.Rect(name_rect_x, name_y_start + 60 + BUTTON_HEIGHT + 10, 200, 30)
-                    if dropdown_rect.collidepoint(x, y):
-                        dropdown_open = not dropdown_open
-                    elif dropdown_open:  # Added handling for option selection
-                        for i, option_rect in enumerate(option_rects):
-                            if option_rect.collidepoint(x, y):
-                                if i == 0:  # Power Tiles
-                                    showing_power_tiles_dialog = True
+                            input_active[0] = True
+                            input_active[1] = False
+                        if p1_rect and p1_rect.collidepoint(x, y):
+                            human_player = 1
+                            selected_mode = MODE_HVA
+                            player_names[1] = "AI"
+                            break
+                        elif p2_rect and p2_rect.collidepoint(x, y):
+                            human_player = 2
+                            selected_mode = MODE_HVA
+                            player_names[0] = "AI"
+                            break
+                    
+                    # Toggle dropdown if Practice button is clicked
+                    if modes[current_input] == MODE_HVH:
+                        dropdown_rect = pygame.Rect(name_rect_x, name_y_start + 60 + BUTTON_HEIGHT + 10, 200, 30)
+                        if dropdown_rect.collidepoint(x, y):
+                            dropdown_open = not dropdown_open
+                        elif dropdown_open:
+                            for i, option_rect in enumerate(option_rects):
+                                if option_rect.collidepoint(x, y):
+                                    if i == 0:  # Power Tiles
+                                        showing_power_tiles_dialog = True
+                                        dropdown_open = False
+                                    elif i == 1:  # 8-Letter Bingos
+                                        if eight_letter_practice():  # Check if "Go" was clicked
+                                            practice_mode = "eight_letter"  # Set practice mode
+                                            selected_mode = MODE_AVA  # Start AI vs AI mode
+                                            player_names[1] = "AI 2"  # Consistent with AVA mode
+                                        dropdown_open = False
+                                    # i == 2 is "End Game", no action yet
                                     dropdown_open = False
-                                # Add handlers for other options later
-                                dropdown_open = False
-                                break
+                                    break
             elif event.type == pygame.KEYDOWN and any(input_active):
                 idx = 0 if input_active[0] else 1
                 if event.key == pygame.K_BACKSPACE:
@@ -880,11 +946,11 @@ def mode_selection_screen():
             cancel_text = button_font.render("Cancel", True, BLACK)
             screen.blit(go_text, go_text.get_rect(center=go_rect.center))
             screen.blit(cancel_text, cancel_text.get_rect(center=cancel_rect.center))
+
         
         pygame.display.flip()
 
     return selected_mode, player_names, human_player, practice_mode, letter_checks if practice_mode == "power_tiles" else None
-
 # Part 2
 
 def draw_options_menu(turn, dropdown_open, bag_count):
@@ -1174,11 +1240,9 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
     moves_p1, moves_p2 = calculate_moves_per_player(move_history)
     draw_moves_row(screen, dialog_x, dialog_y + 100, moves_p1, moves_p2)
 
-    # Calculate total score from moves and average score per move
-    total_score_p1 = sum(move['score'] for move in move_history if move['player'] == 1)
-    total_score_p2 = sum(move['score'] for move in move_history if move['player'] == 2)
-    avg_p1 = total_score_p1 / moves_p1 if moves_p1 > 0 else 0
-    avg_p2 = total_score_p2 / moves_p2 if moves_p2 > 0 else 0
+    # Use final_scores directly for average score calculation
+    avg_p1 = final_scores[0] / moves_p1 if moves_p1 > 0 else 0
+    avg_p2 = final_scores[1] / moves_p2 if moves_p2 > 0 else 0
     draw_avg_score_row(screen, dialog_x, dialog_y + 130, avg_p1, avg_p2)
 
     # Calculate and draw bingos row
