@@ -1,5 +1,6 @@
 
-# Stable: 29MAR25, 20:58
+
+# Stable: 30MAR25, 06:14
 
 
 
@@ -2433,8 +2434,18 @@ def main():
                                         current_replay_turn = len(move_history)
                                 elif ok_button_rect.collidepoint(x, y):
                                     hinting = False
-                                elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y):
-                                    showing_all_words = False
+                                elif all_words_button_rect.collidepoint(x, y):  # New condition
+                                    hinting = False
+                                    showing_all_words = True
+                                    selected_hint_index = 0 if all_moves else None  # Reset selection
+                                    scroll_offset = 0  # Reset scroll position
+                            elif showing_all_words:  # New block for all-words dialog
+                                for rect, idx in all_words_rects:
+                                    if rect.collidepoint(x, y):
+                                        selected_hint_index = idx
+                                        break
+                            elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y):
+                                showing_all_words = False
                             if not (hinting or showing_all_words or exchanging) and (not is_ai[turn-1] or paused_for_power_tile):
                                 col = (x - 40) // SQUARE_SIZE
                                 row = (y - 40) // SQUARE_SIZE
