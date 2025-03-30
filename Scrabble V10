@@ -1758,20 +1758,20 @@ def draw_all_words_dialog(moves, selected_index, scroll_offset):
     pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, ALL_WORDS_DIALOG_WIDTH, ALL_WORDS_DIALOG_HEIGHT))
     pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, ALL_WORDS_DIALOG_WIDTH, ALL_WORDS_DIALOG_HEIGHT), 2)
 
-    # Draw header directly on screen
     header_height = 40
     unique_words = len(set(move['word'] for move in moves))
     title_text = dialog_font.render(f"All Valid Moves ({unique_words} unique words, {len(moves)} plays)", True, BLACK)
-    screen.blit(title_text, (dialog_x + 10, dialog_y + 10))  # Fixed at top of dialog
+    screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
 
-    # Create a surface for the scrollable content (no header space needed)
-    content_height = len(moves) * 30  # Just the moves
+
+    # Create a surface for the scrollable content
+    content_height = len(moves) * 30
     content_surface = pygame.Surface((ALL_WORDS_DIALOG_WIDTH - 20, content_height))
     content_surface.fill(DIALOG_COLOR)
 
     all_words_rects = []
     for i, move in enumerate(moves):
-        y_pos = i * 30  # Start at top of content_surface
+        y_pos = i * 30
         color = HINT_SELECTED_COLOR if i == selected_index else HINT_NORMAL_COLOR
         rect = pygame.Rect(10, y_pos, ALL_WORDS_DIALOG_WIDTH - 40, 30)
         pygame.draw.rect(content_surface, color, rect)
@@ -1802,31 +1802,53 @@ def draw_all_words_dialog(moves, selected_index, scroll_offset):
         remaining_text = f" ({move['score']} pts) at {coord} ({leave_str})"
         text = ui_font.render(remaining_text, True, BLACK)
         content_surface.blit(text, (start_x, y_pos + 5))
-        # Adjust screen_rect to account for header
-        screen_rect = pygame.Rect(dialog_x + 10, dialog_y + header_height + y_pos - scroll_offset, ALL_WORDS_DIALOG_WIDTH - 40, 30)
+        # Adjusted screen_rect
+        rect_y = dialog_y + header_height + y_pos - scroll_offset
+        button_area_y = dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 20 # More reasonable bottom offset
+        if rect_y + 30 > button_area_y:
+            rect_y = button_area_y - 30
+        button_area_x = dialog_x + ALL_WORDS_DIALOG_WIDTH - (2 * BUTTON_WIDTH + BUTTON_GAP)
+        rect_width = max(0, button_area_x - (dialog_x + 10))  # Stop before Play button
+        screen_rect = pygame.Rect(dialog_x + 10, rect_y, rect_width, 30)
         all_words_rects.append((screen_rect, i))
 
     # Blit scrollable content below header
-    visible_area = pygame.Rect(0, scroll_offset, ALL_WORDS_DIALOG_WIDTH - 20, ALL_WORDS_DIALOG_HEIGHT - header_height - 40)
+    visible_area = pygame.Rect(0, scroll_offset, ALL_WORDS_DIALOG_WIDTH - 20, ALL_WORDS_DIALOG_HEIGHT - header_height - (BUTTON_HEIGHT + 30)) # reduce area for buttons
     screen.blit(content_surface, (dialog_x + 10, dialog_y + header_height), visible_area)
 
-    # Buttons (unchanged)
-    play_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (dialog_x + ALL_WORDS_DIALOG_WIDTH - 2 * BUTTON_WIDTH - BUTTON_GAP - 10, dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 30, BUTTON_WIDTH, BUTTON_HEIGHT))
-    ok_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (dialog_x + ALL_WORDS_DIALOG_WIDTH - BUTTON_WIDTH - 10, dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 30, BUTTON_WIDTH, BUTTON_HEIGHT))
+    # Adjusted button positions.  Use simpler layout.  Subtract small amount to ensure both buttons fit.
+    total_button_width = 2 * BUTTON_WIDTH + BUTTON_GAP
+    buttons_x = dialog_x + (ALL_WORDS_DIALOG_WIDTH - total_button_width) // 2 # Centered horizontally
+    button_y = dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 20 # Near the bottom, 20 pixels up
+
+    play_button_x = buttons_x
+    ok_button_x = buttons_x + BUTTON_WIDTH + BUTTON_GAP # Next to each other
+
+    play_button_rect = pygame.Rect(play_button_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    ok_button_rect = pygame.Rect(ok_button_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    # Draw play button
     hover = play_button_rect.collidepoint(pygame.mouse.get_pos())
     color = BUTTON_HOVER if hover else BUTTON_COLOR
     pygame.draw.rect(screen, color, play_button_rect)
     play_text = button_font.render("Play", True, BLACK)
-    play_text_rect = play_text.get_rect(center=(play_button_rect.x + BUTTON_WIDTH // 2, play_button_rect.y + BUTTON_HEIGHT // 2))
+    play_text_rect = play_text.get_rect(center=play_button_rect.center)
     screen.blit(play_text, play_text_rect)
 
-    ok_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (dialog_x + ALL_WORDS_DIALOG_WIDTH - BUTTON_WIDTH - 10, dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 30, BUTTON_WIDTH, BUTTON_HEIGHT))
+    # Draw OK button
     hover = ok_button_rect.collidepoint(pygame.mouse.get_pos())
     color = BUTTON_HOVER if hover else BUTTON_COLOR
     pygame.draw.rect(screen, color, ok_button_rect)
     ok_text = button_font.render("OK", True, BLACK)
-    ok_text_rect = ok_text.get_rect(center=(ok_button_rect.x + BUTTON_WIDTH // 2, ok_button_rect.y + BUTTON_HEIGHT // 2))
+    ok_text_rect = ok_text.get_rect(center=ok_button_rect.center)
     screen.blit(ok_text, ok_text_rect)
+
+
+    # Diagnostic
+    print(f"dialog_x: {dialog_x}, dialog_right: {dialog_x + ALL_WORDS_DIALOG_WIDTH}, WINDOW_WIDTH: {WINDOW_WIDTH}")
+    print(f"play_button_x: {play_button_x}, ok_button_x: {ok_button_x}, right_edge: {ok_button_x + BUTTON_WIDTH}, BUTTON_WIDTH: {BUTTON_WIDTH}, BUTTON_GAP: {BUTTON_GAP}")
+    print(f"Last move: screen_rect_y: {screen_rect.y}, button_y: {button_y}")
+
 
     return all_words_rects, play_button_rect, ok_button_rect
 
