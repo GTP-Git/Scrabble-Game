@@ -1,5 +1,5 @@
 
-# Stable: 29MAR25, 19:53
+# Stable: 29MAR25, 20:58
 
 
 
@@ -692,6 +692,15 @@ def mode_selection_screen():
             text_rect = text.get_rect(center=rect.center)
             screen.blit(text, text_rect)
             mode_rects.append(rect)
+
+        #Draw Play Later button in lower-right corner
+        play_later_rect = pygame.Rect(WINDOW_WIDTH - BUTTON_WIDTH - 10, WINDOW_HEIGHT - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
+        hover = play_later_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, play_later_rect)
+        play_later_text = button_font.render("Play Later", True, BLACK)
+        play_later_text_rect = play_later_text.get_rect(center=play_later_rect.center)
+        screen.blit(play_later_text, play_later_text_rect)
         
         name_y_start = 300
         for i in range(2):
@@ -790,6 +799,9 @@ def mode_selection_screen():
                             # For HVA (i == 1), it's handled later
                 if selected_mode:
                     break
+                if play_later_rect.collidepoint(x, y):
+                        pygame.quit()
+                        sys.exit()
                 if current_input == 0:  # HvH name input (optional)
                     for i in range(2):
                         name_rect_x = content_left + (content_width - 200) // 2
@@ -872,6 +884,8 @@ def mode_selection_screen():
 
     return selected_mode, player_names, human_player, practice_mode, letter_checks if practice_mode == "power_tiles" else None
 
+# Part 2
+
 def draw_options_menu(turn, dropdown_open, bag_count):
     """Draw the options menu with dropdown functionality."""
     options_x = 10
@@ -887,7 +901,7 @@ def draw_options_menu(turn, dropdown_open, bag_count):
     dropdown_rects = []
     if dropdown_open:
         dropdown_y = OPTIONS_Y + OPTIONS_HEIGHT
-        options = ["Pass", "Exchange", "Quit"]
+        options = ["Pass", "Exchange", "Main", "Quit"]  # Modified: Added "Main" before "Quit"
         for i, option in enumerate(options):
             rect = pygame.Rect(options_x, dropdown_y + i * OPTIONS_HEIGHT, OPTIONS_WIDTH, OPTIONS_HEIGHT)
             if option == "Exchange" and bag_count < 8:
@@ -2094,6 +2108,7 @@ def main():
         first_play = True
         running = True
         dropdown_open = False
+        return_to_mode_selection = False
         all_words_ok_rect = None
         all_words_play_rect = None
         hint_rects = [] # is this a dupe?
@@ -2278,7 +2293,11 @@ def main():
                                             elif i == 1 and len(bag) >= 8:  # Exchange
                                                 exchanging = True
                                                 dropdown_open = False
-                                            elif i == 2:  # Quit
+                                            elif i == 2:  # Main (New)
+                                                return_to_mode_selection = True  # Set flag to return to mode selection
+                                                running = False  # Exit current game loop
+                                                dropdown_open = False
+                                            elif i == 3:  # Quit (Shifted from 2 to 3)
                                                 if confirm_quit():
                                                     running = False
                                             dropdown_open = False
@@ -2829,8 +2848,11 @@ def main():
             pygame.display.flip()
 
         if not running:
-            pygame.quit()
-            sys.exit()
+            if return_to_mode_selection:
+                main()  # Restart the game to return to mode selection screen
+            else:
+                pygame.quit()
+                sys.exit()
 
 if __name__ == "__main__":
     main()
