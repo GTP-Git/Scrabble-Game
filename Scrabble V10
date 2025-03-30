@@ -782,11 +782,12 @@ def mode_selection_screen():
                     for i, rect in enumerate(mode_rects):
                         if rect.collidepoint(x, y):
                             current_input = i
-                            if i == 2:  # AI vs AI
+                            if i == 0:  # HVH
+                                selected_mode = MODE_HVH
+                            elif i == 2:  # AVA
                                 selected_mode = MODE_AVA
                                 player_names[1] = "AI 2"
-                                break
-                            # Removed selected_mode = MODE_HVH for i == 0
+                            # For HVA (i == 1), it's handled later
                 if selected_mode:
                     break
                 if current_input == 0:  # HvH name input (optional)
