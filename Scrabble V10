@@ -1,6 +1,6 @@
 
 
-# Stable: 30MAR25, 17:31
+# Stable: 30MAR25, 19:17
 
 
 
@@ -403,6 +403,8 @@ def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_
         return None, None
     if display_scores is None:
         display_scores = scores
+    if practice_mode == "eight_letter" and player == 2: #ADD THIS LINE
+        return None, None
     rack_width = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
     start_x = (BOARD_SIZE - rack_width) // 2 + OPTIONS_WIDTH + BUTTON_GAP
     rack_y = BOARD_SIZE + 80 if player == 1 else BOARD_SIZE + 150
@@ -740,6 +742,9 @@ def eight_letter_practice():
                     # Part 4: Place removed_eight on Player 1's rack in alphabetical order
                     racks[0] = sorted(list(removed_eight))
 
+                    # Ensure Player 2's rack is empty
+                    racks[1] = []
+
                     # Part 5: Place selected_seven on the board through the center
                     center_r, center_c = CENTER_SQUARE  # (7, 7)
                     for i, letter in enumerate(selected_seven):
@@ -747,6 +752,8 @@ def eight_letter_practice():
 
                     # Ensure Player 2's rack is empty (will be hidden by drawing logic)
                     racks[1] = []
+                    bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
+                    random.shuffle(bag)
 
                     proceed = True
                     main_called = False  # Flag to prevent multiple main() calls
@@ -2054,6 +2061,10 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     print("AI turn started")
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn
 
+    if practice_mode == "eight_letter" and turn == 2:
+        print("Skipping AI turn in 8-letter practice.")
+        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, None
+
     # Add a flag to indicate if we should pause due to a power tile
     paused_for_power_tile = False
 
@@ -2243,54 +2254,50 @@ def get_replay_state(turn_idx, initial_racks):
     return tiles_state, blanks_state, scores_state, racks_state
 
 def main():
-    """Main game loop."""
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks
     game_mode = None
     is_ai = [False, False]
     practice_mode = None
     global main_called
-    # Declare additional globals needed from eight_letter_practice
-    if not main_called:  # Only run mode selection if not pre-set
+    if not main_called:
         game_mode, player_names, human_player, practice_mode, letter_checks = mode_selection_screen()
-        # Set is_ai based on game mode and practice mode
         if practice_mode == "power_tiles":
             is_ai = [True, True]
         elif game_mode == MODE_HVA:
             is_ai[2 - human_player] = True
         elif game_mode == MODE_AVA:
             is_ai = [True, True]
-        
-        # Initialize game state only if not pre-set
-        board, _, tiles = create_board()
+        # Standard initialization
+        board, labels, tiles = create_board()
         bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
         random.shuffle(bag)
         racks = [[bag.pop() for _ in range(7)] for _ in range(2)]
         for rack in racks:
             rack.sort()
-        initial_racks = [rack[:] for rack in racks]  # Store initial racks
+        initial_racks = [rack[:] for rack in racks]
         scores = [0, 0]
         turn = 1
         word_positions = []
         blanks = set()
         first_play = True
     else:
-        # Use pre-set state from eight_letter_practice
-        player_names = ["Player 1", "AI 2"]  # Default names as set in mode_selection_screen
-        human_player = 1  # Default, not used in AVA but set for consistency
-        letter_checks = None  # Not used in 8-letter practice
-        initial_racks = [racks[0][:], racks[1][:]]  # Capture racks as initial state
+        # Use pre-set state from eight_letter_practice()
+        player_names = ["Player 1", "AI 2"]
+        human_player = 1
+        letter_checks = None
+        initial_racks = [racks[0][:], racks[1][:]]
         scores = [0, 0]
         turn = 1
         word_positions = []
-        first_play = True  # Still first play even with pre-set tiles
-        main_called = False  # Reset flag after use
+        first_play = True
+        main_called = False
 
         board, labels, tiles = create_board()
         bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
         random.shuffle(bag)
         racks = [[bag.pop() for _ in range(7)] for _ in range(2)]
         for rack in racks:
-            rack.sort()  # Sort both racks initially
+            rack.sort()
         initial_racks = [rack[:] for rack in racks]  # Store a copy of the initial racks
         scores = [0, 0]
         turn = 1
@@ -2993,7 +3000,10 @@ def main():
 
             rack_start_x = (BOARD_SIZE - (7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP)) // 2 + OPTIONS_WIDTH + BUTTON_GAP
             p1_alpha_rect, p1_rand_rect = draw_rack(1, racks_to_display[0], scores, turn_to_display, player_names, None, None, display_scores=scores_to_display)
-            p2_alpha_rect, p2_rand_rect = draw_rack(2, racks_to_display[1], scores, turn_to_display, player_names, None, None, display_scores=scores_to_display)
+            if practice_mode != "eight_letter":  # Only draw if not in practice mode
+                p2_alpha_rect, p2_rand_rect = draw_rack(2, [], scores, turn_to_display, player_names, None, None, display_scores=scores_to_display)
+            else:
+                p2_alpha_rect, p2_rand_rect = None, None
 
             # Add these lines to compute and draw remaining tiles
             remaining = get_remaining_tiles(racks_to_display[turn_to_display-1], tiles_to_display, blanks_to_display)
