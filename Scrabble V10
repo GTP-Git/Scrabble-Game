@@ -647,13 +647,12 @@ def calculate_score(new_tiles, board, tiles, blanks):
 import random
 
 
-def select_seven_letter_word(selected_eight, seven_letter_words):
-
-    """Select a 7-letter word that shares at least one letter with the given 8-letter word."""
-    while True:
-        candidate = random.choice(seven_letter_words)
-        if any(letter in selected_eight for letter in candidate):
-            return candidate
+def select_seven_letter_word(removed_letter, seven_letter_words):
+    candidates = [word for word in seven_letter_words if removed_letter in word]
+    if not candidates:
+        print(f"No 7-letter words contain '{removed_letter}'")
+        return random.choice(seven_letter_words)  # Fallback to any word
+    return random.choice(candidates)
 
 def eight_letter_practice():
     """Handle 8-letter practice mode: open word list files, display dialog, and set up practice game."""
@@ -722,13 +721,16 @@ def eight_letter_practice():
 
                     # Part 1: Randomly remove one letter from the 8-letter word
                     remove_idx = random.randint(0, 7)
+                    removed_letter = selected_eight[remove_idx]  # Capture the removed letter
                     removed_eight = selected_eight[:remove_idx] + selected_eight[remove_idx + 1:]
 
                     # Part 1.5: Debug print removed_eight
                     print("Removed eight (7 letters):", removed_eight)
+                    print("Removed letter:", removed_letter)
 
                     # Select 7-letter word (original functionality)
-                    selected_seven = select_seven_letter_word(selected_eight, seven_letter_words)
+                    selected_seven = select_seven_letter_word(removed_letter, seven_letter_words)
+                    print("Selected 7-letter word:", selected_seven)
                     print("Selected 7-letter word:", selected_seven)
 
                     # Part 2: Set game mode to HVH
