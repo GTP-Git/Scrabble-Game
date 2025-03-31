@@ -648,6 +648,7 @@ import random
 
 
 def select_seven_letter_word(selected_eight, seven_letter_words):
+
     """Select a 7-letter word that shares at least one letter with the given 8-letter word."""
     while True:
         candidate = random.choice(seven_letter_words)
@@ -656,7 +657,7 @@ def select_seven_letter_word(selected_eight, seven_letter_words):
 
 def eight_letter_practice():
     """Handle 8-letter practice mode: open word list files, display dialog, and set up practice game."""
-    global game_mode, racks, tiles, board, blanks, main_called  # Access global variables
+    global racks, tiles, board, blanks, bag
 
     # Part 1, 2, 3, 4: Read word lists at the start for use later
     with open("7-letter-list.txt", "r") as seven_file, open("8-letter-list.txt", "r") as eight_file:
@@ -747,6 +748,7 @@ def eight_letter_practice():
 
                     # Part 5: Place selected_seven on the board through the center
                     center_r, center_c = CENTER_SQUARE  # (7, 7)
+                    print(f"Placing {selected_seven} on board, starting at ({center_r}, {center_c})")
                     for i, letter in enumerate(selected_seven):
                         tiles[center_r][center_c + i] = letter  # Horizontal placement through center
 
@@ -2263,37 +2265,26 @@ def main():
         game_mode, player_names, human_player, practice_mode, letter_checks = mode_selection_screen()
         if practice_mode == "power_tiles":
             is_ai = [True, True]
+        elif practice_mode== "eight_letter":
+            is_ai = [False, False]
         elif game_mode == MODE_HVA:
             is_ai[2 - human_player] = True
         elif game_mode == MODE_AVA:
             is_ai = [True, True]
-        # Standard initialization
-        board, labels, tiles = create_board()
-        bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
-        random.shuffle(bag)
-        racks = [[bag.pop() for _ in range(7)] for _ in range(2)]
-        for rack in racks:
-            rack.sort()
-        initial_racks = [rack[:] for rack in racks]
-        scores = [0, 0]
-        turn = 1
-        word_positions = []
-        blanks = set()
-        first_play = True
-    else:
-        # Use pre-set state from eight_letter_practice()
-        player_names = ["Player 1", "AI 2"]
-        human_player = 1
-        letter_checks = None
-        initial_racks = [racks[0][:], racks[1][:]]
-        scores = [0, 0]
-        turn = 1
-        word_positions = []
-        first_play = True
-        main_called = False
+        else:
+            # Use pre-set state from eight_letter_practice()
+            player_names = ["Player 1", "AI 2"]
+            human_player = 1
+            letter_checks = None
+            initial_racks = [racks[0][:], racks[1][:]]
+            scores = [0, 0]
+            turn = 1
+            word_positions = []
+            first_play = True
+            main_called = False
 
-        board, labels, tiles = create_board()
-        bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
+        #board, labels, tiles = create_board()
+        #bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
         random.shuffle(bag)
         racks = [[bag.pop() for _ in range(7)] for _ in range(2)]
         for rack in racks:
