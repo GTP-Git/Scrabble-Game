@@ -1972,6 +1972,9 @@ def get_anchor_points(tiles, is_first_play):
 # End of Part 4
 
 
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 5 - Corrected Signature)
+
 # Part 5
 
 # --- Move Generation ---
@@ -2062,7 +2065,6 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
                 if not original_tiles_state[pr][pc]:
                      newly_placed_for_score.append((pr, pc, letter))
             else:
-                # This case should ideally not happen if extend_play checks bounds, but good for safety
                 print(f"Error in finalize_move: Invalid coordinates ({pr},{pc})")
                 return # Don't process invalid placement
 
@@ -2080,36 +2082,35 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
             # Use newly_placed_for_score for accurate scoring
             score = calculate_score(newly_placed_for_score, board, temp_tiles, temp_blanks)
 
-            # Create a unique signature for the move based on placed tiles
-            # Use newly_placed_for_score for signature to avoid duplicates from just extending existing tiles differently
-            move_signature = tuple(sorted((p[0], p[1], p[2]) for p in newly_placed_for_score))
+            # Find the primary word formed by this specific placement
+            main_word_tiles, _ = find_main_word(newly_placed_for_score, temp_tiles)
+            if not main_word_tiles: # Should not happen if is_valid is True, but check anyway
+                print(f"Warning: finalize_move called for valid play, but no main word found for {newly_placed_for_score}")
+                return
+
+            # *** MODIFIED SIGNATURE START ***
+            # Create a unique signature based on ALL tiles in the main word formed
+            move_signature = tuple(sorted((t[0], t[1], t[2]) for t in main_word_tiles))
+            # *** MODIFIED SIGNATURE END ***
+
 
             if move_signature not in unique_move_signatures:
                 unique_move_signatures.add(move_signature)
 
                 # Determine start, direction, full word, leave etc.
-                # Find the top-leftmost tile among the newly placed ones for start pos
                 start_pos_tile = min(newly_placed_for_score, key=lambda p: (p[0], p[1]))
                 start_r, start_c, _ = start_pos_tile
 
                 rows_placed_new = set(p[0] for p in newly_placed_for_score)
-                cols_placed_new = set(p[1] for p in newly_placed_for_score)
                 # Direction determined by newly placed tiles if more than one, else needs context
                 if len(newly_placed_for_score) > 1:
                     direction = "right" if len(rows_placed_new) == 1 else "down"
                 else: # Single new tile - direction depends on the word it forms
-                    formed_words_details = find_all_words_formed(newly_placed_for_score, temp_tiles)
-                    if formed_words_details:
-                         # Check orientation of the first (usually main) word found
-                         first_word = formed_words_details[0]
-                         rows_in_word = set(t[0] for t in first_word)
-                         direction = "right" if len(rows_in_word) == 1 else "down"
-                    else: direction = "right" # Default if somehow no word found (shouldn't happen if valid)
+                    # Use the main_word_tiles we already found
+                    rows_in_word = set(t[0] for t in main_word_tiles)
+                    direction = "right" if len(rows_in_word) == 1 else "down"
 
-
-                # Find the primary word formed by this specific placement
-                main_word_tiles, _ = find_main_word(newly_placed_for_score, temp_tiles)
-                full_word_str = "".join(t[2] for t in main_word_tiles) if main_word_tiles else "ERROR"
+                full_word_str = "".join(t[2] for t in main_word_tiles)
 
                 # Construct word with blanks represented correctly (lowercase)
                 word_with_blanks_list = []
@@ -2123,7 +2124,7 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
                 leave = list(current_rack_counts.elements())
 
                 moves.append({
-                    'positions': [(p[0], p[1], p[2]) for p in main_word_tiles], # Store main word tiles
+                    'positions': [(t[0], t[1], t[2]) for t in main_word_tiles], # Store main word tiles
                     'blanks': move_blanks_coords, # Blanks used in this move
                     'word': full_word_str, # Primary word string
                     'score': score,
@@ -2155,11 +2156,9 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
                         current_rack_counts[letter] -= 1
                         placed_tiles_so_far.append((r, c, letter, False))
                         next_node = node.edges[letter] # Node after placing 'letter'
-                        # *** CORRECTED LOGIC START ***
                         # Check if this placement completes a valid word
                         if next_node.is_terminal:
                             finalize_move(placed_tiles_so_far, current_rack_counts)
-                        # *** CORRECTED LOGIC END ***
                         # Recurse to the next square
                         next_r, next_c = (r, c + 1) if direction == 'right' else (r + 1, c)
                         extend_play(next_r, next_c, direction, next_node, current_rack_counts, placed_tiles_so_far, True) # Now has_placed_tile is True
@@ -2174,11 +2173,9 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
                       if blank_char in node.edges:
                            placed_tiles_so_far.append((r, c, blank_char, True))
                            next_node = node.edges[blank_char] # Node after placing blank as 'blank_char'
-                           # *** CORRECTED LOGIC START ***
                            # Check if this placement completes a valid word
                            if next_node.is_terminal:
                                 finalize_move(placed_tiles_so_far, current_rack_counts)
-                           # *** CORRECTED LOGIC END ***
                            next_r, next_c = (r, c + 1) if direction == 'right' else (r + 1, c)
                            extend_play(next_r, next_c, direction, next_node, current_rack_counts, placed_tiles_so_far, True) # Now has_placed_tile is True
                            placed_tiles_so_far.pop() # Backtrack blank placement
@@ -2190,12 +2187,10 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
             if letter in node.edges:
                  placed_tiles_so_far.append((r, c, letter, False)) # Add existing tile to track path
                  next_node = node.edges[letter] # Node after traversing existing letter
-                 # *** CORRECTED LOGIC START ***
                  # Check if traversing this existing tile completes a valid word
                  # Crucially, only finalize if at least one tile *has been placed* from the rack in this path
                  if next_node.is_terminal and has_placed_tile:
                       finalize_move(placed_tiles_so_far, current_rack_counts)
-                 # *** CORRECTED LOGIC END ***
                  next_r, next_c = (r, c + 1) if direction == 'right' else (r + 1, c)
                  # Pass has_placed_tile status along
                  extend_play(next_r, next_c, direction, next_node, current_rack_counts, placed_tiles_so_far, has_placed_tile)
@@ -2211,13 +2206,8 @@ def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
         extend_play(r_anchor, c_anchor, "down", DAWG.root, rack_counter_orig.copy(), [], False)
 
         # 2. Generate parts starting *before* the anchor and extending *through* it
-        #    (This requires a more complex GADDAG-like structure or reverse DAWG traversal)
-        #    The current `extend_play` might find some of these if the word happens
-        #    to form correctly when starting the recursion *on* the anchor, but it's
-        #    not guaranteed to find all plays that place tiles before the anchor.
-        #    For now, we rely on the current `extend_play` hoping it covers enough cases.
-        #    A full GADDAG implementation would be needed for guaranteed completeness here.
-        pass # Placeholder for more advanced left/up part generation
+        #    (Placeholder - requires more complex logic)
+        pass
 
 
     # Sort moves by score descending
