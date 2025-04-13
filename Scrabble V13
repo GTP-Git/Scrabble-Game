@@ -1,43 +1,8 @@
+
 # python
-# Stable: 30MAR25, 19:17 - Modified based on user request to fix initialization and other issues
-# Stable version before major changes
-# MODIFIED: 01APR24 - Rewriting move generation based on kamilmielnik/scrabble-solver principles
+#Stable 13APR24
 
 # Part 1
-
-# To-Do: ...then complete endgames with full analysis (multiple parts and steps here)
-# To-Do: get actual RGB values for the official Scrabble board
-# To-Do: create and save statistics, both in game and to a file for persistence
-# To-Do: allow me to load a game and a) play it in my game b) gather stats from it, and...
-# To-Do: ...c) automatically write those stats to my Scrabble spreadsheet
-# To-Do: allow user to break/stop word Suggestion, sometimes it takes forever
-# To-Do: give some strategy guidance to the AI, blank and S handling, etc.
-# To-Do: when mode is AI vs AI, gray out Suggest and Options? Can I even click to Quit?
-# To-Do: Rename show_power_tile_dialog to show_message_dialog for general use.
-# To-Do: Add "Give Up" button for 8-letter practice.
-
-# To-Do: ----DONE----move the Player 1’s turn text off the board, it blocks letters
-# To-Do: —---DONE—---add in 50-pt bonus for using all seven letters
-# To-Do: ----DONE----allow for drag-n-drop tile rack letter manipulation
-# To-Do: ----DONE----verify words for legality against a word list, All Words 2023.txt, located on my desktop
-# To-Do: ----DONE----add code to handle blank tiles
-# To-Do: ----DONE----add Pass, Exchange, Quit
-# To-Do: ----DONE----change mechanics of playing a word to allow typing
-# To-Do: ----DONE----change look of direction arrow, right click to remove, remove when typing starts
-# To-Do: ----DONE----remaining tile list should print out all tiles remaining, not just A:3 format
-# To-Do: ----DONE----allow the computer to play against itself
-# To-Do: ----DONE----fix scoring, likely not accounting for both vertical and horizontal words
-# To-Do: ----DONE----ensure bag draw is random, seems to be a lot of  blanks to start the game
-# To-Do: ----DONE----change color of blanks, can't see against white background; maybe lowercase?
-# To-Do: ----DONE----add last play and score note, likely at the bottom of the remaining letters list
-# To-Do: ----DONE----Player 1 score text is overlaid on the bottom of the board, need to extend game window vertically
-# To-Do: ----DONE----save Suggest results for the turn so no need to regenerate is asked again
-# To-Do: —---DONE—---Generate all valid moves (Replaced with new implementation)
-# To-Do: —---DONE—---in word suggestion, show the leave on the rack after the word would be played
-# To-Do: ----DONE----dramatically speed up the word generation algorithm (Replaced with new implementation)
-# To-Do: ----DONE----implement replay mode
-# To-Do: ----DONE----change board coordinate references from (1,1) to A1, explain why to Grok
-# To-Do: ----DONE----Fix 8-Letter Bingo Practice Mode logic
 
 
 import pygame
@@ -382,7 +347,6 @@ def create_board():
     return board, labels, tiles
 
 # --- Drawing Functions ---
-# draw_rack, draw_replay_icon, draw_scoreboard (Unchanged from Part 1 provided previously)
 def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_pos=None, display_scores=None):
     """Draw a player's rack with tiles, scores, and buttons."""
     global practice_mode # Access global practice_mode
@@ -391,10 +355,18 @@ def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_
     if practice_mode == "eight_letter" and player == 2: return None, None # Don't draw P2 rack
 
     rack_width = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
-    start_x = max(OPTIONS_WIDTH + BUTTON_GAP + 10, (BOARD_SIZE - rack_width) // 2)
+    # Calculate the rightmost extent of the replay buttons area
+    # Replay buttons start at x=10, width=50, gap=10. 4 buttons total.
+    replay_area_end_x = 10 + 4 * (REPLAY_BUTTON_WIDTH + REPLAY_BUTTON_GAP) # 10 + 4*(50+10) = 250
+    # Minimum start x for the rack, considering replay buttons and star indicator offset (star is at start_x - 20)
+    min_rack_start_x = replay_area_end_x + BUTTON_GAP + 20 # 250 + 10 + 20 = 280
+    # Try to center the rack, but ensure it starts after the minimum x to avoid overlap
+    start_x = max(min_rack_start_x, (BOARD_SIZE - rack_width) // 2)
+
     rack_y = BOARD_SIZE + 80 if player == 1 else BOARD_SIZE + 150
 
     if turn == player and (practice_mode != "eight_letter" or player == 1): # Draw turn indicator
+        # Star indicator position depends on the calculated start_x
         center_x = start_x - 20; center_y = rack_y + TILE_HEIGHT // 2; radius = 10; points = []
         for i in range(10): angle = i * math.pi / 5; r = radius if i % 2 == 0 else radius / 2; x = center_x + r * math.cos(angle); y = center_y + r * math.sin(angle); points.append((x, y))
         pygame.draw.polygon(screen, TURN_INDICATOR_COLOR, points)
@@ -999,16 +971,35 @@ def draw_remaining_tiles(remaining, turn):
     title_text = ui_font.render(f"P{turn}'s Unseen Tiles:", True, BLACK); screen.blit(title_text, (remaining_x, 10))
     y_pos = 40; col_width = 60; max_y = WINDOW_HEIGHT - 100; sorted_letters = sorted(remaining.keys()); current_col_x = remaining_x; items_in_col = 0; max_items_per_col = (max_y - y_pos) // 20
     if max_items_per_col <= 0: max_items_per_col = 1
+    last_drawn_y = 40 # Initialize with starting y_pos in case list is empty
+    last_drawn_col_x = remaining_x # Track the column x of the last item
+
     for letter in sorted_letters:
         count = remaining.get(letter, 0)
         if count > 0:
             display_letter = "?" if letter == " " else letter; text_str = f"{display_letter}: {count}"; text = tile_count_font.render(text_str, True, BLACK)
-            if items_in_col >= max_items_per_col: y_pos = 40; current_col_x += col_width; items_in_col = 0
-            screen.blit(text, (current_col_x, y_pos)); y_pos += 20; items_in_col += 1
-    summary_y_start = 40 + max_items_per_col * 20 + 20; summary_y_start = min(summary_y_start, max_y + 20)
+            if items_in_col >= max_items_per_col:
+                y_pos = 40 # Reset y_pos for the new column
+                current_col_x += col_width
+                items_in_col = 0
+            screen.blit(text, (current_col_x, y_pos))
+            last_drawn_y = y_pos # Update the last drawn y position in the current column
+            last_drawn_col_x = current_col_x # Update the column x
+            y_pos += 20; items_in_col += 1
+
+    # Calculate summary position directly below the last drawn item's position
+    # Add the height of one line (20) to get the position below it, plus a small gap (e.g., 5)
+    summary_y_start = last_drawn_y + 20 + 5
+    # Ensure it doesn't go off screen
+    summary_y_start = min(summary_y_start, max_y + 40) # Use max_y for clamping
+
     total_tiles = sum(remaining.values()); vowels = sum(remaining.get(letter, 0) for letter in 'AEIOU'); consonants = sum(remaining.get(letter, 0) for letter in remaining if letter.isalpha() and letter not in 'AEIOU '); blanks_rem = remaining.get(' ', 0)
     text1 = tile_count_font.render(f"Tiles remaining: {total_tiles}", True, BLACK); text2 = tile_count_font.render(f"V: {vowels}  C: {consonants}  B: {blanks_rem}", True, BLACK)
-    screen.blit(text1, (remaining_x - 20, summary_y_start)); summary_y_start += 20; screen.blit(text2, (remaining_x - 20, summary_y_start))
+
+    # Align summary text x-coordinate with the start of the list columns
+    summary_x = remaining_x
+    screen.blit(text1, (summary_x, summary_y_start));
+    screen.blit(text2, (summary_x, summary_y_start + 20)) # Draw second line below first
 
 def draw_arrow(row, col, direction):
     """Draw an arrow indicating play direction."""
