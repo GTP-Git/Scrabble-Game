@@ -1,0 +1,3363 @@
+# python
+# Stable: 30MAR25, 19:17 - Modified based on user request to fix initialization and other issues
+# Stable version before major changes
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 1)
+
+# Part 1
+
+# To-Do: ...then complete endgames with full analysis (multiple parts and steps here)
+# To-Do: get actual RGB values for the official Scrabble board
+# To-Do: create and save statistics, both in game and to a file for persistence
+# To-Do: allow me to load a game and a) play it in my game b) gather stats from it, and...
+# To-Do: ...c) automatically write those stats to my Scrabble spreadsheet
+# To-Do: allow user to break/stop word Suggestion, sometimes it takes forever
+# To-Do: give some strategy guidance to the AI, blank and S handling, etc.
+# To-Do: when mode is AI vs AI, gray out Suggest and Options? Can I even click to Quit?
+# To-Do: Rename show_power_tile_dialog to show_message_dialog for general use.
+# To-Do: Add "Give Up" button for 8-letter practice.
+
+# To-Do: ----DONE----move the Player 1’s turn text off the board, it blocks letters
+# To-Do: —---DONE—---add in 50-pt bonus for using all seven letters
+# To-Do: ----DONE----allow for drag-n-drop tile rack letter manipulation
+# To-Do: ----DONE----verify words for legality against a word list, All Words 2023.txt, located on my desktop
+# To-Do: ----DONE----add code to handle blank tiles
+# To-Do: ----DONE----add Pass, Exchange, Quit
+# To-Do: ----DONE----change mechanics of playing a word to allow typing
+# To-Do: ----DONE----change look of direction arrow, right click to remove, remove when typing starts
+# To-Do: ----DONE----remaining tile list should print out all tiles remaining, not just A:3 format
+# To-Do: ----DONE----allow the computer to play against itself
+# To-Do: ----DONE----fix scoring, likely not accounting for both vertical and horizontal words
+# To-Do: ----DONE----ensure bag draw is random, seems to be a lot of  blanks to start the game
+# To-Do: ----DONE----change color of blanks, can't see against white background; maybe lowercase?
+# To-Do: ----DONE----add last play and score note, likely at the bottom of the remaining letters list
+# To-Do: ----DONE----Player 1 score text is overlaid on the bottom of the board, need to extend game window vertically
+# To-Do: ----DONE----save Suggest results for the turn so no need to regenerate is asked again
+# To-Do: —---DONE—---Generate all valid moves
+# To-Do: —---DONE—---in word suggestion, show the leave on the rack after the word would be played
+# To-Do: ----DONE----dramatically speed up the word generation algorithm
+# To-Do: ----DONE----implement replay mode
+# To-Do: ----DONE----change board coordinate references from (1,1) to A1, explain why to Grok
+# To-Do: ----DONE----Fix 8-Letter Bingo Practice Mode logic
+
+
+import pygame
+import random
+import math
+import sys
+import time
+from itertools import permutations, product
+from collections import Counter
+
+# Initialize Pygame
+pygame.init()
+main_called = False # Flag to track if main() has been entered
+
+# Constants
+GRID_SIZE = 15
+SQUARE_SIZE = 40
+BOARD_SIZE = GRID_SIZE * SQUARE_SIZE
+FONT_SIZE = SQUARE_SIZE // 2
+TILE_WIDTH = 35
+TILE_HEIGHT = 35
+TILE_GAP = 5
+BUTTON_WIDTH = 100
+BUTTON_HEIGHT = 30
+BUTTON_GAP = 10
+CENTER_SQUARE = (7, 7)
+OPTIONS_WIDTH = 100
+OPTIONS_HEIGHT = 30
+DROPDOWN_HEIGHT = 90
+OPTIONS_Y = BOARD_SIZE + 60  # Adjusted from +40 to align with shifted UI
+DOUBLE_CLICK_TIME = 300
+SECOND_CLICK_TIME = 500  # Time window for second click
+ALL_WORDS_DIALOG_WIDTH = 750
+ALL_WORDS_DIALOG_HEIGHT = 600
+SCROLL_SPEED = 20
+
+# Dialog dimensions for game over dialog
+DIALOG_WIDTH = 480
+DIALOG_HEIGHT = 250
+LETTERS = "ABCDEFGHIJKLMNO"  # For column labels
+
+# Get screen resolution
+display_info = pygame.display.Info()
+# Set window size to fit within screen resolution (with padding for borders)
+WINDOW_WIDTH = min(1400, display_info.current_w - 50)  # 50 pixels padding
+WINDOW_HEIGHT = min(900, display_info.current_h - 50)  # 50 pixels padding
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 100, 100)
+PINK = (255, 182, 193)
+BLUE = (0, 102, 204)  # Darkened from (173, 216, 230) for TL
+LIGHT_BLUE = (135, 206, 250)
+HIGHLIGHT_BLUE = (191, 238, 255)
+YELLOW = (255, 255, 153)
+GRAY = (200, 200, 200)
+GREEN = (144, 238, 144)
+DARK_GREEN = (100, 200, 100)
+BUTTON_COLOR = (180, 180, 180)
+BUTTON_HOVER = (220, 220, 220)
+TURN_INDICATOR_COLOR = (255, 215, 0)
+DIALOG_COLOR = (150, 150, 150)
+DROPDOWN_COLOR = (200, 200, 200)
+SELECTED_TILE_COLOR = (255, 165, 0)
+GRAYED_OUT_COLOR = (100, 100, 100)
+ARROW_COLOR = (0, 0, 255)
+HINT_NORMAL_COLOR = (220, 220, 220)
+HINT_SELECTED_COLOR = (180, 180, 255)
+
+# Setup display and font
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption("Scrabble Game")
+font = pygame.font.SysFont("Arial", FONT_SIZE, bold=True)
+ui_font = pygame.font.SysFont("Arial", 20)
+button_font = pygame.font.SysFont("Arial", 16)
+tile_count_font = pygame.font.SysFont("Arial", 14)
+dialog_font = pygame.font.SysFont("Arial", 24)
+
+# Tile bag and values (moved up to be defined before trie)
+TILE_DISTRIBUTION = {
+    'A': (9, 1), 'B': (2, 3), 'C': (2, 3), 'D': (4, 2), 'E': (12, 1), 'F': (2, 4),
+    'G': (3, 2), 'H': (2, 4), 'I': (9, 1), 'J': (1, 8), 'K': (1, 5), 'L': (4, 1),
+    'M': (2, 3), 'N': (6, 1), 'O': (8, 1), 'P': (2, 3), 'Q': (1, 10), 'R': (6, 1),
+    'S': (4, 1), 'T': (6, 1), 'U': (4, 1), 'V': (2, 4), 'W': (2, 4), 'X': (1, 8),
+    'Y': (2, 4), 'Z': (1, 10), ' ': (2, 0)
+}
+# Global bag - initialized properly in main() or practice setup
+bag = []
+
+POWER_TILES = {'J', 'Q', 'X', 'Z'}
+
+# Global game state variables (will be initialized/reset in main)
+board = None
+tiles = None
+racks = None
+blanks = None
+scores = None
+turn = 1
+first_play = True
+game_mode = None
+is_ai = None
+practice_mode = None # Added to track practice modes like "eight_letter", "power_tiles"
+move_history = []
+replay_mode = False
+current_replay_turn = 0
+last_word = ""
+last_score = 0
+last_start = None
+last_direction = None
+
+def draw_checkbox(screen, x, y, checked):
+    pygame.draw.rect(screen, BLACK, (x, y, 20, 20), 1)
+    if checked:
+        pygame.draw.line(screen, BLACK, (x+2, y+2), (x+18, y+18), 2)
+        pygame.draw.line(screen, BLACK, (x+18, y+2), (x+2, y+18), 2)
+
+
+# --- GCG Handling ---
+def save_game_to_gcg(player_names, move_history, initial_racks, final_scores):
+    """Save the game to GCG format using move_history directly."""
+    gcg_lines = [
+        "#",
+        f"#player1 {player_names[0]}",
+        f"#player2 {player_names[1]}"
+    ]
+    cumulative_scores = [0, 0]
+
+    for move in move_history:
+        player = move['player'] - 1  # 0-based index
+        rack = ''.join(sorted(tile if tile != ' ' else '?' for tile in move['rack']))
+
+        if move['move_type'] == 'place':
+            # Use the stored full word with blanks
+            word_with_blanks = move.get('word_with_blanks', move.get('word','').upper()) # Use getter for safety
+            score = move['score']
+            cumulative_scores[player] += score
+            gcg_lines.append(
+                f">{player_names[player]}: {rack} {move['coord']} {word_with_blanks} +{score} {cumulative_scores[player]}"
+            )
+        elif move['move_type'] == 'exchange':
+            exchanged = ''.join(sorted(tile if tile != ' ' else '?' for tile in move.get('exchanged_tiles',[]))) # Use getter
+            gcg_lines.append(
+                f">{player_names[player]}: {rack} ({exchanged}) +0 {cumulative_scores[player]}"
+            )
+        elif move['move_type'] == 'pass':
+            gcg_lines.append(
+                f">{player_names[player]}: {rack} -- +0 {cumulative_scores[player]}"
+            )
+
+    gcg_lines.append(f"Final score: {player_names[0]} {final_scores[0]}, {player_names[1]} {final_scores[1]}")
+
+    return '\n'.join(gcg_lines)
+
+def load_game_from_gcg(filename):
+    """Load a game from a GCG file, returning data to enter replay mode."""
+    move_history = []
+    player_names = ["Player1", "Player2"]
+    final_scores = [0, 0]
+
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("#player1"):
+                player_names[0] = line.split()[1]
+            elif line.startswith("#player2"):
+                player_names[1] = line.split()[1]
+            elif line.startswith("Final score:"):
+                parts = line.split()
+                final_scores[0] = int(parts[2].strip(','))
+                final_scores[1] = int(parts[4])
+            elif line.startswith(">"):
+                parts = line.split()
+                player_name = parts[0][1:-1]  # Remove > and :
+                player = 1 if player_name == player_names[0] else 2
+                rack = parts[1]
+                move_details = parts[2]
+                score = int(parts[3][1:])
+                cumulative_score = int(parts[4])
+
+                if move_details == "--":
+                    move_history.append({
+                        'player': player,
+                        'move_type': 'pass',
+                        'score': score,
+                        'word': '',
+                        'coord': ''
+                    })
+                elif move_details.startswith("("):
+                    exchanged = move_details[1:-1]
+                    move_history.append({
+                        'player': player,
+                        'move_type': 'exchange',
+                        'exchanged_tiles': list(exchanged),
+                        'score': score,
+                        'word': '',
+                        'coord': ''
+                    })
+                else:
+                    position = parts[2]
+                    word = parts[3]
+                    if position[0].isalpha():  # Vertical: e.g., H8
+                        col = LETTERS.index(position[0])
+                        row = int(position[1:]) - 1
+                        direction = "down"
+                    else:  # Horizontal: e.g., 8H
+                        row = int(position[0]) - 1
+                        col = LETTERS.index(position[1])
+                        direction = "right"
+                    positions = []
+                    blanks = set()
+                    for i, letter in enumerate(word):
+                        r = row if direction == "right" else row + i
+                        c = col + i if direction == "right" else col
+                        positions.append((r, c, letter))
+                        if letter.islower():  # GCG uses lowercase for blanks
+                            blanks.add((r, c))
+                    move_history.append({
+                        'player': player,
+                        'move_type': 'place',
+                        'positions': positions,
+                        'blanks': blanks,
+                        'score': score,
+                        'word': word.upper(),
+                        'start': (row, col),
+                        'direction': direction,
+                        'coord': position
+                    })
+
+    return player_names, move_history, final_scores
+
+
+# --- Trie/DAWG Setup ---
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word):
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = TrieNode()
+            node = node.children[char]
+        node.is_end = True
+
+    def search(self, word):
+        """Check if a word exists in the Trie."""
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                return False
+            node = node.children[char]
+        return node.is_end
+
+    def get_words_with_letters(self, letters):
+        """Generate all possible words using the given letters, treating blanks as wildcards."""
+        counter = Counter(letters)
+        blanks = counter.get(' ', 0)  # Count of blank tiles
+        if ' ' in counter:
+            del counter[' ']  # Remove blanks from the letter counter
+        words = []
+
+        def dfs(node, prefix, blanks_left):
+            """Depth-first search to find words, using blanks as wildcards."""
+            if node.is_end:
+                words.append(prefix)
+            for char in node.children:
+                if counter.get(char, 0) > 0: # Use .get for safety
+                    counter[char] -= 1
+                    dfs(node.children[char], prefix + char, blanks_left)
+                    counter[char] += 1  # Restore count after recursion
+                elif blanks_left > 0:
+                    # Check if the character exists in the Trie before proceeding with a blank
+                    if char in node.children:
+                         dfs(node.children[char], prefix + char, blanks_left - 1) # Use a blank as a wildcard
+
+        dfs(self.root, '', blanks)
+        return words
+
+class DawgNode:
+    def __init__(self):
+        self.edges = {}  # letter -> next_node
+        self.is_terminal = False  # Marks end of a word
+
+class Dawg:
+    def __init__(self):
+        self.root = DawgNode()
+
+    def insert(self, word):
+        node = self.root
+        for char in word:
+            if char not in node.edges:
+                node.edges[char] = DawgNode()
+            node = node.edges[char]
+        node.is_terminal = True
+
+# Load the DAWG with words from "All Words 2023.txt"
+DAWG = Dawg()
+try:
+    # Ensure the path is correct or adjust as needed
+    with open("All Words 2023.txt", "r") as f:
+        for word in (w.strip().upper() for w in f):
+            if len(word) > 1: # Optionally filter out single-letter words if not needed
+                DAWG.insert(word)
+    print("DAWG loaded successfully.")
+except FileNotFoundError:
+    print("Error: 'All Words 2023.txt' not found. Word validation will not work.")
+    # Optionally, exit or provide a way to specify the file path
+    # sys.exit()
+
+
+# --- Mode Selection Constants ---
+MODE_HVH = "Human vs Human"
+MODE_HVA = "Human vs AI"
+MODE_AVA = "AI vs AI"
+
+# --- Replay Button Positions ---
+REPLAY_BUTTON_Y = OPTIONS_Y + OPTIONS_HEIGHT + 10
+REPLAY_BUTTON_WIDTH = 50
+REPLAY_BUTTON_HEIGHT = 30
+REPLAY_BUTTON_GAP = 10
+replay_start_rect = pygame.Rect(10, REPLAY_BUTTON_Y, REPLAY_BUTTON_WIDTH, REPLAY_BUTTON_HEIGHT)
+replay_prev_rect = pygame.Rect(10 + REPLAY_BUTTON_WIDTH + REPLAY_BUTTON_GAP, REPLAY_BUTTON_Y, REPLAY_BUTTON_WIDTH, REPLAY_BUTTON_HEIGHT)
+replay_next_rect = pygame.Rect(10 + 2 * (REPLAY_BUTTON_WIDTH + REPLAY_BUTTON_GAP), REPLAY_BUTTON_Y, REPLAY_BUTTON_WIDTH, REPLAY_BUTTON_HEIGHT)
+replay_end_rect = pygame.Rect(10 + 3 * (REPLAY_BUTTON_WIDTH + REPLAY_BUTTON_GAP), REPLAY_BUTTON_Y, REPLAY_BUTTON_WIDTH, REPLAY_BUTTON_HEIGHT)
+
+
+# --- Coordinate Handling ---
+def get_coord(start, direction):
+    row, col = start
+    if direction == "right":
+        return f"{row + 1}{LETTERS[col]}"
+    else:  # "down"
+        return f"{LETTERS[col]}{row + 1}"
+
+def parse_coord(coord):
+    """Parse a GCG coordinate (e.g., '8H' or 'H8') into (row, col) and direction."""
+    if not coord: return None, None # Handle empty coord
+    if coord[0].isalpha():  # Vertical: e.g., H8 or H10
+        col_char = coord[0]
+        row_str = coord[1:]
+        if col_char not in LETTERS or not row_str.isdigit(): return None, None
+        col = LETTERS.index(col_char)
+        row = int(row_str) - 1
+        direction = "down"
+    else:  # Horizontal: e.g., 8H or 10A
+        i = 0
+        while i < len(coord) and coord[i].isdigit():
+            i += 1
+        row_str = coord[:i]
+        col_char = coord[i:]
+        if not row_str.isdigit() or len(col_char) != 1 or col_char not in LETTERS: return None, None
+        row = int(row_str) - 1
+        col = LETTERS.index(col_char)
+        direction = "right"
+
+    if not (0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE): return None, None # Bounds check
+    return (row, col), direction
+
+# --- Board Creation ---
+def create_board():
+    """Initialize the Scrabble board with special squares and labels."""
+    board = [[WHITE for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    labels = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    tiles = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+
+    tw = [(0, 0), (0, 7), (0, 14), (7, 0), (7, 14), (14, 0), (14, 7), (14, 14)]
+    dw = [
+        (1, 1), (2, 2), (3, 3), (4, 4), (10, 10), (11, 11), (12, 12), (13, 13),
+        (1, 13), (2, 12), (3, 11), (4, 10), (10, 4), (11, 3), (12, 2), (13, 1)
+    ]
+    tl = [
+        (1, 5), (1, 9), (5, 1), (5, 5), (5, 9), (5, 13), (9, 1), (9, 5),
+        (9, 9), (9, 13), (13, 5), (13, 9)
+    ]
+    dl = [
+        (0, 3), (0, 11), (2, 6), (2, 8), (3, 0), (3, 7), (3, 14), (6, 2),
+        (6, 6), (6, 8), (6, 12), (7, 3), (7, 11), (8, 2), (8, 6), (8, 8),
+        (8, 12), (11, 0), (11, 7), (11, 14), (12, 6), (12, 8), (14, 3), (14, 11)
+    ]
+
+    for r, c in tw: board[r][c] = RED
+    for r, c in dw: board[r][c] = PINK
+    for r, c in tl: board[r][c] = BLUE
+    for r, c in dl: board[r][c] = LIGHT_BLUE
+    board[7][7] = PINK # Center square
+
+    return board, labels, tiles
+
+# --- Drawing Functions ---
+def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_pos=None, display_scores=None):
+    """Draw a player's rack with tiles, scores, and buttons."""
+    global practice_mode # Access global practice_mode
+    if not rack:
+        return None, None
+    if display_scores is None:
+        display_scores = scores
+
+    # Don't draw P2 rack in 8-letter practice mode
+    if practice_mode == "eight_letter" and player == 2:
+        return None, None
+
+    rack_width = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
+    start_x = max(OPTIONS_WIDTH + BUTTON_GAP + 10, (BOARD_SIZE - rack_width) // 2)
+    rack_y = BOARD_SIZE + 80 if player == 1 else BOARD_SIZE + 150
+
+    # Draw turn indicator (only if not practice mode or if it's P1's turn in practice)
+    if turn == player and (practice_mode != "eight_letter" or player == 1):
+        center_x = start_x - 20
+        center_y = rack_y + TILE_HEIGHT // 2
+        radius = 10
+        points = []
+        for i in range(10):
+            angle = i * math.pi / 5
+            r = radius if i % 2 == 0 else radius / 2
+            x = center_x + r * math.cos(angle)
+            y = center_y + r * math.sin(angle)
+            points.append((x, y))
+        pygame.draw.polygon(screen, TURN_INDICATOR_COLOR, points)
+
+    # Draw tiles
+    for i, tile in enumerate(rack):
+        tile_x = start_x + i * (TILE_WIDTH + TILE_GAP)
+        if dragged_tile == (player, i) and drag_pos:
+            continue
+        if tile == ' ':
+            center = (tile_x + TILE_WIDTH // 2, rack_y + TILE_HEIGHT // 2)
+            radius = TILE_WIDTH // 2 - 2
+            pygame.draw.circle(screen, BLACK, center, radius)
+            text = font.render('?', True, WHITE)
+            text_rect = text.get_rect(center=center)
+            screen.blit(text, text_rect)
+        else:
+            pygame.draw.rect(screen, GREEN, (tile_x, rack_y, TILE_WIDTH, TILE_HEIGHT))
+            text = font.render(tile, True, BLACK)
+            screen.blit(text, (tile_x + 5, rack_y + 5))
+
+    # Draw dragged tile
+    if dragged_tile and dragged_tile[0] == player and drag_pos:
+        tile_x, tile_y = drag_pos
+        if 0 <= dragged_tile[1] < len(rack):
+            tile = rack[dragged_tile[1]]
+            if tile == ' ':
+                center = (tile_x, tile_y)
+                radius = TILE_WIDTH // 2 - 2
+                pygame.draw.circle(screen, BLACK, center, radius)
+                text = font.render('?', True, WHITE)
+                text_rect = text.get_rect(center=center)
+                screen.blit(text, text_rect)
+            else:
+                pygame.draw.rect(screen, GREEN, (tile_x - TILE_WIDTH // 2, tile_y - TILE_HEIGHT // 2, TILE_WIDTH, TILE_HEIGHT))
+                text = font.render(tile, True, BLACK)
+                screen.blit(text, (tile_x - TILE_WIDTH // 2 + 5, tile_y - TILE_HEIGHT // 2 + 5))
+
+    # Draw buttons (Alphabetize/Randomize)
+    button_x = start_x + rack_width + BUTTON_GAP
+    alpha_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (button_x, rack_y, BUTTON_WIDTH, BUTTON_HEIGHT))
+    rand_button_rect = pygame.draw.rect(screen, BUTTON_COLOR, (button_x + BUTTON_WIDTH + BUTTON_GAP, rack_y, BUTTON_WIDTH, BUTTON_HEIGHT))
+
+    alpha_text = button_font.render("Alphabetize", True, BLACK)
+    alpha_rect = alpha_text.get_rect(center=(button_x + BUTTON_WIDTH // 2, rack_y + BUTTON_HEIGHT // 2))
+    screen.blit(alpha_text, alpha_rect)
+    rand_text = button_font.render("Randomize", True, BLACK)
+    rand_rect = rand_text.get_rect(center=(button_x + BUTTON_WIDTH + BUTTON_GAP + BUTTON_WIDTH // 2, rack_y + BUTTON_HEIGHT // 2))
+    screen.blit(rand_text, rand_rect)
+
+    # Draw score
+    player_idx = player - 1
+    if 0 <= player_idx < len(player_names) and 0 <= player_idx < len(display_scores):
+        # Use player_names[player_idx] safely
+        player_name_display = player_names[player_idx] if player_names[player_idx] else f"Player {player}" # Handle empty P2 name in practice
+        score_text = ui_font.render(f"{player_name_display} Score: {display_scores[player_idx]}", True, BLACK)
+        screen.blit(score_text, (start_x, rack_y - 20))
+    else:
+        print(f"Warning: Invalid player index {player} for score display.")
+
+    return alpha_button_rect, rand_button_rect
+
+def draw_replay_icon(screen, rect, icon_type):
+    """Draw centered replay control icons (arrows) on the buttons."""
+    center_x, center_y = rect.center
+    arrow_size = 8
+
+    if icon_type == "start": # <<
+        pygame.draw.polygon(screen, BLACK, [(center_x + 6, center_y - arrow_size), (center_x - 2, center_y), (center_x + 6, center_y + arrow_size)])
+        pygame.draw.polygon(screen, BLACK, [(center_x - 2, center_y - arrow_size), (center_x - 10, center_y), (center_x - 2, center_y + arrow_size)])
+    elif icon_type == "prev": # <
+        pygame.draw.polygon(screen, BLACK, [(center_x + 6, center_y - arrow_size), (center_x - 6, center_y), (center_x + 6, center_y + arrow_size)])
+    elif icon_type == "next": # >
+        pygame.draw.polygon(screen, BLACK, [(center_x - 6, center_y - arrow_size), (center_x + 6, center_y), (center_x - 6, center_y + arrow_size)])
+    elif icon_type == "end": # >>
+        pygame.draw.polygon(screen, BLACK, [(center_x - 6, center_y - arrow_size), (center_x + 2, center_y), (center_x - 6, center_y + arrow_size)])
+        pygame.draw.polygon(screen, BLACK, [(center_x + 2, center_y - arrow_size), (center_x + 10, center_y), (center_x + 2, center_y + arrow_size)])
+
+def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_scores=None, game_over_state=False):
+    """Draws the scrollable scoreboard."""
+    scoreboard_x = BOARD_SIZE + 275
+    scoreboard_y = 40
+    scoreboard_width = max(200, WINDOW_WIDTH - BOARD_SIZE - 20)
+    scoreboard_height = WINDOW_HEIGHT - 80
+
+    if scoreboard_x + scoreboard_width > WINDOW_WIDTH - 10:
+        scoreboard_width = WINDOW_WIDTH - scoreboard_x - 10
+        if scoreboard_width < 200:
+            scoreboard_x = WINDOW_WIDTH - 210
+            scoreboard_width = 200
+
+    scoreboard_surface = pygame.Surface((scoreboard_width, scoreboard_height))
+    scoreboard_surface.fill(WHITE)
+
+    running_scores = [0, 0]
+    y_pos = 10 - scroll_offset
+
+    for i, move in enumerate(move_history):
+        player_idx = move['player'] - 1
+        running_scores[player_idx] += move['score']
+        player_label = "AI" if 0 <= player_idx < len(is_ai) and is_ai[player_idx] else f"P{move['player']}"
+        display_score = running_scores[player_idx]
+
+        if move['move_type'] == 'place':
+            word = move.get('word', 'N/A')
+            coord = move.get('coord', 'N/A')
+            text = f"{i+1}: {player_label} - {word} at {coord} (+{move['score']}) Total: {display_score}"
+        elif move['move_type'] == 'pass':
+            text = f"{i+1}: {player_label} - Pass (+0) Total: {display_score}"
+        elif move['move_type'] == 'exchange':
+            text = f"{i+1}: {player_label} - Exchange (+0) Total: {display_score}"
+        else:
+            text = f"{i+1}: {player_label} - Unknown Move Type"
+
+        text_surface = ui_font.render(text, True, BLACK)
+        if y_pos < scoreboard_height and y_pos + 20 > 0:
+            if (i // 2) % 2 == 0:
+                rect_width = 10 + text_surface.get_width() + 10
+                highlight_rect = pygame.Rect(0, y_pos, rect_width, 20)
+                pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE, highlight_rect)
+            scoreboard_surface.blit(text_surface, (10, y_pos))
+        y_pos += 20
+
+    if game_over_state and final_scores is not None:
+        y_pos += 20
+        final_text = f"Final Scores: P1: {final_scores[0]}, P2: {final_scores[1]}"
+        final_surface = ui_font.render(final_text, True, BLACK)
+        if y_pos < scoreboard_height and y_pos + 20 > 0:
+            scoreboard_surface.blit(final_surface, (10, y_pos))
+
+    screen.blit(scoreboard_surface, (scoreboard_x, scoreboard_y))
+
+# End of Part 1
+
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 2)
+
+# Part 2
+
+# --- Word Finding Logic ---
+def find_main_word(new_tiles, tiles):
+    """Finds the primary word formed by newly placed tiles."""
+    if not new_tiles: return [], None
+
+    rows = set(r for r, c, _ in new_tiles)
+    cols = set(c for r, c, _ in new_tiles)
+
+    if len(rows) == 1: # Potential horizontal word
+        orientation = "horizontal"
+        row = rows.pop()
+        min_col = min(c for r, c, _ in new_tiles if r == row)
+        max_col = max(c for r, c, _ in new_tiles if r == row)
+        # Extend to include adjacent existing tiles
+        while min_col > 0 and tiles[row][min_col - 1]: min_col -= 1
+        while max_col < GRID_SIZE - 1 and tiles[row][max_col + 1]: max_col += 1
+        # Collect all tiles in the extended range
+        main_word = [(row, c, tiles[row][c]) for c in range(min_col, max_col + 1) if tiles[row][c]]
+        # Only return if it forms a word of length > 1
+        return (main_word, orientation) if len(main_word) > 1 else ([], None)
+
+    elif len(cols) == 1: # Potential vertical word
+        orientation = "vertical"
+        col = cols.pop()
+        min_row = min(r for r, c, _ in new_tiles if c == col)
+        max_row = max(r for r, c, _ in new_tiles if c == col)
+        # Extend to include adjacent existing tiles
+        while min_row > 0 and tiles[min_row - 1][col]: min_row -= 1
+        while max_row < GRID_SIZE - 1 and tiles[max_row + 1][col]: max_row += 1
+        # Collect all tiles in the extended range
+        main_word = [(r, col, tiles[r][col]) for r in range(min_row, max_row + 1) if tiles[r][col]]
+        # Only return if it forms a word of length > 1
+        return (main_word, orientation) if len(main_word) > 1 else ([], None)
+
+    else: # Tiles not aligned or single tile
+        return [], None
+
+def find_cross_word(tile, tiles, main_orientation):
+    """Finds a cross word formed by a single tile perpendicular to the main word."""
+    r, c, _ = tile
+    cross_word = []
+    if main_orientation == "horizontal": # Check vertically
+        min_row = r
+        while min_row > 0 and tiles[min_row - 1][c]: min_row -= 1
+        max_row = r
+        while max_row < GRID_SIZE - 1 and tiles[max_row + 1][c]: max_row += 1
+        if max_row > min_row: # Only form words of length > 1
+            cross_word = [(rr, c, tiles[rr][c]) for rr in range(min_row, max_row + 1) if tiles[rr][c]]
+    elif main_orientation == "vertical": # Check horizontally
+        min_col = c
+        while min_col > 0 and tiles[r][min_col - 1]: min_col -= 1
+        max_col = c
+        while max_col < GRID_SIZE - 1 and tiles[r][max_col + 1]: max_col += 1
+        if max_col > min_col: # Only form words of length > 1
+            cross_word = [(r, cc, tiles[r][cc]) for cc in range(min_col, max_col + 1) if tiles[r][cc]]
+
+    return cross_word if len(cross_word) > 1 else []
+
+
+def find_all_words_formed(new_tiles, tiles):
+    """Finds all words (main and cross) formed by a play."""
+    words = []
+    if not new_tiles: return words
+
+    new_positions_set = set((r, c) for r, c, _ in new_tiles)
+    main_word_tiles, orientation = find_main_word(new_tiles, tiles)
+
+    if main_word_tiles:
+        words.append(main_word_tiles)
+        # Check for cross words perpendicular to the main word for each *new* tile
+        for tile in new_tiles:
+            # Only check cross words if the tile was newly placed
+            if (tile[0], tile[1]) in new_positions_set:
+                cross_word = find_cross_word(tile, tiles, orientation)
+                if cross_word: # find_cross_word already checks length > 1
+                    words.append(cross_word)
+    else:
+        # If no main word (e.g., single tile placement), check for cross words in both directions
+        # This handles cases where a single tile connects two existing words or extends one.
+        if len(new_tiles) == 1:
+            tile = new_tiles[0]
+            # Check horizontal cross word (as if main was vertical)
+            cross_h = find_cross_word(tile, tiles, "vertical")
+            if cross_h: words.append(cross_h)
+            # Check vertical cross word (as if main was horizontal)
+            cross_v = find_cross_word(tile, tiles, "horizontal")
+            if cross_v: words.append(cross_v)
+
+    # Ensure uniqueness of word tile lists based on their content signature
+    unique_word_tile_lists = []
+    seen_signatures = set()
+    for word_tile_list in words:
+        signature = tuple(sorted((r, c, l) for r, c, l in word_tile_list))
+        if signature not in seen_signatures:
+            unique_word_tile_lists.append(word_tile_list)
+            seen_signatures.add(signature)
+
+    return unique_word_tile_lists
+
+
+# --- Scoring Logic ---
+def calculate_score(new_tiles, board, tiles, blanks):
+    """Calculates the score for a play based on newly placed tiles."""
+    total_score = 0
+    new_positions = set((r, c) for r, c, _ in new_tiles) # Positions of the tiles just placed
+    words_formed_details = find_all_words_formed(new_tiles, tiles) # Get lists of tile tuples
+
+    for word_tiles in words_formed_details:
+        word_score = 0
+        word_multiplier = 1
+        for r, c, letter in word_tiles:
+            # Ensure letter is valid before accessing TILE_DISTRIBUTION
+            if letter not in TILE_DISTRIBUTION:
+                print(f"Warning: Invalid letter '{letter}' found in word during scoring at ({r},{c}). Skipping.")
+                continue
+
+            is_blank = (r, c) in blanks
+            letter_value = 0 if is_blank else TILE_DISTRIBUTION[letter][1]
+            letter_multiplier = 1
+
+            # Apply multipliers only if the tile is one of the *newly placed* tiles
+            if (r, c) in new_positions:
+                square_color = board[r][c]
+                if square_color == LIGHT_BLUE: letter_multiplier = 2 # DL
+                elif square_color == BLUE: letter_multiplier = 3 # TL
+                elif square_color == PINK: word_multiplier *= 2 # DW (Center is also Pink)
+                elif square_color == RED: word_multiplier *= 3 # TW
+
+            word_score += letter_value * letter_multiplier
+
+        total_score += word_score * word_multiplier
+
+    # Bingo bonus: 50 points if exactly 7 *new* tiles were played from the rack
+    if len(new_tiles) == 7:
+        total_score += 50
+
+    return total_score
+
+# --- Practice Mode Setup ---
+def select_seven_letter_word(removed_letter, seven_letter_words):
+    """Selects a random 7-letter word containing the removed letter."""
+    candidates = [word for word in seven_letter_words if removed_letter in word]
+    if not candidates:
+        print(f"Warning: No 7-letter words contain '{removed_letter}'. Choosing random 7-letter word.")
+        return random.choice(seven_letter_words) if seven_letter_words else None
+    return random.choice(candidates)
+
+def eight_letter_practice():
+    """Handles the setup dialog and initialization for 8-Letter Bingo practice."""
+    try:
+        with open("7-letter-list.txt", "r") as seven_file, open("8-letter-list.txt", "r") as eight_file:
+            seven_letter_words = [line.strip().upper() for line in seven_file.readlines()]
+            eight_letter_words = [line.strip().upper() for line in eight_file.readlines()]
+    except FileNotFoundError:
+        print("Error: Could not find 7-letter-list.txt or 8-letter-list.txt")
+        return False, None, None, None, None, None
+    if not seven_letter_words or not eight_letter_words:
+        print("Error: Word list files are empty.")
+        return False, None, None, None, None, None
+
+    dialog_width, dialog_height = 300, 150
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+    proceed = False
+    text_box_active = False
+    probability_input = ""
+
+    while True: # Dialog loop
+        screen.fill(WHITE) # Clear screen for dialog
+        pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+        pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+        title_text = dialog_font.render("8-Letter Bingo Options", True, BLACK)
+        screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+
+        prob_text = ui_font.render("Probability", True, BLACK)
+        screen.blit(prob_text, (dialog_x + 20, dialog_y + 50))
+        text_box_rect = pygame.Rect(dialog_x + 120, dialog_y + 45, 150, 30)
+        pygame.draw.rect(screen, WHITE, text_box_rect)
+        pygame.draw.rect(screen, BLACK, text_box_rect, 1)
+        input_text = ui_font.render(probability_input, True, BLACK)
+        screen.blit(input_text, (text_box_rect.x + 5, text_box_rect.y + 5))
+
+        go_rect = pygame.Rect(dialog_x + 50, dialog_y + 100, 100, 30)
+        cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 100, 100, 30)
+        pygame.draw.rect(screen, BUTTON_COLOR, go_rect)
+        pygame.draw.rect(screen, BUTTON_COLOR, cancel_rect)
+        go_text = button_font.render("Go", True, BLACK)
+        cancel_text = button_font.render("Cancel", True, BLACK)
+        screen.blit(go_text, go_text.get_rect(center=go_rect.center))
+        screen.blit(cancel_text, cancel_text.get_rect(center=cancel_rect.center))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                x, y = event.pos
+                text_box_active = text_box_rect.collidepoint(x, y)
+
+                if go_rect.collidepoint(x, y):
+                    max_index = len(eight_letter_words)
+                    if probability_input.isdigit():
+                         prob_val = int(probability_input)
+                         max_index = min(max(1, prob_val), len(eight_letter_words)) # Clamp between 1 and list length
+
+                    selected_eight = random.choice(eight_letter_words[:max_index])
+                    print("Selected 8-letter word:", selected_eight)
+
+                    remove_idx = random.randint(0, 7)
+                    removed_letter = selected_eight[remove_idx]
+                    removed_eight = selected_eight[:remove_idx] + selected_eight[remove_idx + 1:]
+                    print("Player 1 rack (7 letters):", removed_eight)
+                    print("Removed letter:", removed_letter)
+
+                    selected_seven = select_seven_letter_word(removed_letter, seven_letter_words)
+                    if selected_seven is None:
+                        print("Error: Could not find a suitable 7-letter word.")
+                        return False, None, None, None, None, None
+                    print("Selected 7-letter word for board:", selected_seven)
+
+                    # Initialize board state
+                    board, _, tiles = create_board()
+                    local_racks = [[], []]
+                    local_blanks = set()
+                    local_racks[0] = sorted(list(removed_eight)) # Player 1 gets the 7 letters
+                    local_racks[1] = [] # Player 2 rack is empty
+
+                    # Place the 7-letter word on the board (centered H or V)
+                    center_r, center_c = CENTER_SQUARE
+                    word_len = len(selected_seven)
+                    start_offset = word_len // 2
+                    place_horizontally = random.choice([True, False])
+
+                    placement_successful = False
+                    if place_horizontally:
+                        start_c_place = center_c - start_offset
+                        if 0 <= start_c_place and start_c_place + word_len <= GRID_SIZE:
+                            for i, letter in enumerate(selected_seven):
+                                tiles[center_r][start_c_place + i] = letter
+                            placement_successful = True
+                            print(f"Placed '{selected_seven}' horizontally at ({center_r},{start_c_place})")
+                    if not placement_successful: # Try vertically if horizontal failed or wasn't chosen
+                        start_r_place = center_r - start_offset
+                        if 0 <= start_r_place and start_r_place + word_len <= GRID_SIZE:
+                            for i, letter in enumerate(selected_seven):
+                                tiles[start_r_place + i][center_c] = letter
+                            placement_successful = True
+                            print(f"Placed '{selected_seven}' vertically at ({start_r_place},{center_c})")
+
+                    if not placement_successful: # Should be rare with 7 letters
+                        print("Error: Could not place 7-letter word centered H or V.")
+                        return False, None, None, None, None, None
+
+                    local_bag = [] # Bag is empty for this mode
+
+                    return True, board, tiles, local_racks, local_blanks, local_bag
+
+                elif cancel_rect.collidepoint(x, y):
+                    return False, None, None, None, None, None
+            elif event.type == pygame.KEYDOWN and text_box_active:
+                if event.key == pygame.K_BACKSPACE:
+                    probability_input = probability_input[:-1]
+                elif event.unicode.isdigit():
+                    probability_input += event.unicode
+
+        pygame.display.flip()
+    # Should not be reached normally
+    return False, None, None, None, None, None
+
+
+# --- Mode Selection Screen ---
+def mode_selection_screen():
+    """Display and handle the game mode selection screen."""
+    global main_called
+    try:
+        image = pygame.image.load("Scrabble_S.png").convert_alpha()
+        content_width = WINDOW_WIDTH - 200
+        image = pygame.transform.scale(image, (content_width, WINDOW_HEIGHT))
+        image.set_alpha(128)
+        content_left = (WINDOW_WIDTH - content_width) // 2
+    except pygame.error as e:
+        print(f"Warning: Could not load background image 'Scrabble_S.png': {e}")
+        image = None
+        content_width = WINDOW_WIDTH
+        content_left = 0
+
+    modes = [MODE_HVH, MODE_HVA, MODE_AVA]
+    selected_mode = None
+    player_names = ["Player 1", "Player 2"]
+    human_player = 1
+    input_active = [False, False]
+    current_input = 0
+    practice_mode = None
+    dropdown_open = False
+    showing_power_tiles_dialog = False
+    letter_checks = [True, True, True, True]
+    number_checks = [True, True, True, True, False, False]
+    practice_state = None
+
+    while selected_mode is None:
+        option_rects = []
+        name_rect_x = content_left + (content_width - 200) // 2 # Define here for consistent use
+        p2_y_pos = 300 + 60 # Define here for consistent use
+
+        if modes[current_input] == MODE_HVH and dropdown_open:
+            dropdown_x = name_rect_x
+            dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
+            dropdown_y = dropdown_button_y + 30
+            options = ["Power Tiles", "8-Letter Bingos", "End Game"]
+            for i, option in enumerate(options):
+                option_rect = pygame.Rect(dropdown_x, dropdown_y + 30 * i, 200, 30)
+                option_rects.append(option_rect)
+
+        screen.fill(WHITE)
+        if image: screen.blit(image, (content_left, 0))
+
+        title_text = dialog_font.render("Select Game Mode", True, BLACK)
+        title_x = content_left + (content_width - title_text.get_width()) // 2
+        screen.blit(title_text, (title_x, 50))
+
+        mode_rects = []
+        for i, mode in enumerate(modes):
+            y_pos = 100 + i * 60
+            rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, y_pos, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT)
+            hover = rect.collidepoint(pygame.mouse.get_pos())
+            color = BUTTON_HOVER if i == current_input or hover else BUTTON_COLOR
+            pygame.draw.rect(screen, color, rect)
+            if i == current_input: pygame.draw.rect(screen, BLACK, rect, 2)
+            text = button_font.render(mode, True, BLACK)
+            text_rect = text.get_rect(center=rect.center)
+            screen.blit(text, text_rect)
+            mode_rects.append(rect)
+
+        play_later_rect = pygame.Rect(WINDOW_WIDTH - BUTTON_WIDTH - 10, WINDOW_HEIGHT - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
+        hover = play_later_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, play_later_rect)
+        play_later_text = button_font.render("Play Later", True, BLACK)
+        play_later_text_rect = play_later_text.get_rect(center=play_later_rect.center)
+        screen.blit(play_later_text, play_later_text_rect)
+
+        name_y_start = 300
+        name_rect_width = 200
+
+        # Player 1 Name Input
+        p1_y_pos = name_y_start
+        p1_label_text = "Player 1 Name:"
+        p1_label = ui_font.render(p1_label_text, True, BLACK)
+        p1_name_rect = pygame.Rect(name_rect_x, p1_y_pos, name_rect_width, BUTTON_HEIGHT)
+        p1_label_x = name_rect_x - p1_label.get_width() - 10
+        screen.blit(p1_label, (p1_label_x, p1_y_pos + 5))
+        p1_bg_color = LIGHT_BLUE if input_active[0] else (GRAY if modes[current_input] == MODE_AVA else WHITE)
+        pygame.draw.rect(screen, p1_bg_color, p1_name_rect)
+        pygame.draw.rect(screen, BLACK, p1_name_rect, 1)
+        p1_name_text = ui_font.render(player_names[0], True, BLACK)
+        screen.blit(p1_name_text, (p1_name_rect.x + 5, p1_name_rect.y + 5))
+
+        # Player 2 / AI Name Input / Practice Button
+        if modes[current_input] == MODE_HVH:
+            p2_label_text = "Player 2 Name:"
+            p2_label = ui_font.render(p2_label_text, True, BLACK)
+            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
+            p2_label_x = name_rect_x - p2_label.get_width() - 10
+            screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
+            pygame.draw.rect(screen, WHITE if not input_active[1] else LIGHT_BLUE, p2_name_rect)
+            pygame.draw.rect(screen, BLACK, p2_name_rect, 1)
+            p2_name_text = ui_font.render(player_names[1], True, BLACK)
+            screen.blit(p2_name_text, (p2_name_rect.x + 5, p2_name_rect.y + 5))
+
+            dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
+            dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30)
+            hover = dropdown_rect.collidepoint(pygame.mouse.get_pos())
+            color = BUTTON_HOVER if hover else BUTTON_COLOR
+            pygame.draw.rect(screen, color, dropdown_rect)
+            text = button_font.render("Practice", True, BLACK)
+            text_rect = text.get_rect(center=dropdown_rect.center)
+            screen.blit(text, text_rect)
+
+            if dropdown_open:
+                for i, option_rect in enumerate(option_rects):
+                    hover = option_rect.collidepoint(pygame.mouse.get_pos())
+                    color = BUTTON_HOVER if hover else DROPDOWN_COLOR
+                    pygame.draw.rect(screen, color, option_rect)
+                    text = button_font.render(options[i], True, BLACK)
+                    text_rect = text.get_rect(center=option_rect.center)
+                    screen.blit(text, text_rect)
+
+        elif modes[current_input] == MODE_HVA:
+            p2_label_text = "AI Name:"
+            p2_label = ui_font.render(p2_label_text, True, BLACK)
+            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
+            p2_label_x = name_rect_x - p2_label.get_width() - 10
+            screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
+            pygame.draw.rect(screen, GRAY, p2_name_rect)
+            pygame.draw.rect(screen, BLACK, p2_name_rect, 1)
+            p2_name_text = ui_font.render(player_names[1], True, BLACK)
+            screen.blit(p2_name_text, (p2_name_rect.x + 5, p2_name_rect.y + 5))
+
+            button_row_y = p2_y_pos + BUTTON_HEIGHT + 10
+            p1_rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+            p2_rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2 + BUTTON_WIDTH + 20, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+            p1_hover = p1_rect.collidepoint(pygame.mouse.get_pos())
+            p2_hover = p2_rect.collidepoint(pygame.mouse.get_pos())
+            pygame.draw.rect(screen, BUTTON_HOVER if p1_hover else BUTTON_COLOR, p1_rect)
+            if human_player == 1: pygame.draw.rect(screen, BLACK, p1_rect, 2)
+            pygame.draw.rect(screen, BUTTON_HOVER if p2_hover else BUTTON_COLOR, p2_rect)
+            if human_player == 2: pygame.draw.rect(screen, BLACK, p2_rect, 2)
+            p1_text = button_font.render("Play as P1", True, BLACK)
+            p2_text = button_font.render("Play as P2", True, BLACK)
+            p1_text_rect = p1_text.get_rect(center=p1_rect.center)
+            p2_text_rect = p2_text.get_rect(center=p2_rect.center)
+            screen.blit(p1_text, p1_text_rect)
+            screen.blit(p2_text, p2_text_rect)
+
+        elif modes[current_input] == MODE_AVA:
+            p2_label_text = "AI 2 Name:"
+            p2_label = ui_font.render(p2_label_text, True, BLACK)
+            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
+            p2_label_x = name_rect_x - p2_label.get_width() - 10
+            screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
+            pygame.draw.rect(screen, GRAY, p2_name_rect)
+            pygame.draw.rect(screen, BLACK, p2_name_rect, 1)
+            p2_name_text = ui_font.render(player_names[1], True, BLACK)
+            screen.blit(p2_name_text, (p2_name_rect.x + 5, p2_name_rect.y + 5))
+            pygame.draw.rect(screen, GRAY, p1_name_rect) # P1 name also not editable
+            pygame.draw.rect(screen, BLACK, p1_name_rect, 1)
+            p1_name_text = ui_font.render(player_names[0], True, BLACK)
+            screen.blit(p1_name_text, (p1_name_rect.x + 5, p1_name_rect.y + 5))
+
+        # --- Event Loop for Mode Selection ---
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = event.pos
+                if showing_power_tiles_dialog:
+                    # ... (Power Tiles Dialog click handling - unchanged) ...
+                    dialog_x = (WINDOW_WIDTH - 300) // 2
+                    dialog_y = (WINDOW_HEIGHT - 250) // 2
+                    letter_rects = [pygame.Rect(dialog_x + 20, dialog_y + 40 + i*30, 20, 20) for i in range(4)]
+                    number_rects = [pygame.Rect(dialog_x + 150, dialog_y + 40 + i*30, 20, 20) for i in range(6)]
+                    go_rect = pygame.Rect(dialog_x + 50, dialog_y + 220, 100, 30)
+                    cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 220, 100, 30)
+                    for i, rect in enumerate(letter_rects):
+                        if rect.collidepoint(x, y): letter_checks[i] = not letter_checks[i]
+                    for i, rect in enumerate(number_rects):
+                        if rect.collidepoint(x, y): number_checks[i] = not number_checks[i]
+                    if go_rect.collidepoint(x, y):
+                        practice_mode = "power_tiles"
+                        selected_mode = MODE_AVA
+                        showing_power_tiles_dialog = False
+                        break # Exit inner event loop, outer while loop will break
+                    elif cancel_rect.collidepoint(x, y):
+                        showing_power_tiles_dialog = False
+                else: # Not in power tiles dialog
+                    # Mode buttons
+                    for i, rect in enumerate(mode_rects):
+                        if rect.collidepoint(x, y):
+                            current_input = i
+                            if i == 0: player_names = ["Player 1", "Player 2"]; input_active = [False, False]
+                            elif i == 1: player_names = ["Player 1", "AI"] if human_player == 1 else ["AI", "Player 2"]; input_active = [True, False] if human_player == 1 else [False, True] # Simplified HVA name edit
+                            elif i == 2: player_names = ["AI 1", "AI 2"]; input_active = [False, False]
+                            dropdown_open = False
+                            # Clicking mode button confirms selection for HVH/AVA
+                            if modes[current_input] in [MODE_HVH, MODE_AVA]:
+                                selected_mode = modes[current_input]
+                                if selected_mode == MODE_AVA: player_names = ["AI 1", "AI 2"]
+                                break # Exit inner event loop
+
+                    if selected_mode: break # Exit outer while loop if mode selected
+
+                    if play_later_rect.collidepoint(x, y): pygame.quit(); sys.exit()
+
+                    # Name input activation
+                    clicked_name_input = False
+                    if modes[current_input] == MODE_HVH:
+                        if p1_name_rect.collidepoint(x, y): input_active = [True, False]; clicked_name_input = True
+                        elif p2_name_rect.collidepoint(x, y): input_active = [False, True]; clicked_name_input = True
+                    elif modes[current_input] == MODE_HVA:
+                        # Allow editing only the human player's name
+                        if human_player == 1 and p1_name_rect.collidepoint(x, y): input_active = [True, False]; clicked_name_input = True
+                        elif human_player == 2 and p2_name_rect.collidepoint(x, y): input_active = [False, True]; clicked_name_input = True # Allow P2 edit if human
+
+                    # HVA Play As buttons
+                    if modes[current_input] == MODE_HVA:
+                        button_row_y = p2_y_pos + BUTTON_HEIGHT + 10
+                        p1_rect_hva = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+                        p2_rect_hva = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2 + BUTTON_WIDTH + 20, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+                        if p1_rect_hva.collidepoint(x, y):
+                            human_player = 1
+                            player_names = ["Player 1", "AI"]
+                            input_active = [True, False]
+                            selected_mode = MODE_HVA; break
+                        elif p2_rect_hva.collidepoint(x, y):
+                            human_player = 2
+                            player_names = ["AI", "Player 2"]
+                            input_active = [False, True] # Allow P2 edit
+                            selected_mode = MODE_HVA; break
+
+                    # Practice Dropdown (HVH only)
+                    if modes[current_input] == MODE_HVH:
+                        dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
+                        dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30)
+                        if dropdown_rect.collidepoint(x, y):
+                            dropdown_open = not dropdown_open
+                        elif dropdown_open:
+                            clicked_option = False
+                            for i, option_rect in enumerate(option_rects):
+                                if option_rect.collidepoint(x, y):
+                                    clicked_option = True
+                                    dropdown_open = False # Close dropdown after selection
+                                    if i == 0: # Power Tiles
+                                        showing_power_tiles_dialog = True
+                                    elif i == 1: # 8-Letter Bingos
+                                        proceed, p_board, p_tiles, p_racks, p_blanks, p_bag = eight_letter_practice()
+                                        if proceed:
+                                            practice_mode = "eight_letter"
+                                            selected_mode = MODE_HVH # Set mode to HVH for practice
+                                            player_names = ["Player 1", ""] # P2 name irrelevant
+                                            human_player = 1
+                                            practice_state = {
+                                                "board": p_board, "tiles": p_tiles, "racks": p_racks,
+                                                "blanks": p_blanks, "bag": p_bag, "first_play": False,
+                                                "scores": [0, 0], "turn": 1
+                                            }
+                                            break # Exit inner event loop
+                                        # else: practice cancelled, do nothing
+                                    elif i == 2: # End Game
+                                        print("End Game practice selected - Not implemented yet")
+                                    break # Exit options loop
+                            if not clicked_option and not dropdown_rect.collidepoint(x,y): # Click outside dropdown
+                                dropdown_open = False
+                        elif not dropdown_rect.collidepoint(x,y): # Click outside button when closed
+                             dropdown_open = False
+
+
+                    # Deactivate name input if clicking elsewhere
+                    if not clicked_name_input and not (dropdown_open and any(r.collidepoint(x,y) for r in option_rects)):
+                         # Check if click was outside name boxes and dropdown button/options
+                         dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
+                         dropdown_rect_check = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30) if modes[current_input] == MODE_HVH else None
+                         if not p1_name_rect.collidepoint(x,y) and \
+                            not (modes[current_input] == MODE_HVH and p2_name_rect.collidepoint(x,y)) and \
+                            not (dropdown_rect_check and dropdown_rect_check.collidepoint(x,y)):
+                              input_active = [False, False]
+
+
+            elif event.type == pygame.KEYDOWN:
+                 active_idx = -1
+                 if input_active[0]: active_idx = 0
+                 elif input_active[1] and modes[current_input] == MODE_HVH: active_idx = 1
+                 elif input_active[1] and modes[current_input] == MODE_HVA and human_player == 2: active_idx = 1 # Allow P2 edit if human
+
+                 if active_idx != -1:
+                    if event.key == pygame.K_BACKSPACE:
+                        player_names[active_idx] = player_names[active_idx][:-1]
+                    elif event.key == pygame.K_RETURN:
+                        input_active[active_idx] = False
+                    elif event.unicode.isalnum() or event.unicode == ' ':
+                        if len(player_names[active_idx]) < 15:
+                            player_names[active_idx] += event.unicode
+
+        if selected_mode: break # Exit outer while loop
+
+        # Draw Power Tiles Dialog if active
+        if showing_power_tiles_dialog:
+            # ... (Power Tiles Dialog drawing - unchanged) ...
+            dialog_width, dialog_height = 300, 250
+            dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+            dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+            pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+            pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+            title_text = dialog_font.render("Power Tiles Options", True, BLACK)
+            screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+            letters = ['J', 'Q', 'X', 'Z']
+            for i, letter in enumerate(letters):
+                draw_checkbox(screen, dialog_x + 20, dialog_y + 40 + i*30, letter_checks[i])
+                text = ui_font.render(letter, True, BLACK)
+                screen.blit(text, (dialog_x + 50, dialog_y + 40 + i*30))
+            numbers = ['2', '3', '4', '5', '6', '7+']
+            for i, num in enumerate(numbers):
+                draw_checkbox(screen, dialog_x + 150, dialog_y + 40 + i*30, number_checks[i])
+                text = ui_font.render(num, True, BLACK)
+                screen.blit(text, (dialog_x + 180, dialog_y + 40 + i*30))
+            go_rect = pygame.Rect(dialog_x + 50, dialog_y + 220, 100, 30)
+            cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 220, 100, 30)
+            pygame.draw.rect(screen, BUTTON_COLOR, go_rect)
+            pygame.draw.rect(screen, BUTTON_COLOR, cancel_rect)
+            go_text = button_font.render("Go", True, BLACK)
+            cancel_text = button_font.render("Cancel", True, BLACK)
+            screen.blit(go_text, go_text.get_rect(center=go_rect.center))
+            screen.blit(cancel_text, cancel_text.get_rect(center=cancel_rect.center))
+
+        pygame.display.flip()
+
+    # Return the selected mode, names, player info, practice mode, checks, and the practice state dict
+    return selected_mode, player_names, human_player, practice_mode, letter_checks if practice_mode == "power_tiles" else None, practice_state
+
+# --- Options Menu Drawing ---
+def draw_options_menu(turn, dropdown_open, bag_count):
+    """Draw the options menu with dropdown functionality."""
+    global practice_mode # Access practice_mode
+    options_x = 10
+    options_rect = pygame.Rect(options_x, OPTIONS_Y, OPTIONS_WIDTH, OPTIONS_HEIGHT)
+
+    hover = options_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, options_rect)
+    options_text = button_font.render("Options", True, BLACK)
+    options_text_rect = options_text.get_rect(center=(options_x + OPTIONS_WIDTH // 2, OPTIONS_Y + OPTIONS_HEIGHT // 2))
+    screen.blit(options_text, options_text_rect)
+
+    dropdown_rects = [] # Store rects or None for disabled options
+    if dropdown_open:
+        dropdown_y = OPTIONS_Y + OPTIONS_HEIGHT
+        # Define options based on mode
+        if practice_mode == "eight_letter":
+            options = ["Give Up", "Main", "Quit"] # Specific options for this mode
+        else:
+            options = ["Pass", "Exchange", "Main", "Quit"] # Standard options
+
+        for i, option in enumerate(options):
+            rect = pygame.Rect(options_x, dropdown_y + i * OPTIONS_HEIGHT, OPTIONS_WIDTH, OPTIONS_HEIGHT)
+            # Disable Exchange if bag < 7 in standard modes
+            is_disabled = (practice_mode != "eight_letter" and option == "Exchange" and bag_count < 7)
+
+            if is_disabled:
+                pygame.draw.rect(screen, GRAYED_OUT_COLOR, rect)
+                text = button_font.render(option, True, BLACK) # Still draw text
+                dropdown_rects.append(None) # Mark as not clickable
+            else:
+                hover = rect.collidepoint(pygame.mouse.get_pos())
+                color = BUTTON_HOVER if hover else DROPDOWN_COLOR
+                pygame.draw.rect(screen, color, rect)
+                text = button_font.render(option, True, BLACK)
+                dropdown_rects.append(rect) # Add clickable rect
+
+            text_rect = text.get_rect(center=(options_x + OPTIONS_WIDTH // 2, dropdown_y + i * OPTIONS_HEIGHT + OPTIONS_HEIGHT // 2))
+            screen.blit(text, text_rect)
+
+    return options_rect, dropdown_rects
+
+# End of Part 2
+
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 3)
+
+# Part 3
+
+# --- UI Element Drawing ---
+def draw_suggest_button():
+    """Draw the suggest button."""
+    suggest_x = 10 + OPTIONS_WIDTH + BUTTON_GAP
+    suggest_rect = pygame.Rect(suggest_x, OPTIONS_Y, OPTIONS_WIDTH, OPTIONS_HEIGHT)
+
+    hover = suggest_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, suggest_rect)
+    suggest_text = button_font.render("Suggest", True, BLACK)
+    suggest_text_rect = suggest_text.get_rect(center=(suggest_x + OPTIONS_WIDTH // 2, OPTIONS_Y + OPTIONS_HEIGHT // 2))
+    screen.blit(suggest_text, suggest_text_rect)
+
+    return suggest_rect
+
+def draw_exchange_dialog(rack, selected_tiles):
+    """Draw the tile exchange dialog."""
+    dialog_width, dialog_height = 400, 200
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+    prompt_text = dialog_font.render("Select tiles to exchange:", True, BLACK)
+    screen.blit(prompt_text, (dialog_x + 10, dialog_y + 10))
+
+    tile_rects = []
+    rack_display_width = len(rack) * (TILE_WIDTH + TILE_GAP) - TILE_GAP
+    start_tile_x = dialog_x + (dialog_width - rack_display_width) // 2 # Center tiles
+
+    for i, tile in enumerate(rack):
+        tile_x = start_tile_x + i * (TILE_WIDTH + TILE_GAP)
+        tile_y = dialog_y + 50
+        rect = pygame.Rect(tile_x, tile_y, TILE_WIDTH, TILE_HEIGHT)
+        tile_rects.append(rect)
+
+        if tile == ' ':
+            center = rect.center
+            radius = TILE_WIDTH // 2 - 2
+            pygame.draw.circle(screen, BLACK, center, radius) # Background circle
+            if i in selected_tiles:
+                 pygame.draw.circle(screen, SELECTED_TILE_COLOR, center, radius + 2, 2) # Highlight outline
+            text = font.render('?', True, WHITE)
+            text_rect = text.get_rect(center=center)
+            screen.blit(text, text_rect)
+        else:
+            color = SELECTED_TILE_COLOR if i in selected_tiles else GREEN
+            pygame.draw.rect(screen, color, rect)
+            text = font.render(tile, True, BLACK)
+            screen.blit(text, (tile_x + 5, tile_y + 5))
+
+    # Center buttons horizontally
+    total_button_width = BUTTON_WIDTH * 2 + BUTTON_GAP
+    button_start_x = dialog_x + (dialog_width - total_button_width) // 2
+    button_y = dialog_y + dialog_height - BUTTON_HEIGHT - 10
+
+    exchange_button_rect = pygame.Rect(button_start_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    cancel_button_rect = pygame.Rect(button_start_x + BUTTON_WIDTH + BUTTON_GAP, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    # Draw Exchange button
+    hover = exchange_button_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, exchange_button_rect)
+    exchange_text = button_font.render("Exchange", True, BLACK)
+    exchange_text_rect = exchange_text.get_rect(center=exchange_button_rect.center)
+    screen.blit(exchange_text, exchange_text_rect)
+
+    # Draw Cancel button
+    hover = cancel_button_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, cancel_button_rect)
+    cancel_text = button_font.render("Cancel", True, BLACK)
+    cancel_text_rect = cancel_text.get_rect(center=cancel_button_rect.center)
+    screen.blit(cancel_text, cancel_text_rect)
+
+    return tile_rects, exchange_button_rect, cancel_button_rect
+
+
+# --- Confirmation Dialog ---
+def confirm_quit():
+    """Prompt the user to confirm quitting the game."""
+    dialog_width, dialog_height = 300, 100
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    # Draw the dialog immediately
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+    prompt_text = dialog_font.render("Quit game? (Y/N)", True, BLACK)
+    screen.blit(prompt_text, (dialog_x + (dialog_width - prompt_text.get_width()) // 2, dialog_y + 30)) # Centered text
+    pygame.display.flip() # Update screen
+
+    while True: # Wait for Y or N key
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_y:
+                    return True
+                elif event.key == pygame.K_n:
+                    return False
+
+
+# --- Game Over / Statistics Dialogs ---
+def draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names):
+    """Draw the game over dialog and return button rectangles."""
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT), 2)
+
+    title_text = dialog_font.render(f"Game Over - {reason}", True, BLACK)
+    p1_score_text = ui_font.render(f"{player_names[0]} Score: {final_scores[0]}", True, BLACK)
+    # Handle potentially empty P2 name
+    p2_name_display = player_names[1] if player_names[1] else "Player 2"
+    p2_score_text = ui_font.render(f"{p2_name_display} Score: {final_scores[1]}", True, BLACK)
+    save_text = button_font.render("Save (S)", True, BLACK)
+    quit_text = button_font.render("Quit (Q)", True, BLACK)
+    replay_text = button_font.render("Replay (R)", True, BLACK)
+    play_again_text = button_font.render("Play Again (P)", True, BLACK)
+    stats_text = button_font.render("Statistics", True, BLACK)
+
+    screen.blit(title_text, (dialog_x + 10, dialog_y + 20))
+    screen.blit(p1_score_text, (dialog_x + 10, dialog_y + 60))
+    screen.blit(p2_score_text, (dialog_x + 10, dialog_y + 90))
+
+    first_row_width = 3 * BUTTON_WIDTH + 2 * BUTTON_GAP
+    first_row_start_x = dialog_x + (DIALOG_WIDTH - first_row_width) // 2
+    second_row_width = 2 * BUTTON_WIDTH + BUTTON_GAP
+    second_row_start_x = dialog_x + (DIALOG_WIDTH - second_row_width) // 2
+
+    save_rect = pygame.Rect(first_row_start_x, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    quit_rect = pygame.Rect(first_row_start_x + BUTTON_WIDTH + BUTTON_GAP, dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    replay_rect = pygame.Rect(first_row_start_x + 2 * (BUTTON_WIDTH + BUTTON_GAP), dialog_y + 150, BUTTON_WIDTH, BUTTON_HEIGHT)
+    play_again_rect = pygame.Rect(second_row_start_x, dialog_y + 190, BUTTON_WIDTH, BUTTON_HEIGHT)
+    stats_rect = pygame.Rect(second_row_start_x + BUTTON_WIDTH + BUTTON_GAP, dialog_y + 190, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    pygame.draw.rect(screen, BUTTON_COLOR, save_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, quit_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, replay_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, play_again_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, stats_rect)
+
+    screen.blit(save_text, save_text.get_rect(center=save_rect.center))
+    screen.blit(quit_text, quit_text.get_rect(center=quit_rect.center))
+    screen.blit(replay_text, replay_text.get_rect(center=replay_rect.center))
+    screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center))
+    screen.blit(stats_text, stats_text.get_rect(center=stats_rect.center))
+
+    return save_rect, quit_rect, replay_rect, play_again_rect, stats_rect
+
+def draw_score_row(screen, dialog_x, y_pos, final_scores):
+    """Draw the score row for the statistics dialog."""
+    score_label = ui_font.render("Score:", True, BLACK)
+    p1_score_text = ui_font.render(str(final_scores[0]), True, BLACK)
+    p2_score_text = ui_font.render(str(final_scores[1]), True, BLACK)
+    screen.blit(score_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_score_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_score_text, (dialog_x + 230, y_pos))
+
+def calculate_moves_per_player(move_history):
+    """Calculate the number of moves made by each player from move_history."""
+    moves_count = {1: 0, 2: 0}
+    for move in move_history:
+        player = move['player']
+        if move['move_type'] in ['place', 'pass', 'exchange']:
+            moves_count[player] += 1
+    return moves_count[1], moves_count[2]
+
+def calculate_bingos_per_player(move_history):
+    """Calculate the number of bingos played by each player."""
+    bingo_count = {1: 0, 2: 0}
+    for move in move_history:
+        if move['move_type'] == 'place' and move.get('is_bingo', False):
+            player = move['player']
+            bingo_count[player] += 1
+    return bingo_count[1], bingo_count[2]
+
+def calculate_bingo_avg_per_player(move_history):
+    """Calculate the average score of bingos for each player."""
+    bingo_scores = {1: [], 2: []}
+    for move in move_history:
+        if move['move_type'] == 'place' and move.get('is_bingo', False):
+            player = move['player']
+            bingo_scores[player].append(move['score'])
+    avg_p1 = sum(bingo_scores[1]) / len(bingo_scores[1]) if bingo_scores[1] else 0.0
+    avg_p2 = sum(bingo_scores[2]) / len(bingo_scores[2]) if bingo_scores[2] else 0.0
+    return avg_p1, avg_p2
+
+def draw_moves_row(screen, dialog_x, y_pos, moves_p1, moves_p2):
+    """Draw the moves row for the statistics dialog."""
+    moves_label = ui_font.render("Moves:", True, BLACK)
+    p1_moves_text = ui_font.render(str(moves_p1), True, BLACK)
+    p2_moves_text = ui_font.render(str(moves_p2), True, BLACK)
+    screen.blit(moves_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_moves_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_moves_text, (dialog_x + 230, y_pos))
+
+def draw_avg_score_row(screen, dialog_x, y_pos, avg_p1, avg_p2):
+    """Draw the average score per move row for the statistics dialog."""
+    avg_label = ui_font.render("Avg Score:", True, BLACK)
+    p1_avg_text = ui_font.render(f"{avg_p1:.2f}", True, BLACK)
+    p2_avg_text = ui_font.render(f"{avg_p2:.2f}", True, BLACK)
+    screen.blit(avg_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_avg_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_avg_text, (dialog_x + 230, y_pos))
+
+def draw_bingos_row(screen, dialog_x, y_pos, bingos_p1, bingos_p2):
+    """Draw the bingos row for the statistics dialog."""
+    bingos_label = ui_font.render("Bingos:", True, BLACK)
+    p1_bingos_text = ui_font.render(str(bingos_p1), True, BLACK)
+    p2_bingos_text = ui_font.render(str(bingos_p2), True, BLACK)
+    screen.blit(bingos_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_bingos_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_bingos_text, (dialog_x + 230, y_pos))
+
+def draw_bingo_avg_row(screen, dialog_x, y_pos, bingo_avg_p1, bingo_avg_p2, bingos_p1, bingos_p2):
+    """Draw the average bingo score row."""
+    bingo_avg_label = ui_font.render("Bingo Avg:", True, BLACK)
+    p1_text = "N/A" if bingos_p1 == 0 else f"{bingo_avg_p1:.2f}"
+    p2_text = "N/A" if bingos_p2 == 0 else f"{bingo_avg_p2:.2f}"
+    p1_bingo_avg_text = ui_font.render(p1_text, True, BLACK)
+    p2_bingo_avg_text = ui_font.render(p2_text, True, BLACK)
+    screen.blit(bingo_avg_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_bingo_avg_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_bingo_avg_text, (dialog_x + 230, y_pos))
+
+def calculate_blanks_per_player(move_history):
+    """Calculate the number of blanks played by each player."""
+    blanks_p1 = 0
+    blanks_p2 = 0
+    for move in move_history:
+        if move['move_type'] == 'place':
+            player = move['player']
+            blanks_count = len(move.get('blanks', set()))
+            if player == 1: blanks_p1 += blanks_count
+            elif player == 2: blanks_p2 += blanks_count
+    return blanks_p1, blanks_p2
+
+def draw_blanks_row(screen, dialog_x, y_pos, blanks_p1, blanks_p2):
+    """Draw the blanks played row."""
+    blanks_label = ui_font.render("Blanks:", True, BLACK)
+    p1_blanks_text = ui_font.render(str(blanks_p1), True, BLACK)
+    p2_blanks_text = ui_font.render(str(blanks_p2), True, BLACK)
+    screen.blit(blanks_label, (dialog_x + 10, y_pos))
+    screen.blit(p1_blanks_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_blanks_text, (dialog_x + 230, y_pos))
+
+def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
+    """Draw the complete statistics dialog."""
+    stats_dialog_width, stats_dialog_height = 400, 360
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height), 2)
+
+    title_text = dialog_font.render("Game Statistics", True, BLACK)
+    screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+
+    # Column Headers
+    p1_name_display = player_names[0] if player_names[0] else "Player 1"
+    p2_name_display = player_names[1] if player_names[1] else "Player 2"
+    p1_name_text = ui_font.render(p1_name_display, True, BLACK)
+    p2_name_text = ui_font.render(p2_name_display, True, BLACK)
+    screen.blit(p1_name_text, (dialog_x + 120, dialog_y + 40))
+    screen.blit(p2_name_text, (dialog_x + 230, dialog_y + 40))
+
+    # Calculate Stats
+    moves_p1, moves_p2 = calculate_moves_per_player(move_history)
+    avg_p1 = final_scores[0] / moves_p1 if moves_p1 > 0 else 0
+    avg_p2 = final_scores[1] / moves_p2 if moves_p2 > 0 else 0
+    bingos_p1, bingos_p2 = calculate_bingos_per_player(move_history)
+    bingo_avg_p1, bingo_avg_p2 = calculate_bingo_avg_per_player(move_history)
+    blanks_p1, blanks_p2 = calculate_blanks_per_player(move_history)
+
+    # Draw Rows
+    y = dialog_y + 70
+    draw_score_row(screen, dialog_x, y, final_scores); y += 30
+    draw_moves_row(screen, dialog_x, y, moves_p1, moves_p2); y += 30
+    draw_avg_score_row(screen, dialog_x, y, avg_p1, avg_p2); y += 30
+    draw_bingos_row(screen, dialog_x, y, bingos_p1, bingos_p2); y += 30
+    draw_bingo_avg_row(screen, dialog_x, y, bingo_avg_p1, bingo_avg_p2, bingos_p1, bingos_p2); y += 30
+    draw_blanks_row(screen, dialog_x, y, blanks_p1, blanks_p2); y += 30
+
+    # OK button
+    ok_button_rect = pygame.Rect(dialog_x + stats_dialog_width - BUTTON_WIDTH - 10,
+                                 dialog_y + stats_dialog_height - BUTTON_HEIGHT - 10,
+                                 BUTTON_WIDTH, BUTTON_HEIGHT)
+    hover = ok_button_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, ok_button_rect)
+    ok_text = button_font.render("OK", True, BLACK)
+    ok_text_rect = ok_text.get_rect(center=ok_button_rect.center)
+    screen.blit(ok_text, ok_text_rect)
+
+    return ok_button_rect
+
+# --- General Message Dialog ---
+def show_message_dialog(message, title="Message"):
+    """Display a general message dialog with an OK button, wrapping text."""
+    dialog_width, dialog_height = 400, 150
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    words = message.split(' ')
+    lines = []
+    current_line = ''
+    max_line_width = dialog_width - 20
+    for word in words:
+        test_line = current_line + word + ' '
+        if ui_font.size(test_line)[0] < max_line_width: # Use ui_font for message body
+            current_line = test_line
+        else:
+            lines.append(current_line.strip())
+            current_line = word + ' '
+    if current_line: lines.append(current_line.strip())
+
+    # Draw dialog
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+    # Draw Title
+    title_surf = dialog_font.render(title, True, BLACK)
+    screen.blit(title_surf, (dialog_x + 10, dialog_y + 5))
+
+    # Render message lines
+    y_offset = 10 + dialog_font.get_linesize()
+    for line in lines:
+        text = ui_font.render(line, True, BLACK)
+        screen.blit(text, (dialog_x + 10, dialog_y + y_offset))
+        y_offset += ui_font.get_linesize()
+
+    # OK Button
+    ok_button_rect = pygame.Rect(dialog_x + dialog_width - BUTTON_WIDTH - 10, dialog_y + dialog_height - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
+    hover = ok_button_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, ok_button_rect)
+    ok_text = button_font.render("OK", True, BLACK)
+    ok_text_rect = ok_text.get_rect(center=ok_button_rect.center)
+    screen.blit(ok_text, ok_text_rect)
+
+    pygame.display.flip()
+
+    # Event loop for dialog
+    dialog_running = True
+    while dialog_running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                 if ok_button_rect.collidepoint(event.pos): return
+            elif event.type == pygame.KEYDOWN:
+                 if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER: return
+
+# --- Practice End Dialog ---
+def draw_practice_end_dialog(message):
+    """Draw the dialog shown at the end of a practice puzzle."""
+    dialog_width, dialog_height = 400, 180
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+    # Wrap message text
+    words = message.split(' ')
+    lines = []
+    current_line = ''
+    max_line_width = dialog_width - 20
+    for word in words:
+        test_line = current_line + word + ' '
+        if ui_font.size(test_line)[0] < max_line_width: current_line = test_line
+        else: lines.append(current_line.strip()); current_line = word + ' '
+    if current_line: lines.append(current_line.strip())
+
+    y_offset = 15
+    for line in lines:
+        text_surf = ui_font.render(line, True, BLACK)
+        screen.blit(text_surf, (dialog_x + 10, dialog_y + y_offset))
+        y_offset += ui_font.get_linesize()
+
+    # Buttons
+    button_y = dialog_y + dialog_height - BUTTON_HEIGHT - 15
+    total_button_width = 3 * BUTTON_WIDTH + 2 * BUTTON_GAP
+    button_start_x = dialog_x + (dialog_width - total_button_width) // 2
+
+    play_again_rect = pygame.Rect(button_start_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    main_menu_rect = pygame.Rect(button_start_x + BUTTON_WIDTH + BUTTON_GAP, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    quit_rect = pygame.Rect(button_start_x + 2 * (BUTTON_WIDTH + BUTTON_GAP), button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    pygame.draw.rect(screen, BUTTON_COLOR, play_again_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, main_menu_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, quit_rect)
+
+    play_again_text = button_font.render("Play Again", True, BLACK)
+    main_menu_text = button_font.render("Main Menu", True, BLACK)
+    quit_text = button_font.render("Quit", True, BLACK)
+
+    screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center))
+    screen.blit(main_menu_text, main_menu_text.get_rect(center=main_menu_rect.center))
+    screen.blit(quit_text, quit_text.get_rect(center=quit_rect.center))
+
+    return play_again_rect, main_menu_rect, quit_rect
+
+# End of Part 3
+
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 4)
+
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 4 - Corrected)
+
+# Part 4
+
+# --- Game Logic Helpers ---
+
+def get_words_played(word_positions, tiles):
+    """Get all word strings formed by a play based on tile positions."""
+    if not word_positions:
+        return []
+
+    words_found = set() # Use a set to avoid duplicate word strings
+
+    # --- MODIFICATION START: Replace generators with explicit loops ---
+    rows_involved_list = []
+    cols_involved_list = []
+    valid_positions = True
+    for item in word_positions:
+        if isinstance(item, tuple) and len(item) >= 3:
+            rows_involved_list.append(item[0])
+            cols_involved_list.append(item[1])
+        else:
+            print(f"Error in get_words_played: Invalid item format in word_positions: {item}")
+            valid_positions = False
+            break # Stop processing if invalid data found
+    if not valid_positions:
+        return [] # Return empty list if data was invalid
+
+    rows_involved = set(rows_involved_list)
+    cols_involved = set(cols_involved_list)
+    # --- MODIFICATION END ---
+
+
+    # Check horizontal potential
+    if len(rows_involved) == 1:
+        r = rows_involved.pop() # Get the single row
+        min_c = min(cols_involved_list) # Use the list to find min/max
+        max_c = max(cols_involved_list)
+        # Extend left and right to find the full horizontal word
+        while min_c > 0 and tiles[r][min_c - 1]: min_c -= 1
+        while max_c < GRID_SIZE - 1 and tiles[r][max_c + 1]: max_c += 1
+        word_h = "".join(tiles[r][c] for c in range(min_c, max_c + 1) if tiles[r][c])
+        if len(word_h) > 1:
+            words_found.add(word_h)
+
+    # Check vertical potential
+    if len(cols_involved) == 1:
+        c = cols_involved.pop() # Get the single column
+        min_r = min(rows_involved_list) # Use the list to find min/max
+        max_r = max(rows_involved_list)
+        # Extend up and down to find the full vertical word
+        while min_r > 0 and tiles[min_r - 1][c]: min_r -= 1
+        while max_r < GRID_SIZE - 1 and tiles[max_r + 1][c]: max_r += 1
+        word_v = "".join(tiles[r][c] for r in range(min_r, max_r + 1) if tiles[r][c])
+        if len(word_v) > 1:
+            words_found.add(word_v)
+
+    # Check for cross words created by each newly placed tile
+    # Use the original word_positions list which contains (r, c, letter) tuples
+    for r_new, c_new, _ in word_positions:
+        # Check vertical cross word (if main play was horizontal or single tile)
+        if len(rows_involved) == 1: # Check if the original play was horizontal
+            min_r_cross = r_new
+            max_r_cross = r_new
+            while min_r_cross > 0 and tiles[min_r_cross - 1][c_new]: min_r_cross -= 1
+            while max_r_cross < GRID_SIZE - 1 and tiles[max_r_cross + 1][c_new]: max_r_cross += 1
+            if max_r_cross > min_r_cross:
+                cross_word_v = "".join(tiles[r][c_new] for r in range(min_r_cross, max_r_cross + 1) if tiles[r][c_new])
+                if len(cross_word_v) > 1:
+                    words_found.add(cross_word_v)
+
+        # Check horizontal cross word (if main play was vertical or single tile)
+        if len(cols_involved) == 1: # Check if the original play was vertical
+            min_c_cross = c_new
+            max_c_cross = c_new
+            while min_c_cross > 0 and tiles[r_new][min_c_cross - 1]: min_c_cross -= 1
+            while max_c_cross < GRID_SIZE - 1 and tiles[r_new][max_c_cross + 1]: max_c_cross += 1
+            if max_c_cross > min_c_cross:
+                cross_word_h = "".join(tiles[r_new][c] for c in range(min_c_cross, max_c_cross + 1) if tiles[r_new][c])
+                if len(cross_word_h) > 1:
+                    words_found.add(cross_word_h)
+
+    return list(words_found)
+
+
+def get_remaining_tiles(rack, tiles, blanks):
+    """Calculate the remaining tiles (excluding those on board and current player's rack)."""
+    remaining = {letter: count for letter, (count, _) in TILE_DISTRIBUTION.items()}
+    rack_counter = Counter(rack)
+    for tile, count in rack_counter.items():
+        if tile in remaining: remaining[tile] -= count
+    for r in range(GRID_SIZE):
+        for c in range(GRID_SIZE):
+            if tiles[r][c]:
+                if (r, c) in blanks:
+                    if ' ' in remaining: remaining[' '] -= 1
+                else:
+                    letter = tiles[r][c]
+                    if letter in remaining: remaining[letter] -= 1
+    for letter in remaining: remaining[letter] = max(0, remaining[letter])
+    return remaining
+
+def draw_remaining_tiles(remaining, turn):
+    """Draw the list of remaining tiles."""
+    global practice_mode
+    if practice_mode == "eight_letter": return # Don't draw remaining tiles in this mode
+
+    remaining_x = min(BOARD_SIZE + 70, WINDOW_WIDTH - 200)
+    if remaining_x < BOARD_SIZE + 10: remaining_x = BOARD_SIZE + 10
+
+    title_text = ui_font.render(f"P{turn}'s Unseen Tiles:", True, BLACK)
+    screen.blit(title_text, (remaining_x, 10))
+
+    y_pos = 40
+    col_width = 60
+    max_y = WINDOW_HEIGHT - 100
+    sorted_letters = sorted(remaining.keys())
+    current_col_x = remaining_x
+    items_in_col = 0
+    max_items_per_col = (max_y - y_pos) // 20
+    if max_items_per_col <= 0: max_items_per_col = 1
+
+    for letter in sorted_letters:
+        count = remaining.get(letter, 0)
+        if count > 0:
+            display_letter = "?" if letter == " " else letter
+            text_str = f"{display_letter}: {count}"
+            text = tile_count_font.render(text_str, True, BLACK)
+
+            if items_in_col >= max_items_per_col:
+                 y_pos = 40
+                 current_col_x += col_width
+                 items_in_col = 0
+
+            screen.blit(text, (current_col_x, y_pos))
+            y_pos += 20
+            items_in_col += 1
+
+    # Summary
+    summary_y_start = 40 + max_items_per_col * 20 + 20
+    summary_y_start = min(summary_y_start, max_y + 20)
+
+    total_tiles = sum(remaining.values())
+    vowels = sum(remaining.get(letter, 0) for letter in 'AEIOU')
+    consonants = sum(remaining.get(letter, 0) for letter in remaining if letter.isalpha() and letter not in 'AEIOU ')
+    blanks_rem = remaining.get(' ', 0)
+
+    text1 = tile_count_font.render(f"Tiles remaining: {total_tiles}", True, BLACK)
+    text2 = tile_count_font.render(f"V: {vowels}  C: {consonants}  B: {blanks_rem}", True, BLACK)
+    screen.blit(text1, (remaining_x - 20, summary_y_start))
+    summary_y_start += 20
+    screen.blit(text2, (remaining_x - 20, summary_y_start))
+
+def draw_arrow(row, col, direction):
+    """Draw an arrow indicating play direction."""
+    center_x = 40 + col * SQUARE_SIZE + SQUARE_SIZE // 2
+    center_y = 40 + row * SQUARE_SIZE + SQUARE_SIZE // 2
+    arrow_length = SQUARE_SIZE * 0.4
+    arrow_width = SQUARE_SIZE * 0.2
+
+    if direction == "right":
+        pygame.draw.line(screen, ARROW_COLOR, (center_x - arrow_length / 2, center_y), (center_x + arrow_length / 2, center_y), 3)
+        pygame.draw.polygon(screen, ARROW_COLOR, [
+            (center_x + arrow_length / 2, center_y - arrow_width / 2),
+            (center_x + arrow_length / 2, center_y + arrow_width / 2),
+            (center_x + arrow_length / 2 + arrow_width, center_y)
+        ])
+    elif direction == "down":
+        pygame.draw.line(screen, ARROW_COLOR, (center_x, center_y - arrow_length / 2), (center_x, center_y + arrow_length / 2), 3)
+        pygame.draw.polygon(screen, ARROW_COLOR, [
+            (center_x - arrow_width / 2, center_y + arrow_length / 2),
+            (center_x + arrow_width / 2, center_y + arrow_length / 2),
+            (center_x, center_y + arrow_length / 2 + arrow_width)
+        ])
+
+def is_valid_play(word_positions, tiles, is_first_play, initial_rack_size, original_tiles, rack):
+    """Validate a potential play against game rules and dictionary."""
+    if not word_positions:
+        # print("Validation Error: No tiles placed.")
+        return False, False
+
+    # Identify newly placed tiles vs existing tiles used in the word_positions list
+    newly_placed_positions_coords = set()
+    all_play_coords = set()
+    valid_input_format = True
+    for item in word_positions:
+        if isinstance(item, tuple) and len(item) >= 3:
+            r, c = item[0], item[1]
+            all_play_coords.add((r,c))
+            # Check bounds early
+            if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
+                print(f"Validation Error: Invalid coordinates ({r},{c}) in word_positions.")
+                valid_input_format = False; break
+            if not original_tiles[r][c]:
+                newly_placed_positions_coords.add((r, c))
+        else:
+            print(f"Validation Error: Invalid item format in word_positions: {item}")
+            valid_input_format = False; break
+    if not valid_input_format: return False, False
+
+
+    if not newly_placed_positions_coords:
+         # print("Validation Error: No new tiles were placed.")
+         return False, False
+
+    rows = sorted(list(set(r for r, _, _ in word_positions)))
+    cols = sorted(list(set(c for _, c, _ in word_positions)))
+
+    # Check alignment
+    is_horizontal = len(rows) == 1
+    is_vertical = len(cols) == 1
+    if not (is_horizontal or is_vertical):
+        # print("Validation Error: Tiles not in a single row or column.")
+        return False, False
+
+    # Check for gaps within the played word span (using the final 'tiles' state)
+    if is_horizontal:
+        r = rows[0]
+        min_col = min(cols)
+        max_col = max(cols)
+        # Extend span to include adjacent existing tiles
+        temp_min_col = min_col
+        while temp_min_col > 0 and original_tiles[r][temp_min_col - 1]: temp_min_col -= 1
+        temp_max_col = max_col
+        while temp_max_col < GRID_SIZE - 1 and original_tiles[r][temp_max_col + 1]: temp_max_col += 1
+        # Check all squares within the full span
+        for c in range(temp_min_col, temp_max_col + 1):
+            if not tiles[r][c]: # If any square in the span is empty, it's a gap
+                # print(f"Validation Error: Gap detected at ({r},{c}) in horizontal play.")
+                return False, False
+    elif is_vertical:
+        c = cols[0]
+        min_row = min(rows)
+        max_row = max(rows)
+        # Extend span
+        temp_min_row = min_row
+        while temp_min_row > 0 and original_tiles[temp_min_row - 1][c]: temp_min_row -= 1
+        temp_max_row = max_row
+        while temp_max_row < GRID_SIZE - 1 and original_tiles[temp_max_row + 1][c]: temp_max_row += 1
+        # Check span
+        for r in range(temp_min_row, temp_max_row + 1):
+            if not tiles[r][c]:
+                 # print(f"Validation Error: Gap detected at ({r},{c}) in vertical play.")
+                 return False, False
+
+    # Check word validity using DAWG
+    # Pass the 3-tuple list directly to get_words_played
+    formed_word_strings = get_words_played(word_positions, tiles)
+    if not formed_word_strings:
+         # print("Validation Error: Play does not form any valid words of length 2 or more.")
+         return False, False
+
+    for word in formed_word_strings:
+        node = DAWG.root
+        valid_word = True
+        for char in word:
+            if char not in node.edges:
+                valid_word = False; break
+            node = node.edges[char]
+        if not valid_word or not node.is_terminal:
+            # print(f"Validation Error: Word '{word}' not in dictionary.")
+            return False, False
+
+    # Check connection to existing tiles or center square
+    if is_first_play:
+        if CENTER_SQUARE not in newly_placed_positions_coords:
+            # print("Validation Error: First play must include the center square.")
+            return False, False
+    else: # Not the first play
+        connects_to_existing = False
+        for r, c in newly_placed_positions_coords:
+            # Check adjacent squares for tiles that were *originally* on the board
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and original_tiles[nr][nc]:
+                    connects_to_existing = True; break
+            if connects_to_existing: break
+        if not connects_to_existing:
+            # print("Validation Error: Play does not connect to existing tiles.")
+            return False, False
+
+    # Calculate bingo bonus based on number of *newly placed* tiles
+    tiles_played_from_rack = len(newly_placed_positions_coords)
+    # Use initial_rack_size passed to the function
+    is_bingo = (initial_rack_size == 7 and tiles_played_from_rack == 7)
+
+    return True, is_bingo
+
+def get_anchor_points(tiles, is_first_play):
+    """Get anchor points (empty squares adjacent to existing tiles) for valid moves."""
+    anchors = set()
+    if is_first_play:
+        anchors.add(CENTER_SQUARE)
+        return anchors
+
+    for r in range(GRID_SIZE):
+        for c in range(GRID_SIZE):
+            if not tiles[r][c]: # Must be an empty square
+                 is_anchor = False
+                 # Check if adjacent (orthogonally) to any existing tile
+                 for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                     nr, nc = r + dr, c + dc
+                     if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and tiles[nr][nc]:
+                         is_anchor = True; break
+                 if is_anchor:
+                     anchors.add((r, c))
+
+    # If board is empty but it's not the first play (shouldn't happen in normal game)
+    if not anchors and sum(1 for row in tiles for t in row if t) == 0 and not is_first_play:
+         anchors.add(CENTER_SQUARE) # Fallback to center if board somehow became empty
+
+    return anchors
+
+# End of Part 4
+
+
+# Part 5
+
+# --- Move Generation ---
+def generate_valid_moves(rack, tiles, board, blanks, valid_words_subset=None):
+    """Generate all valid moves using a backtracking algorithm with a DAWG."""
+    # 'valid_words_subset' is currently unused but could be for optimizations
+    moves = []
+    unique_move_signatures = set() # Store tuples of sorted (r, c, letter) to detect duplicates based on placement
+    is_first_play = sum(1 for row in tiles for t in row if t) == 0
+
+    anchors = get_anchor_points(tiles, is_first_play)
+    if not anchors:
+         # print("No anchors found.") # Debug
+         return [] # No possible place to start a move
+
+    # Precompute cross-checks for empty squares: which letters are valid vertically/horizontally
+    cross_checks = {} # Key: (r, c), Value: {'V': set_of_valid_letters, 'H': set_of_valid_letters}
+    for r_empty in range(GRID_SIZE):
+        for c_empty in range(GRID_SIZE):
+            if not tiles[r_empty][c_empty]:
+                # Vertical check (for horizontal plays crossing this square)
+                valid_v = set()
+                up_word = ''
+                rr = r_empty - 1
+                while rr >= 0 and tiles[rr][c_empty]: up_word = tiles[rr][c_empty] + up_word; rr -= 1
+                down_word = ''
+                rr = r_empty + 1
+                while rr < GRID_SIZE and tiles[rr][c_empty]: down_word += tiles[rr][c_empty]; rr += 1
+
+                if not up_word and not down_word:
+                    valid_v = set('ABCDEFGHIJKLMNOPQRSTUVWXYZ ') # Any letter ok if no vertical connection
+                else:
+                    for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                        test_word = up_word + letter + down_word
+                        node = DAWG.root; is_valid = True
+                        for char in test_word:
+                            if char not in node.edges: is_valid = False; break
+                            node = node.edges[char]
+                        if is_valid and node.is_terminal: valid_v.add(letter)
+                    if valid_v: valid_v.add(' ') # Blank is valid if any letter is
+
+                # Horizontal check (for vertical plays crossing this square)
+                valid_h = set()
+                left_word = ''
+                cc = c_empty - 1
+                while cc >= 0 and tiles[r_empty][cc]: left_word = tiles[r_empty][cc] + left_word; cc -= 1
+                right_word = ''
+                cc = c_empty + 1
+                while cc < GRID_SIZE and tiles[r_empty][cc]: right_word += tiles[r_empty][cc]; cc += 1
+
+                if not left_word and not right_word:
+                    valid_h = set('ABCDEFGHIJKLMNOPQRSTUVWXYZ ') # Any letter ok if no horizontal connection
+                else:
+                    for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                        test_word = left_word + letter + right_word
+                        node = DAWG.root; is_valid = True
+                        for char in test_word:
+                            if char not in node.edges: is_valid = False; break
+                            node = node.edges[char]
+                        if is_valid and node.is_terminal: valid_h.add(letter)
+                    if valid_h: valid_h.add(' ') # Blank is valid if any letter is
+
+                cross_checks[(r_empty, c_empty)] = {'V': valid_v, 'H': valid_h}
+
+    rack_counter_orig = Counter(rack)
+    original_tiles_state = [row[:] for row in tiles] # Keep original state for validation checks
+
+    # --- Helper function to finalize and add a valid move ---
+    def finalize_move(placed_tiles_list, current_rack_counts):
+        """Validates a completed potential move and adds it to the list if valid."""
+        nonlocal moves, unique_move_signatures
+        if not placed_tiles_list: return
+
+        # Create temporary board state based on the potential move
+        temp_tiles = [row[:] for row in original_tiles_state] # Start from original board
+        temp_blanks = set(blanks) # Start from original blanks
+        newly_placed_for_score = [] # Tiles placed in *this* move (r, c, letter)
+        move_blanks_coords = set() # Coords of blanks used in *this* move
+
+        for pr, pc, letter, is_blank in placed_tiles_list:
+            # Ensure placement is within bounds before modifying temp_tiles
+            if 0 <= pr < GRID_SIZE and 0 <= pc < GRID_SIZE:
+                temp_tiles[pr][pc] = letter
+                if is_blank:
+                    temp_blanks.add((pr, pc))
+                    move_blanks_coords.add((pr, pc))
+                # Track only the tiles placed on initially empty squares for scoring/validation
+                if not original_tiles_state[pr][pc]:
+                     newly_placed_for_score.append((pr, pc, letter))
+            else:
+                # This case should ideally not happen if extend_play checks bounds, but good for safety
+                print(f"Error in finalize_move: Invalid coordinates ({pr},{pc})")
+                return # Don't process invalid placement
+
+        # Validate the play using the temporary state and original context
+        is_valid, is_bingo = is_valid_play(
+            [(p[0], p[1], p[2]) for p in placed_tiles_list], # All tiles involved in the word(s)
+            temp_tiles, # The board *after* placing the tiles
+            is_first_play,
+            len(rack), # Initial rack size for bingo check
+            original_tiles_state, # Board *before* placing tiles
+            rack # Original rack content (for context, though not directly used in is_valid_play)
+        )
+
+        if is_valid:
+            # Use newly_placed_for_score for accurate scoring
+            score = calculate_score(newly_placed_for_score, board, temp_tiles, temp_blanks)
+
+            # Create a unique signature for the move based on placed tiles
+            # Use newly_placed_for_score for signature to avoid duplicates from just extending existing tiles differently
+            move_signature = tuple(sorted((p[0], p[1], p[2]) for p in newly_placed_for_score))
+
+            if move_signature not in unique_move_signatures:
+                unique_move_signatures.add(move_signature)
+
+                # Determine start, direction, full word, leave etc.
+                # Find the top-leftmost tile among the newly placed ones for start pos
+                start_pos_tile = min(newly_placed_for_score, key=lambda p: (p[0], p[1]))
+                start_r, start_c, _ = start_pos_tile
+
+                rows_placed_new = set(p[0] for p in newly_placed_for_score)
+                cols_placed_new = set(p[1] for p in newly_placed_for_score)
+                # Direction determined by newly placed tiles if more than one, else needs context
+                if len(newly_placed_for_score) > 1:
+                    direction = "right" if len(rows_placed_new) == 1 else "down"
+                else: # Single new tile - direction depends on the word it forms
+                    formed_words_details = find_all_words_formed(newly_placed_for_score, temp_tiles)
+                    if formed_words_details:
+                         # Check orientation of the first (usually main) word found
+                         first_word = formed_words_details[0]
+                         rows_in_word = set(t[0] for t in first_word)
+                         direction = "right" if len(rows_in_word) == 1 else "down"
+                    else: direction = "right" # Default if somehow no word found (shouldn't happen if valid)
+
+
+                # Find the primary word formed by this specific placement
+                main_word_tiles, _ = find_main_word(newly_placed_for_score, temp_tiles)
+                full_word_str = "".join(t[2] for t in main_word_tiles) if main_word_tiles else "ERROR"
+
+                # Construct word with blanks represented correctly (lowercase)
+                word_with_blanks_list = []
+                placed_pos_set = set((p[0], p[1]) for p in newly_placed_for_score) # Use newly placed for this check
+                for wr, wc, w_letter in main_word_tiles:
+                     is_blank_in_word = (wr, wc) in placed_pos_set and (wr, wc) in move_blanks_coords
+                     word_with_blanks_list.append(w_letter.lower() if is_blank_in_word else w_letter.upper())
+                word_with_blanks = "".join(word_with_blanks_list)
+
+                # Calculate leave using the final rack counts from the recursive call
+                leave = list(current_rack_counts.elements())
+
+                moves.append({
+                    'positions': [(p[0], p[1], p[2]) for p in main_word_tiles], # Store main word tiles
+                    'blanks': move_blanks_coords, # Blanks used in this move
+                    'word': full_word_str, # Primary word string
+                    'score': score,
+                    'start': (start_r, start_c), # Top-leftmost *new* tile
+                    'direction': direction,
+                    'leave': leave,
+                    'is_bingo': is_bingo,
+                    'word_with_blanks': word_with_blanks, # Primary word with blanks lowercased
+                    'newly_placed': newly_placed_for_score # Tiles placed on empty squares
+                })
+
+    # --- Recursive function to extend potential plays ---
+    def extend_play(r, c, direction, node, current_rack_counts, placed_tiles_so_far, has_placed_tile):
+        """Recursive function to explore placing tiles rightwards or downwards."""
+        # Base case: Out of bounds
+        if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
+            return
+
+        # Case 1: Square is empty - try placing tiles from rack
+        if not original_tiles_state[r][c]:
+            anchor_square = (r, c) # The square being considered for placement
+            # Check cross-check validity for this square
+            valid_letters_for_cross = cross_checks.get(anchor_square, {}).get('V' if direction == 'right' else 'H', set())
+
+            # Try placing regular tiles
+            for letter, count in list(current_rack_counts.items()):
+                if count > 0 and letter != ' ' and letter in node.edges:
+                    if letter in valid_letters_for_cross:
+                        current_rack_counts[letter] -= 1
+                        placed_tiles_so_far.append((r, c, letter, False))
+                        next_node = node.edges[letter] # Node after placing 'letter'
+                        # *** CORRECTED LOGIC START ***
+                        # Check if this placement completes a valid word
+                        if next_node.is_terminal:
+                            finalize_move(placed_tiles_so_far, current_rack_counts)
+                        # *** CORRECTED LOGIC END ***
+                        # Recurse to the next square
+                        next_r, next_c = (r, c + 1) if direction == 'right' else (r + 1, c)
+                        extend_play(next_r, next_c, direction, next_node, current_rack_counts, placed_tiles_so_far, True) # Now has_placed_tile is True
+                        # Backtrack
+                        placed_tiles_so_far.pop()
+                        current_rack_counts[letter] += 1
+
+            # Try placing a blank
+            if current_rack_counts.get(' ', 0) > 0 and ' ' in valid_letters_for_cross:
+                 current_rack_counts[' '] -= 1
+                 for blank_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                      if blank_char in node.edges:
+                           placed_tiles_so_far.append((r, c, blank_char, True))
+                           next_node = node.edges[blank_char] # Node after placing blank as 'blank_char'
+                           # *** CORRECTED LOGIC START ***
+                           # Check if this placement completes a valid word
+                           if next_node.is_terminal:
+                                finalize_move(placed_tiles_so_far, current_rack_counts)
+                           # *** CORRECTED LOGIC END ***
+                           next_r, next_c = (r, c + 1) if direction == 'right' else (r + 1, c)
+                           extend_play(next_r, next_c, direction, next_node, current_rack_counts, placed_tiles_so_far, True) # Now has_placed_tile is True
+                           placed_tiles_so_far.pop() # Backtrack blank placement
+                 current_rack_counts[' '] += 1 # Backtrack blank count
+
+        # Case 2: Square has an existing tile - follow it if compatible
+        else:
+            letter = original_tiles_state[r][c]
+            if letter in node.edges:
+                 placed_tiles_so_far.append((r, c, letter, False)) # Add existing tile to track path
+                 next_node = node.edges[letter] # Node after traversing existing letter
+                 # *** CORRECTED LOGIC START ***
+                 # Check if traversing this existing tile completes a valid word
+                 # Crucially, only finalize if at least one tile *has been placed* from the rack in this path
+                 if next_node.is_terminal and has_placed_tile:
+                      finalize_move(placed_tiles_so_far, current_rack_counts)
+                 # *** CORRECTED LOGIC END ***
+                 next_r, next_c = (r, c + 1) if direction == 'right' else (r + 1, c)
+                 # Pass has_placed_tile status along
+                 extend_play(next_r, next_c, direction, next_node, current_rack_counts, placed_tiles_so_far, has_placed_tile)
+                 placed_tiles_so_far.pop() # Backtrack existing tile path
+
+
+    # --- GADDAG-like approach (Simplified): Left Part + Right Part ---
+    # Iterate through each anchor point
+    for r_anchor, c_anchor in anchors:
+        # 1. Generate Right/Down parts starting *at* the anchor
+        #    (Try placing a tile ON the anchor square itself)
+        extend_play(r_anchor, c_anchor, "right", DAWG.root, rack_counter_orig.copy(), [], False)
+        extend_play(r_anchor, c_anchor, "down", DAWG.root, rack_counter_orig.copy(), [], False)
+
+        # 2. Generate parts starting *before* the anchor and extending *through* it
+        #    (This requires a more complex GADDAG-like structure or reverse DAWG traversal)
+        #    The current `extend_play` might find some of these if the word happens
+        #    to form correctly when starting the recursion *on* the anchor, but it's
+        #    not guaranteed to find all plays that place tiles before the anchor.
+        #    For now, we rely on the current `extend_play` hoping it covers enough cases.
+        #    A full GADDAG implementation would be needed for guaranteed completeness here.
+        pass # Placeholder for more advanced left/up part generation
+
+
+    # Sort moves by score descending
+    moves.sort(key=lambda m: m['score'], reverse=True)
+
+    # print(f"Generated {len(moves)} moves.") # Debug
+    return moves
+
+
+# --- Hint Dialog ---
+def draw_hint_dialog(moves, selected_index):
+    """Draw the hint dialog showing top 5 moves."""
+    dialog_width, dialog_height = 400, 250
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+    title_text = dialog_font.render("Top 5 Moves" if moves else "No Moves Available", True, BLACK)
+    screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+
+    hint_rects = []
+    y_pos = dialog_y + 40
+    for i, move in enumerate(moves[:5]):
+        color = HINT_SELECTED_COLOR if i == selected_index else HINT_NORMAL_COLOR
+        rect = pygame.Rect(dialog_x + 10, y_pos, dialog_width - 20, 30)
+        pygame.draw.rect(screen, color, rect)
+
+        word = move.get('word', 'N/A')
+        score = move.get('score', 0)
+        start_pos = move.get('start', (0,0))
+        direction = move.get('direction', 'right')
+        leave = move.get('leave', [])
+        word_display = move.get('word_with_blanks', word.upper()) # Use formatted word
+        coord = get_coord(start_pos, direction)
+        leave_str = ''.join(sorted(l if l != ' ' else '?' for l in leave))
+
+        text_str = f"{i+1}. {word_display} ({score} pts) at {coord} ({leave_str})"
+        text = ui_font.render(text_str, True, BLACK)
+
+        # Truncate text if too wide
+        max_text_width = rect.width - 10
+        if text.get_width() > max_text_width:
+             avg_char_width = text.get_width() / len(text_str) if len(text_str) > 0 else 10
+             max_chars = int(max_text_width / avg_char_width) - 3
+             if max_chars < 5: max_chars = 5
+             text_str = text_str[:max_chars] + "..."
+             text = ui_font.render(text_str, True, BLACK)
+
+        screen.blit(text, (dialog_x + 15, y_pos + 5))
+        hint_rects.append(rect)
+        y_pos += 30
+
+    # Buttons
+    button_y = dialog_y + dialog_height - BUTTON_HEIGHT - 10
+    total_button_width = 3 * BUTTON_WIDTH + 2 * BUTTON_GAP
+    button_start_x = dialog_x + (dialog_width - total_button_width) // 2
+
+    play_button_rect = pygame.Rect(button_start_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    all_words_button_rect = pygame.Rect(button_start_x + BUTTON_WIDTH + BUTTON_GAP, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    ok_button_rect = pygame.Rect(button_start_x + 2 * (BUTTON_WIDTH + BUTTON_GAP), button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    # Draw buttons
+    pygame.draw.rect(screen, BUTTON_COLOR, play_button_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, all_words_button_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, ok_button_rect)
+
+    play_text = button_font.render("Play", True, BLACK)
+    all_words_text = button_font.render("All Words", True, BLACK)
+    ok_text = button_font.render("OK", True, BLACK)
+
+    screen.blit(play_text, play_text.get_rect(center=play_button_rect.center))
+    screen.blit(all_words_text, all_words_text.get_rect(center=all_words_button_rect.center))
+    screen.blit(ok_text, ok_text.get_rect(center=ok_button_rect.center))
+
+    return hint_rects, play_button_rect, ok_button_rect, all_words_button_rect
+
+# End of Part 5
+
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 6)
+
+# Part 6
+
+# --- All Words Dialog ---
+def draw_all_words_dialog(moves, selected_index, scroll_offset):
+    """Draw the dialog showing all valid moves with scrolling."""
+    dialog_x = (WINDOW_WIDTH - ALL_WORDS_DIALOG_WIDTH) // 2
+    dialog_y = (WINDOW_HEIGHT - ALL_WORDS_DIALOG_HEIGHT) // 2
+
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, ALL_WORDS_DIALOG_WIDTH, ALL_WORDS_DIALOG_HEIGHT))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, ALL_WORDS_DIALOG_WIDTH, ALL_WORDS_DIALOG_HEIGHT), 2)
+
+    header_height = 40
+    unique_words_count = len(set(move.get('word', '') for move in moves if move.get('word'))) # Count unique primary words
+    title_text = dialog_font.render(f"All Valid Moves ({unique_words_count} unique words, {len(moves)} plays)", True, BLACK)
+    screen.blit(title_text, (dialog_x + 10, dialog_y + 10))
+
+    # Content area setup
+    content_area_y = dialog_y + header_height
+    button_area_height = BUTTON_HEIGHT + 30
+    content_area_height = ALL_WORDS_DIALOG_HEIGHT - header_height - button_area_height
+    content_area_rect = pygame.Rect(dialog_x, content_area_y, ALL_WORDS_DIALOG_WIDTH, content_area_height)
+
+    # Create a surface for the scrollable content
+    content_height = len(moves) * 30
+    content_surface_width = max(1, ALL_WORDS_DIALOG_WIDTH - 20) # Allow padding
+    content_surface = pygame.Surface((content_surface_width, content_height))
+    content_surface.fill(DIALOG_COLOR) # Match dialog background
+
+    all_words_rects = [] # Store tuples of (screen_rect, move_index) for click detection
+    item_height = 30
+
+    for i, move in enumerate(moves):
+        y_pos_on_surface = i * item_height
+        # Only draw if the item is potentially visible within the scroll window
+        if y_pos_on_surface >= scroll_offset - item_height and y_pos_on_surface < scroll_offset + content_area_height:
+            color = HINT_SELECTED_COLOR if i == selected_index else HINT_NORMAL_COLOR
+            rect_on_surface = pygame.Rect(10, y_pos_on_surface, content_surface_width - 20, item_height)
+            pygame.draw.rect(content_surface, color, rect_on_surface)
+
+            # Display move details
+            word = move.get('word', 'N/A')
+            score = move.get('score', 0)
+            start_pos = move.get('start', (0,0))
+            direction = move.get('direction', 'right')
+            leave = move.get('leave', [])
+            word_display = move.get('word_with_blanks', word.upper())
+            coord = get_coord(start_pos, direction)
+            leave_str = ''.join(sorted(l if l != ' ' else '?' for l in leave))
+            text_str = f"{i+1}. {word_display} ({score} pts) at {coord} ({leave_str})"
+            text = ui_font.render(text_str, True, BLACK)
+
+            # Truncate text if too wide
+            max_text_width = rect_on_surface.width - 10
+            if text.get_width() > max_text_width:
+                 avg_char_width = text.get_width() / len(text_str) if len(text_str) > 0 else 10
+                 max_chars = int(max_text_width / avg_char_width) - 3
+                 if max_chars < 5: max_chars = 5
+                 text_str = text_str[:max_chars] + "..."
+                 text = ui_font.render(text_str, True, BLACK)
+
+            content_surface.blit(text, (15, y_pos_on_surface + 5))
+
+            # Calculate screen rect for collision detection, adjusted for scroll offset
+            screen_y = content_area_y + y_pos_on_surface - scroll_offset
+            screen_rect = pygame.Rect(dialog_x + 10, screen_y, content_surface_width - 20, item_height)
+
+            # Clip the rect to the visible content area
+            visible_top = content_area_y
+            visible_bottom = content_area_y + content_area_height
+            clipped_top = max(visible_top, screen_rect.top)
+            clipped_bottom = min(visible_bottom, screen_rect.bottom)
+
+            if clipped_bottom > clipped_top: # Only add if any part is visible
+                 clipped_rect = pygame.Rect(screen_rect.left, clipped_top, screen_rect.width, clipped_bottom - clipped_top)
+                 all_words_rects.append((clipped_rect, i))
+
+    # Blit the visible part of the content surface to the screen
+    visible_area_on_surface = pygame.Rect(0, scroll_offset, content_surface_width, content_area_height)
+    screen.blit(content_surface, (dialog_x + 10, content_area_y), visible_area_on_surface)
+
+    # Draw border around content area (optional)
+    pygame.draw.rect(screen, BLACK, (dialog_x + 10, content_area_y, content_surface_width, content_area_height), 1)
+
+    # Buttons at the bottom
+    total_button_width = 2 * BUTTON_WIDTH + BUTTON_GAP
+    buttons_x = dialog_x + (ALL_WORDS_DIALOG_WIDTH - total_button_width) // 2
+    button_y = dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 20
+
+    play_button_rect = pygame.Rect(buttons_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    ok_button_rect = pygame.Rect(buttons_x + BUTTON_WIDTH + BUTTON_GAP, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    pygame.draw.rect(screen, BUTTON_COLOR, play_button_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, ok_button_rect)
+
+    play_text = button_font.render("Play", True, BLACK)
+    ok_text = button_font.render("OK", True, BLACK)
+
+    screen.blit(play_text, play_text.get_rect(center=play_button_rect.center))
+    screen.blit(ok_text, ok_text.get_rect(center=ok_button_rect.center))
+
+    return all_words_rects, play_button_rect, ok_button_rect
+
+
+# --- Mouse/Tile Interaction Helpers ---
+def get_tile_under_mouse(x, y, rack_start_x, rack_y, rack_len):
+    """Determine which tile index (0 to rack_len-1) is under the mouse cursor."""
+    for i in range(rack_len):
+        tile_x = rack_start_x + i * (TILE_WIDTH + TILE_GAP)
+        tile_rect = pygame.Rect(tile_x, rack_y, TILE_WIDTH, TILE_HEIGHT)
+        if tile_rect.collidepoint(x, y):
+            return i
+    return None
+
+def get_insertion_index(x, rack_start_x, rack_len):
+    """Determine the insertion index (0 to rack_len) based on mouse x-position."""
+    # Check before the center of the first tile
+    if x < rack_start_x + TILE_WIDTH // 2:
+        return 0
+    # Check between tiles
+    for i in range(rack_len):
+        tile_left = rack_start_x + i * (TILE_WIDTH + TILE_GAP)
+        # Consider the midpoint between tile i and tile i+1 (or end of rack)
+        gap_center = tile_left + TILE_WIDTH + TILE_GAP // 2
+        if x < gap_center:
+             return i + 1
+    # If after the center of the last gap (or last tile)
+    return rack_len
+
+def count_consecutive_existing(row, col, direction, tiles):
+    """Count consecutive existing tiles in a direction (unused currently)."""
+    count = 0
+    if direction == "right":
+        c = col
+        while c < GRID_SIZE and tiles[row][c]: count += 1; c += 1
+    else: # down
+        r = row
+        while r < GRID_SIZE and tiles[r][col]: count += 1; r += 1
+    return count
+
+
+# --- Playing Moves ---
+def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
+    """Plays a move (usually from hint/AI), updates state. Handles practice mode."""
+    global practice_mode # Access global practice_mode
+    player_idx = turn - 1
+    if not (0 <= player_idx < len(racks)):
+        print(f"Error: Invalid player index {player_idx} in play_hint_move.")
+        return turn, [], [] # Return original turn, no changes
+
+    current_rack = racks[player_idx]
+    move_positions = move.get('positions', []) # List of (r, c, letter) for all tiles in the word(s)
+    move_blanks_coords = move.get('blanks', set()) # Coords of blanks used in this move
+    newly_placed_details = move.get('newly_placed', []) # List of (r, c, letter) for tiles placed on empty squares
+
+    # 1. Verify tiles needed are in the rack (using newly_placed_details)
+    needed_tiles = Counter()
+    blanks_needed_count = 0
+    for r, c, letter in newly_placed_details:
+        if (r, c) in move_blanks_coords:
+            blanks_needed_count += 1
+        else:
+            needed_tiles[letter] += 1
+
+    rack_counter = Counter(current_rack)
+    if blanks_needed_count > rack_counter.get(' ', 0):
+        print(f"Error playing move: Needs {blanks_needed_count} blanks, only {rack_counter.get(' ', 0)} available.")
+        return turn, [], []
+    for letter, count in needed_tiles.items():
+        if rack_counter.get(letter, 0) < count:
+            print(f"Error playing move: Needs {count} '{letter}', only {rack_counter.get(letter, 0)} available.")
+            return turn, [], []
+
+    # 2. Place tiles on board and update rack
+    rack_after_play = current_rack[:] # Copy rack to modify
+    for r, c, letter in newly_placed_details:
+        tiles[r][c] = letter # Update the main board state
+        if (r, c) in move_blanks_coords:
+            if ' ' in rack_after_play:
+                rack_after_play.remove(' ')
+                blanks.add((r, c)) # Add to game's blank set
+            else: print("Error: Tried to play blank but none in rack_after_play!")
+        else:
+            if letter in rack_after_play:
+                rack_after_play.remove(letter)
+            else: print(f"Error: Tried to play '{letter}' but not in rack_after_play!")
+
+    # 3. Calculate score (use pre-calculated score from move dict for consistency)
+    score = move.get('score', 0)
+    # Optional: Recalculate score for verification
+    # recalculated_score = calculate_score(newly_placed_details, board, tiles, blanks)
+    # if score != recalculated_score: print(f"Warning: Hint score {score} != recalculated {recalculated_score}")
+    scores[player_idx] += score
+
+    # 4. Draw new tiles (Skip in 8-letter practice)
+    drawn_tiles = []
+    if practice_mode != "eight_letter":
+        num_to_draw = len(newly_placed_details) # Draw one for each tile placed
+        drawn_tiles = [bag.pop() for _ in range(num_to_draw) if bag]
+        rack_after_play.extend(drawn_tiles)
+        # rack_after_play.sort() # Optional sort
+
+    racks[player_idx] = rack_after_play # Update the main racks list
+
+    # 5. Determine next turn (Stays P1 in 8-letter practice)
+    next_turn = turn if practice_mode == "eight_letter" else 3 - turn
+
+    return next_turn, drawn_tiles, newly_placed_details
+
+
+# --- AI Logic ---
+def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
+    """Handles the AI's turn, including skipping in 8-letter practice."""
+    global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode
+
+    # <<< Skip AI turn entirely in 8-letter practice mode >>>
+    if practice_mode == "eight_letter":
+        # print("Skipping AI turn in 8-letter practice.") # Optional debug
+        # Return state indicating no action taken, turn does NOT change
+        return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, False, None
+
+    # Proceed with normal AI turn logic only if not 8-letter practice
+    print(f"AI Player {turn} turn started. Rack: {''.join(racks[turn-1])}")
+
+    paused_for_power_tile = False
+    current_power_tile = None
+    all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
+    if all_moves is None: all_moves = []
+    print(f"AI Player {turn} generated {len(all_moves)} moves.")
+
+    # Power Tile Practice Pause Check
+    if practice_mode == "power_tiles" and letter_checks:
+        checked_power_tiles = {letter for i, letter in enumerate(['J', 'Q', 'X', 'Z']) if letter_checks[i]}
+        power_tiles_on_rack = [tile for tile in racks[turn-1] if tile in checked_power_tiles]
+        if power_tiles_on_rack:
+            current_power_tile = power_tiles_on_rack[0]
+            paused_for_power_tile = True
+            print(f"AI turn paused for power tile: {current_power_tile}")
+            # Return generated moves for human interaction
+            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
+
+    # AI Action: Play, Exchange, or Pass
+    move_rack_before = racks[turn-1][:] # Copy rack before action
+    exchanged_tiles_for_history = [] # Initialize
+
+    if not racks[turn-1] and not bag: # Out of tiles and bag empty
+        print(f"AI {turn} has empty rack and bag is empty. Passing.")
+        move_type = 'pass'; score = 0; word = ''; positions = []; blanks_used = set(); drawn_tiles = []; coord = ''; word_with_blanks = ''; is_bingo = False
+        consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0
+        next_turn = 3 - turn
+    elif all_moves: # Play best move
+        best_move = all_moves[0]
+        print(f"AI {turn} playing best move: {best_move.get('word','N/A')} for {best_move.get('score',0)} points.")
+        next_turn, drawn_tiles, newly_placed = play_hint_move(best_move, tiles, racks, blanks, scores, turn, bag, board)
+        move_type = 'place'; score = best_move.get('score', 0); word = best_move.get('word', 'N/A')
+        positions = best_move.get('positions', []); blanks_used = best_move.get('blanks', set())
+        start = best_move.get('start', (0,0)); direction = best_move.get('direction', 'right')
+        coord = get_coord(start, direction); word_with_blanks = best_move.get('word_with_blanks', '')
+        is_bingo = best_move.get('is_bingo', False)
+        first_play = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
+    elif len(bag) >= 7: # Exchange
+        print(f"AI {turn} exchanging tiles.")
+        num_to_exchange = min(len(racks[turn-1]), 3) # Simple: exchange up to 3
+        tiles_to_exchange = racks[turn-1][:num_to_exchange]
+        exchanged_tiles_for_history = tiles_to_exchange[:] # Store for history
+        drawn_tiles = [bag.pop() for _ in range(num_to_exchange) if bag]
+        new_rack = racks[turn-1][num_to_exchange:] + drawn_tiles
+        racks[turn-1] = new_rack
+        bag.extend(tiles_to_exchange); random.shuffle(bag)
+        move_type = 'exchange'; score = 0; word = ''; positions = []; blanks_used = set(); coord = ''; word_with_blanks = ''; is_bingo = False
+        consecutive_zero_point_turns += 1; exchange_count += 1; pass_count = 0
+        next_turn = 3 - turn
+    else: # Pass
+        print(f"AI {turn} passing.")
+        move_type = 'pass'; score = 0; word = ''; positions = []; blanks_used = set(); drawn_tiles = []; coord = ''; word_with_blanks = ''; is_bingo = False
+        consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0
+        next_turn = 3 - turn
+
+    # Record Move
+    move_data = {
+        'player': turn, 'move_type': move_type, 'rack': move_rack_before, 'score': score,
+        'word': word, 'positions': positions, 'blanks': blanks_used, 'drawn': drawn_tiles,
+        'coord': coord, 'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo
+    }
+    if move_type == 'exchange':
+         move_data['exchanged_tiles'] = exchanged_tiles_for_history
+    move_history.append(move_data)
+    current_replay_turn = len(move_history)
+
+    # Return updated state
+    return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
+
+
+def power_tile_practice():
+    """Placeholder function, logic moved elsewhere."""
+    print("Power tile practice setup (handled by mode selection and AI turn).")
+
+# End of Part 6
+
+# python
+# MODIFIED: 01APR24 - Implementing 8-Letter Bingo Practice Mode Fixes (Part 7)
+
+# Part 7
+
+# --- Replay Logic ---
+def get_replay_state(turn_idx, initial_racks):
+    """Recreate the game state up to turn_idx, including racks."""
+    # Start with initial state (ensure deep copies if initial_racks can be modified)
+    tiles_state = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    blanks_state = set()
+    scores_state = [0, 0]
+    # IMPORTANT: Start with deep copies of the initial racks
+    # Ensure initial_racks is a list of two lists before copying
+    if not isinstance(initial_racks, list) or len(initial_racks) != 2 or \
+       not isinstance(initial_racks[0], list) or not isinstance(initial_racks[1], list):
+        print(f"Error: Invalid initial_racks format in get_replay_state: {initial_racks}")
+        # Return a default empty state or raise an error
+        return tiles_state, blanks_state, scores_state, [[], []] # Default empty state
+
+    racks_state = [initial_racks[0][:], initial_racks[1][:]]
+
+    # Apply moves sequentially up to turn_idx
+    for i in range(turn_idx):
+        if i >= len(move_history): # Safety check
+             print(f"Warning: Replay index {i} out of bounds for move_history (len {len(move_history)})")
+             break
+        move = move_history[i]
+        player_idx = move['player'] - 1 # 0-based index
+
+        # Get the rack state *from the end of the previous iteration*
+        current_rack_before_move = racks_state[player_idx][:] # Copy the rack state *before* this move 'i'
+
+        if move['move_type'] == 'place':
+            # Place tiles on board
+            for r, c, letter in move.get('positions', []):
+                # Basic bounds check before placing
+                if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
+                    tiles_state[r][c] = letter
+                    if (r, c) in move.get('blanks', set()):
+                        blanks_state.add((r, c))
+                else:
+                    print(f"Replay Warning: Invalid position ({r},{c}) in move {i}")
+            # Update score
+            scores_state[player_idx] += move.get('score', 0)
+
+            # Update rack: remove played tiles, add drawn tiles
+            rack_after_move = current_rack_before_move[:] # Work with a copy
+            blanks_in_move = move.get('blanks', set())
+            positions = move.get('positions', [])
+
+            # Need the board state *before* this move to know which tiles were newly placed
+            # Avoid infinite recursion by getting state up to i, not i+1
+            temp_tiles_before, _, _, _ = get_replay_state(i, initial_racks)
+
+            for r, c, letter in positions:
+                 # Check if tile was placed in this move (i.e., square was empty before)
+                 if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE and not temp_tiles_before[r][c]:
+                      if (r,c) in blanks_in_move:
+                           if ' ' in rack_after_move: rack_after_move.remove(' ')
+                           else: print(f"Replay Warning: Tried to remove blank from rack for move {i}, but not found.")
+                      else:
+                           if letter in rack_after_move: rack_after_move.remove(letter)
+                           else: print(f"Replay Warning: Tried to remove '{letter}' from rack for move {i}, but not found.")
+            # Add drawn tiles
+            rack_after_move.extend(move.get('drawn', []))
+            racks_state[player_idx] = rack_after_move # Update the state rack for the *next* iteration
+
+        elif move['move_type'] == 'exchange':
+            # Update rack: remove exchanged, add drawn
+            rack_after_move = current_rack_before_move[:] # Work with copy
+            exchanged = move.get('exchanged_tiles', [])
+            for tile in exchanged:
+                 if tile in rack_after_move: rack_after_move.remove(tile)
+                 else: print(f"Replay Warning: Tried to remove exchanged tile '{tile}' from rack for move {i}, but not found.")
+            rack_after_move.extend(move.get('drawn', []))
+            racks_state[player_idx] = rack_after_move
+
+        elif move['move_type'] == 'pass':
+            # No change to board, score, or rack content
+            # Rack state remains racks_state[player_idx] = current_rack_before_move
+            pass # racks_state[player_idx] is already correct for next iteration
+
+    # Return the state *after* turn_idx moves have been applied
+    return tiles_state, blanks_state, scores_state, racks_state
+
+
+# --- Main Game Loop ---
+def main():
+    global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores # Ensure scores is global if modified directly
+
+    if not main_called:
+        main_called = True
+        game_mode, player_names, human_player, practice_mode, letter_checks, practice_state = mode_selection_screen()
+
+        # --- Game State Initialization ---
+        if practice_state and practice_mode == "eight_letter":
+            print("Loading state from 8-letter practice...")
+            board = practice_state["board"]
+            tiles = practice_state["tiles"]
+            racks = practice_state["racks"]
+            blanks = practice_state["blanks"]
+            bag = practice_state["bag"]
+            scores = practice_state["scores"]
+            turn = practice_state["turn"]
+            first_play = practice_state["first_play"]
+            is_ai = [False, False] # Explicitly no AI
+        elif practice_state: # Other practice modes (e.g., power tiles)
+            print("Loading state from practice mode (not 8-letter)...")
+            board = practice_state["board"]; tiles = practice_state["tiles"]; racks = practice_state["racks"]
+            blanks = practice_state["blanks"]; bag = practice_state["bag"]; scores = practice_state["scores"]
+            turn = practice_state["turn"]; first_play = practice_state["first_play"]
+            is_ai = [False, False] # Default
+            if game_mode == MODE_HVA: is_ai[1 - human_player] = True
+            elif game_mode == MODE_AVA: is_ai = [True, True]
+            if practice_mode == "power_tiles": is_ai = [True, True]
+        else: # Standard game initialization
+            print("Performing standard game initialization...")
+            board, _, tiles = create_board()
+            bag = [letter for letter, (count, _) in TILE_DISTRIBUTION.items() for _ in range(count)]
+            random.shuffle(bag)
+            racks = [[], []]
+            try:
+                 racks[0] = [bag.pop() for _ in range(7)]
+                 racks[1] = [bag.pop() for _ in range(7)]
+            except IndexError:
+                 print("Error: Not enough tiles in bag to deal initial racks."); pygame.quit(); sys.exit()
+            for rack in racks: rack.sort()
+            scores = [0, 0]; turn = 1; blanks = set(); first_play = True
+            is_ai = [False, False]
+            if game_mode == MODE_HVA: is_ai[1 - human_player] = True
+            elif game_mode == MODE_AVA: is_ai = [True, True]
+
+        # --- Common Initializations & Resets ---
+        initial_racks = [rack[:] for rack in racks]
+        word_positions = []; running = True; dropdown_open = False
+        return_to_mode_selection = False; all_words_ok_rect = None; all_words_play_rect = None
+        hint_rects = []; hint_rect = None; play_button_rect = None; ok_button_rect = None
+        all_words_button_rect = None; tile_rects = []; exchange_button_rect = None
+        cancel_button_rect = None; pass_count = 0; exchange_count = 0
+        consecutive_zero_point_turns = 0; exchanging = False; hinting = False
+        showing_all_words = False; selected_tiles = set(); typing = False
+        typing_start = None; typing_direction = None; current_r = None; current_c = None
+        last_left_click_time = 0; last_left_click_pos = None; hint_moves = []
+        all_moves = []; selected_hint_index = None; scroll_offset = 0
+        last_clicked_pos = None; last_word = ""; last_score = 0; last_start = None
+        last_direction = None; human_played = False; dragged_tile = None; drag_pos = None
+        selected_square = None; original_tiles = None; original_rack = None
+        move_history = []; replay_mode = False; current_replay_turn = 0; previous_turn = 0
+        game_over_state = False; showing_stats = False; dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2
+        dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2; dragging = False; drag_offset = (0, 0)
+        final_scores = None; reason = ""; action = None; scoreboard_height = WINDOW_HEIGHT - 80
+        paused_for_power_tile = False; current_power_tile = None
+
+        # --- 8-Letter Practice Specific Initialization ---
+        practice_target_moves = []
+        practice_best_move = None
+        practice_solved = False
+        showing_practice_end_dialog = False
+        practice_end_message = ""
+        practice_play_again_rect = None
+        practice_main_menu_rect = None
+        practice_quit_rect = None
+
+        if practice_mode == "eight_letter":
+            print("Generating target moves for 8-letter practice...")
+            if racks and len(racks) > 0 and racks[0] is not None:
+                practice_target_moves = generate_valid_moves(racks[0], tiles, board, blanks)
+                if practice_target_moves:
+                    practice_best_move = practice_target_moves[0]
+                    print(f"Best move found: {practice_best_move['word']} ({practice_best_move['score']} pts)")
+                    all_moves = practice_target_moves # Make all moves available for Suggest/All Words
+                else:
+                    print("Error: No valid moves found for 8-letter practice setup!")
+                    show_message_dialog("Error: No possible moves found for this setup.", "Practice Error")
+                    return_to_mode_selection = True; running = False
+            else:
+                 print("Error: Invalid rack state for Player 1 in 8-letter practice.")
+                 return_to_mode_selection = True; running = False
+
+        # --- Main Game Loop ---
+        while running:
+            # Generate moves at start of turn (unless 8-letter practice)
+            if turn != previous_turn and not replay_mode and not game_over_state and not paused_for_power_tile and practice_mode != "eight_letter":
+                if racks and len(racks) > turn-1 and racks[turn-1] is not None:
+                    print(f"Generating moves for Player {turn}. Rack: {''.join(racks[turn-1])}")
+                    all_moves = generate_valid_moves(racks[turn-1], tiles, board, blanks)
+                    if all_moves is None: all_moves = []
+                    print(f"Generated {len(all_moves)} moves for player {turn}")
+                else:
+                    print(f"Error: Invalid rack state for player {turn}. Racks: {racks}"); all_moves = []
+                previous_turn = turn
+                human_played = False
+
+            # --- Event Handling ---
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: running = False
+                # --- Practice End Dialog Handling ---
+                elif showing_practice_end_dialog:
+                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                         x, y = event.pos
+                         if practice_play_again_rect and practice_play_again_rect.collidepoint(x,y):
+                             running = False; return_to_mode_selection = True # Restart main for new setup
+                         elif practice_main_menu_rect and practice_main_menu_rect.collidepoint(x,y):
+                             running = False; return_to_mode_selection = True
+                         elif practice_quit_rect and practice_quit_rect.collidepoint(x,y):
+                             running = False # Quit game
+                # --- Game Over Event Handling ---
+                elif game_over_state:
+                    # ... (Game Over Dialog click/drag/key handling - unchanged from Part 7 provided previously) ...
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        x, y = event.pos
+                        if dialog_x <= x < dialog_x + DIALOG_WIDTH and dialog_y <= y < dialog_y + 20:
+                            dragging = True; drag_offset = (x - dialog_x, y - dialog_y)
+                        elif showing_stats:
+                            stats_dialog_width, stats_dialog_height = 400, 360
+                            stats_dialog_actual_x = dialog_x + 20; stats_dialog_actual_y = dialog_y + 20
+                            temp_ok_rect = pygame.Rect(stats_dialog_actual_x + stats_dialog_width - BUTTON_WIDTH - 10, stats_dialog_actual_y + stats_dialog_height - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
+                            if temp_ok_rect.collidepoint(x, y): showing_stats = False
+                        else:
+                            temp_save_rect, temp_quit_rect, temp_replay_rect, temp_play_again_rect, temp_stats_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores if final_scores else [0,0], reason, player_names)
+                            if temp_save_rect.collidepoint(x, y):
+                                if final_scores:
+                                    gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                                    try:
+                                        with open("last_game.gcg", "w") as f: f.write(gcg_content)
+                                        print("Game saved to last_game.gcg")
+                                    except IOError as e: print(f"Error saving game: {e}")
+                                else: print("Cannot save game: Final scores not calculated.")
+                            elif temp_quit_rect.collidepoint(x, y): running = False
+                            elif temp_replay_rect.collidepoint(x, y):
+                                game_over_state = False; replay_mode = True; current_replay_turn = 0
+                                practice_mode = None; paused_for_power_tile = False; showing_stats = False
+                            elif temp_play_again_rect.collidepoint(x, y): running = False; return_to_mode_selection = True
+                            elif temp_stats_rect.collidepoint(x, y): showing_stats = True
+                    elif event.type == pygame.MOUSEMOTION and dragging:
+                        x, y = event.pos; dialog_x = x - drag_offset[0]; dialog_y = y - drag_offset[1]
+                        dialog_x = max(0, min(dialog_x, WINDOW_WIDTH - DIALOG_WIDTH)); dialog_y = max(0, min(dialog_y, WINDOW_HEIGHT - DIALOG_HEIGHT))
+                    elif event.type == pygame.MOUSEBUTTONUP and event.button == 1: dragging = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_s:
+                             if final_scores:
+                                gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                                try:
+                                    with open("last_game.gcg", "w") as f: f.write(gcg_content)
+                                    print("Game saved to last_game.gcg")
+                                except IOError as e: print(f"Error saving game: {e}")
+                             else: print("Cannot save game: Final scores not calculated.")
+                        elif event.key == pygame.K_q: running = False
+                        elif event.key == pygame.K_r:
+                            game_over_state = False; replay_mode = True; current_replay_turn = 0
+                            practice_mode = None; paused_for_power_tile = False; showing_stats = False
+                        elif event.key == pygame.K_p: running = False; return_to_mode_selection = True
+
+                # --- Active Game / Replay Event Handling ---
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    x, y = event.pos
+                    current_time = pygame.time.get_ticks()
+                    if event.button == 1: # Left Click
+                        if replay_mode:
+                            # ... (Replay button handling - unchanged) ...
+                            if replay_start_rect.collidepoint(x, y): current_replay_turn = 0
+                            elif replay_prev_rect.collidepoint(x, y) and current_replay_turn > 0: current_replay_turn -= 1
+                            elif replay_next_rect.collidepoint(x, y) and current_replay_turn < len(move_history): current_replay_turn += 1
+                            elif replay_end_rect.collidepoint(x, y): current_replay_turn = len(move_history)
+                        elif not replay_mode: # Active game clicks
+                            # Dialog handling first
+                            if exchanging:
+                                # ... (Exchange dialog handling - unchanged) ...
+                                clicked_in_dialog = False
+                                if exchange_button_rect and exchange_button_rect.collidepoint(x, y) and selected_tiles and len(bag) >= len(selected_tiles):
+                                    clicked_in_dialog = True; move_rack = racks[turn-1][:]; tiles_to_exchange = [racks[turn-1][i] for i in sorted(selected_tiles, reverse=True)]
+                                    temp_rack = [tile for i, tile in enumerate(racks[turn-1]) if i not in selected_tiles]
+                                    drawn_tiles = [bag.pop() for _ in range(len(tiles_to_exchange)) if bag]; temp_rack.extend(drawn_tiles)
+                                    racks[turn-1] = temp_rack; bag.extend(tiles_to_exchange); random.shuffle(bag)
+                                    consecutive_zero_point_turns += 1; print(f"Player {turn} exchanged {len(tiles_to_exchange)} tiles")
+                                    exchanging = False; selected_tiles.clear(); human_played = True; exchange_count += 1; pass_count = 0; paused_for_power_tile = False
+                                    move_history.append({'player': turn, 'move_type': 'exchange', 'rack': move_rack, 'exchanged_tiles': tiles_to_exchange, 'drawn': drawn_tiles, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'is_bingo': False, 'word_with_blanks': ''})
+                                    current_replay_turn = len(move_history); turn = 3 - turn
+                                elif cancel_button_rect and cancel_button_rect.collidepoint(x, y): clicked_in_dialog = True; exchanging = False; selected_tiles.clear()
+                                elif tile_rects:
+                                    for i, rect in enumerate(tile_rects):
+                                        if rect.collidepoint(x, y): clicked_in_dialog = True; selected_tiles.symmetric_difference_update({i}); break
+                                dialog_width, dialog_height = 400, 200; dialog_rect_exchange = pygame.Rect((WINDOW_WIDTH - dialog_width) // 2, (WINDOW_HEIGHT - dialog_height) // 2, dialog_width, dialog_height)
+                                if dialog_rect_exchange.collidepoint(x,y) and not clicked_in_dialog: pass # Ignore click on background
+                            elif hinting:
+                                # ... (Hint dialog handling - unchanged, uses play_hint_move which handles practice mode) ...
+                                clicked_in_dialog = False
+                                if play_button_rect and play_button_rect.collidepoint(x, y) and selected_hint_index is not None and selected_hint_index < len(hint_moves):
+                                    clicked_in_dialog = True; selected_move = hint_moves[selected_hint_index]; move_rack = racks[turn-1][:]
+                                    if paused_for_power_tile:
+                                        power_moves_check = [m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]
+                                        max_power_score_check = max(m['score'] for m in power_moves_check) if power_moves_check else 0
+                                        if selected_move['score'] >= max_power_score_check:
+                                            next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
+                                            human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False)})
+                                            current_replay_turn = len(move_history); turn = next_turn
+                                        else: show_message_dialog(f"This is not the highest scoring move with {current_power_tile}!", "Incorrect Move")
+                                    else: # Normal hint play
+                                        next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
+                                        human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
+                                        if practice_mode != "eight_letter": # Only record/advance turn if not practice
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False)})
+                                            current_replay_turn = len(move_history); turn = next_turn
+                                        else: print("Hint played visually in 8-letter practice.")
+                                elif ok_button_rect and ok_button_rect.collidepoint(x, y): clicked_in_dialog = True; hinting = False
+                                elif all_words_button_rect and all_words_button_rect.collidepoint(x, y):
+                                    clicked_in_dialog = True; hinting = False; showing_all_words = True
+                                    moves_for_all = practice_target_moves if practice_mode == "eight_letter" else all_moves
+                                    selected_hint_index = 0 if moves_for_all else None; scroll_offset = 0
+                                elif hint_rects:
+                                    for i, rect in enumerate(hint_rects):
+                                        if rect.collidepoint(x, y) and i < len(hint_moves): clicked_in_dialog = True; selected_hint_index = i; break
+                                dialog_width, dialog_height = 400, 250; dialog_rect_hint = pygame.Rect((WINDOW_WIDTH - dialog_width) // 2, (WINDOW_HEIGHT - dialog_height) // 2, dialog_width, dialog_height)
+                                if dialog_rect_hint.collidepoint(x,y) and not clicked_in_dialog: pass
+                            elif showing_all_words:
+                                # ... (All Words dialog handling - unchanged, uses play_hint_move) ...
+                                clicked_in_dialog = False
+                                moves_for_all = practice_target_moves if practice_mode == "eight_letter" else all_moves
+                                if all_words_play_rect and all_words_play_rect.collidepoint(x, y) and selected_hint_index is not None and selected_hint_index < len(moves_for_all):
+                                    clicked_in_dialog = True; selected_move = moves_for_all[selected_hint_index]; move_rack = racks[turn-1][:]
+                                    next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
+                                    human_played = True; showing_all_words = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
+                                    if practice_mode != "eight_letter":
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False)})
+                                        current_replay_turn = len(move_history); turn = next_turn
+                                    else: print("Move played visually from All Words in 8-letter practice.")
+                                elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y): clicked_in_dialog = True; showing_all_words = False
+                                elif all_words_rects:
+                                    for rect, idx in all_words_rects:
+                                        if rect.collidepoint(x, y): clicked_in_dialog = True; selected_hint_index = idx; break
+                                dialog_rect_all = pygame.Rect((WINDOW_WIDTH - ALL_WORDS_DIALOG_WIDTH) // 2, (WINDOW_HEIGHT - ALL_WORDS_DIALOG_HEIGHT) // 2, ALL_WORDS_DIALOG_WIDTH, ALL_WORDS_DIALOG_HEIGHT)
+                                if dialog_rect_all.collidepoint(x,y) and not clicked_in_dialog: pass
+                            elif not (exchanging or hinting or showing_all_words): # Clicks outside dialogs
+                                # Options Menu
+                                options_rect, dropdown_rects = draw_options_menu(turn, dropdown_open, len(bag)) # Get current rects
+                                if options_rect.collidepoint(x, y): dropdown_open = not dropdown_open
+                                elif dropdown_open:
+                                    clicked_dropdown = False
+                                    current_options = ["Give Up", "Main", "Quit"] if practice_mode == "eight_letter" else ["Pass", "Exchange", "Main", "Quit"]
+                                    for i, rect in enumerate(dropdown_rects):
+                                        if rect and rect.collidepoint(x, y):
+                                            clicked_dropdown = True; selected_option = current_options[i]; dropdown_open = False
+                                            if selected_option == "Pass":
+                                                move_rack = racks[turn-1][:]; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0
+                                                print(f"Player {turn} passed"); human_played = True; paused_for_power_tile = False
+                                                move_history.append({'player': turn, 'move_type': 'pass', 'rack': move_rack, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'drawn': [], 'is_bingo': False, 'word_with_blanks': ''})
+                                                current_replay_turn = len(move_history); turn = 3 - turn
+                                            elif selected_option == "Exchange": exchanging = True; selected_tiles.clear()
+                                            elif selected_option == "Give Up":
+                                                if practice_best_move: practice_end_message = f"Best: {practice_best_move['word_with_blanks']} ({practice_best_move['score']} pts)"
+                                                else: practice_end_message = "No best move found."
+                                                practice_solved = True; showing_practice_end_dialog = True
+                                            elif selected_option == "Main": running = False; return_to_mode_selection = True
+                                            elif selected_option == "Quit":
+                                                if confirm_quit(): running = False
+                                            break
+                                    if not clicked_dropdown: dropdown_open = False
+                                elif not options_rect.collidepoint(x,y): dropdown_open = False # Close if clicking elsewhere
+
+                                # Suggest Button
+                                suggest_rect = draw_suggest_button() # Get current rect
+                                if suggest_rect and suggest_rect.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
+                                    moves_to_hint = practice_target_moves if practice_mode == "eight_letter" else all_moves
+                                    if paused_for_power_tile:
+                                        power_moves_hint = [m for m in moves_to_hint if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]
+                                        hint_moves = sorted(power_moves_hint, key=lambda m: m['score'], reverse=True)[:5]
+                                    else: hint_moves = moves_to_hint[:5]
+                                    hinting = True; selected_hint_index = 0 if hint_moves else None
+
+                                # Hint Button (Power Tile Pause)
+                                if paused_for_power_tile and hint_rect and hint_rect.collidepoint(x, y):
+                                    power_moves_hint = [m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]
+                                    hint_moves = sorted(power_moves_hint, key=lambda m: m['score'], reverse=True)[:5]
+                                    hinting = True; selected_hint_index = 0 if hint_moves else None
+
+                                # Rack Buttons
+                                current_player_idx = turn - 1
+                                if not is_ai[current_player_idx] or paused_for_power_tile:
+                                     p1_alpha_rect, p1_rand_rect = draw_rack(1, racks[0] if len(racks)>0 else [], scores, turn, player_names) # Get P1 rects
+                                     if turn == 1:
+                                          if p1_alpha_rect and p1_alpha_rect.collidepoint(x, y): racks[0].sort()
+                                          elif p1_rand_rect and p1_rand_rect.collidepoint(x, y): random.shuffle(racks[0])
+                                     elif turn == 2 and practice_mode != "eight_letter":
+                                          p2_alpha_rect, p2_rand_rect = draw_rack(2, racks[1] if len(racks)>1 else [], scores, turn, player_names) # Get P2 rects
+                                          if p2_alpha_rect and p2_alpha_rect.collidepoint(x, y): racks[1].sort()
+                                          elif p2_rand_rect and p2_rand_rect.collidepoint(x, y): random.shuffle(racks[1])
+
+                                # Rack Tile Drag Start
+                                rack_y = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
+                                rack_width_calc = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
+                                rack_start_x_calc = max(OPTIONS_WIDTH + BUTTON_GAP + 10, (BOARD_SIZE - rack_width_calc) // 2)
+                                if 0 <= current_player_idx < len(racks):
+                                     rack_len = len(racks[current_player_idx])
+                                     tile_idx = get_tile_under_mouse(x, y, rack_start_x_calc, rack_y, rack_len)
+                                     if tile_idx is not None and not dragged_tile and (not is_ai[current_player_idx] or paused_for_power_tile):
+                                         dragged_tile = (turn, tile_idx); drag_pos = (x, y)
+                                         tile_abs_x = rack_start_x_calc + tile_idx * (TILE_WIDTH + TILE_GAP)
+                                         drag_offset = (x - tile_abs_x, y - rack_y)
+
+                                # Board Click (Typing Start)
+                                if not dragged_tile and (not is_ai[turn-1] or paused_for_power_tile):
+                                    col = (x - 40) // SQUARE_SIZE; row = (y - 40) // SQUARE_SIZE
+                                    if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE and not tiles[row][col]:
+                                        is_double_click = (last_left_click_pos == (row, col) and current_time - last_left_click_time < DOUBLE_CLICK_TIME)
+                                        if is_double_click:
+                                            selected_square = None; typing = False
+                                            if word_positions and original_tiles and original_rack: # Revert cancelled typing
+                                                 for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                                 racks[turn-1] = original_rack[:]; blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                                 word_positions = []
+                                        elif selected_square is None or selected_square[:2] != (row, col): selected_square = (row, col, "right"); typing = False; word_positions = []
+                                        elif selected_square[2] == "right": selected_square = (row, col, "down")
+                                        elif selected_square[2] == "down": selected_square = None
+                                        last_left_click_pos = (row, col); last_left_click_time = current_time
+                                    else: selected_square = None # Click outside board or on occupied square
+
+                    elif event.button == 3: # Right Click
+                        selected_square = None # Deselect typing start/arrow
+                        if typing: # Cancel active typing
+                            if original_tiles and original_rack:
+                                for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                racks[turn-1] = original_rack[:]
+                                blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                            typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
+
+                # --- Mouse Motion ---
+                elif event.type == pygame.MOUSEMOTION:
+                    if dragged_tile and drag_pos: drag_pos = event.pos
+                    elif game_over_state and dragging:
+                        x, y = event.pos; dialog_x = x - drag_offset[0]; dialog_y = y - drag_offset[1]
+                        dialog_x = max(0, min(dialog_x, WINDOW_WIDTH - DIALOG_WIDTH)); dialog_y = max(0, min(dialog_y, WINDOW_HEIGHT - DIALOG_HEIGHT))
+
+                # --- Mouse Button Up ---
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    if event.button == 1: # Left button up
+                        if game_over_state and dragging: dragging = False
+                        elif dragged_tile and (not is_ai[dragged_tile[0]-1] or paused_for_power_tile) and not replay_mode:
+                            x, y = event.pos; player_idx = dragged_tile[0] - 1
+                            rack_y = BOARD_SIZE + 80 if dragged_tile[0] == 1 else BOARD_SIZE + 150
+                            rack_width_calc = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
+                            rack_start_x_calc = max(OPTIONS_WIDTH + BUTTON_GAP + 10, (BOARD_SIZE - rack_width_calc) // 2)
+                            rack_area_rect = pygame.Rect(rack_start_x_calc, rack_y, rack_width_calc, TILE_HEIGHT)
+                            if rack_area_rect.collidepoint(x, y): # Dropped on rack
+                                rack_len = len(racks[player_idx])
+                                insert_idx = get_insertion_index(x, rack_start_x_calc, rack_len)
+                                original_tile_idx = dragged_tile[1]
+                                if 0 <= original_tile_idx < rack_len:
+                                    player_rack = racks[player_idx]; tile_to_move = player_rack.pop(original_tile_idx)
+                                    if original_tile_idx < insert_idx: insert_idx -= 1
+                                    insert_idx = max(0, min(insert_idx, len(player_rack)))
+                                    player_rack.insert(insert_idx, tile_to_move)
+                            dragged_tile = None; drag_pos = None # End drag
+
+                # --- Mouse Wheel (Scrolling) ---
+                elif event.type == pygame.MOUSEWHEEL:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    # Scroll All Words dialog
+                    if showing_all_words:
+                         dialog_rect_all = pygame.Rect((WINDOW_WIDTH - ALL_WORDS_DIALOG_WIDTH) // 2, (WINDOW_HEIGHT - ALL_WORDS_DIALOG_HEIGHT) // 2, ALL_WORDS_DIALOG_WIDTH, ALL_WORDS_DIALOG_HEIGHT)
+                         if dialog_rect_all.collidepoint(mouse_x, mouse_y):
+                              moves_for_scroll = practice_target_moves if practice_mode == "eight_letter" else all_moves
+                              content_height = len(moves_for_scroll) * 30
+                              header_height = 40; button_area_height = BUTTON_HEIGHT + 30
+                              visible_content_height = ALL_WORDS_DIALOG_HEIGHT - header_height - button_area_height
+                              max_scroll = max(0, content_height - visible_content_height)
+                              scroll_offset -= event.y * SCROLL_SPEED
+                              scroll_offset = max(0, min(scroll_offset, max_scroll))
+                    # Scroll Scoreboard
+                    sb_x = BOARD_SIZE + 275; sb_y = 40; sb_w = max(200, WINDOW_WIDTH - BOARD_SIZE - 20); sb_h = WINDOW_HEIGHT - 80
+                    if sb_x + sb_w > WINDOW_WIDTH - 10: sb_w = WINDOW_WIDTH - sb_x - 10
+                    if sb_w < 200: sb_x = WINDOW_WIDTH - 210; sb_w = 200
+                    scoreboard_rect = pygame.Rect(sb_x, sb_y, sb_w, sb_h)
+                    if scoreboard_rect.collidepoint(mouse_x, mouse_y):
+                         history_len = current_replay_turn if replay_mode else len(move_history)
+                         total_content_height = history_len * 20
+                         if (game_over_state or (replay_mode and current_replay_turn == len(move_history))) and final_scores: total_content_height += 40
+                         max_scroll = max(0, total_content_height - scoreboard_height)
+                         scroll_offset -= event.y * SCROLL_SPEED
+                         scroll_offset = max(0, min(scroll_offset, max_scroll))
+
+                # --- Keydown Handling (Typing & General) ---
+                elif event.type == pygame.KEYDOWN:
+                    # Handle typing only if it's human turn (or paused AI) and not in replay
+                    is_human_turn = not replay_mode and (not is_ai[turn-1] or paused_for_power_tile)
+                    if is_human_turn:
+                        if selected_square and not typing and event.unicode.isalpha(): # Start typing
+                            typing = True; original_tiles = [row[:] for row in tiles]; original_rack = racks[turn-1][:]
+                            typing_start = selected_square[:2]; typing_direction = selected_square[2]
+                            original_selected_square = selected_square; selected_square = None # Hide arrow
+                            word_positions = []; current_r, current_c = typing_start
+                            # Process first letter
+                            letter = event.unicode.upper()
+                            if 0 <= current_r < GRID_SIZE and 0 <= current_c < GRID_SIZE and not tiles[current_r][current_c]:
+                                placed = False
+                                if letter in racks[turn-1]: tiles[current_r][current_c] = letter; racks[turn-1].remove(letter); word_positions.append((current_r, current_c, letter)); placed = True
+                                elif ' ' in racks[turn-1]: tiles[current_r][current_c] = letter; racks[turn-1].remove(' '); blanks.add((current_r, current_c)); word_positions.append((current_r, current_c, letter)); placed = True
+                                if placed: # Move cursor
+                                    if typing_direction == "right":
+                                        current_c += 1;
+                                        while current_c < GRID_SIZE and tiles[current_r][current_c]: current_c += 1
+                                    elif typing_direction == "down":
+                                        current_r += 1;
+                                        while current_r < GRID_SIZE and tiles[current_r][current_c]: current_r += 1
+                                    current_r = min(current_r, GRID_SIZE - 1); current_c = min(current_c, GRID_SIZE - 1)
+                        elif typing: # Handle keys during active typing
+                            if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                                if word_positions:
+                                    valid, is_bingo = is_valid_play(word_positions, tiles, first_play, len(original_rack), original_tiles, original_rack)
+                                    if valid:
+                                        score = calculate_score(word_positions, board, tiles, blanks)
+                                        play_allowed = True
+                                        # --- 8-Letter Practice Check ---
+                                        if practice_mode == "eight_letter":
+                                            if practice_best_move and score == practice_best_move['score']:
+                                                practice_end_message = f"Congratulations! You found the best move: {practice_best_move['word_with_blanks']} ({score} pts)"
+                                                practice_solved = True
+                                                showing_practice_end_dialog = True
+                                                play_allowed = False # Don't proceed with normal turn end
+                                            elif practice_best_move:
+                                                show_message_dialog(f"Good try! Score: {score}. The best score is {practice_best_move['score']}.", "Try Again")
+                                                play_allowed = False # Revert and let player try again
+                                            else: # Should not happen if practice setup worked
+                                                show_message_dialog("Error: Could not determine best move.", "Error")
+                                                play_allowed = False; running = False; return_to_mode_selection = True # Exit practice
+
+                                            if not play_allowed: # Revert board/rack for practice retry/end
+                                                if original_tiles and original_rack:
+                                                    for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                                    racks[turn-1] = original_rack[:]
+                                                    blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                                typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
+                                                if not practice_solved: selected_square = original_selected_square # Restore arrow if retrying
+
+                                        # --- Power Tile Practice Check ---
+                                        elif paused_for_power_tile:
+                                            uses_power_tile = any(letter == current_power_tile for r_wp, c_wp, letter in word_positions if not original_tiles[r_wp][c_wp])
+                                            power_moves_val = [m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]
+                                            max_power_score_val = max(m['score'] for m in power_moves_val) if power_moves_val else 0
+                                            if not uses_power_tile: show_message_dialog(f"Move must use the {current_power_tile} tile!", "Incorrect Move"); play_allowed = False
+                                            elif score < max_power_score_val: show_message_dialog(f"Higher score exists with {current_power_tile} ({max_power_score_val} pts)!", "Incorrect Move"); play_allowed = False
+                                            else: show_message_dialog(f"Correct! Best move with {current_power_tile}.", "Correct!"); paused_for_power_tile = False # Unpause
+
+                                            if not play_allowed: # Revert board/rack for power tile retry
+                                                if original_tiles and original_rack:
+                                                    for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                                    racks[turn-1] = original_rack[:]
+                                                    blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                                typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
+                                                selected_square = original_selected_square # Restore arrow
+
+                                        # --- Normal Play Finalization ---
+                                        if play_allowed and practice_mode != "eight_letter": # Don't finalize if practice check failed or it's 8-letter mode
+                                            scores[turn-1] += score; first_play = False
+                                            drawn_tiles = [bag.pop() for _ in range(len(word_positions)) if bag]; racks[turn-1].extend(drawn_tiles)
+                                            full_word_tiles_hist, _ = find_main_word(word_positions, tiles); full_word_hist = "".join(t[2] for t in full_word_tiles_hist) if full_word_tiles_hist else "ERROR"
+                                            coord_hist = get_coord(typing_start, typing_direction)
+                                            word_with_blanks_list_hist = []; placed_pos_set_hist = set((p[0], p[1]) for p in word_positions)
+                                            for wr, wc, w_letter in full_word_tiles_hist: word_with_blanks_list_hist.append(w_letter.lower() if (wr, wc) in placed_pos_set_hist and (wr, wc) in blanks else w_letter.upper())
+                                            word_with_blanks_hist = "".join(word_with_blanks_list_hist)
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': original_rack[:], 'positions': [(p[0], p[1], p[2]) for p in word_positions], 'blanks': blanks.copy() & set((p[0], p[1]) for p in word_positions), 'score': score, 'word': full_word_hist, 'drawn': drawn_tiles, 'coord': coord_hist, 'word_with_blanks': word_with_blanks_hist, 'is_bingo': is_bingo})
+                                            current_replay_turn = len(move_history); print(f"Player {turn} played: {full_word_hist} at {coord_hist} for {score} points")
+                                            consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; human_played = True; turn = 3 - turn
+                                            typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None # Reset typing state
+                                    else: # Invalid play
+                                        print(f"Invalid play.")
+                                        if original_tiles and original_rack: # Revert
+                                            for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                            racks[turn-1] = original_rack[:]
+                                            blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                        typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
+                                        selected_square = original_selected_square # Restore arrow
+                                else: # Enter pressed with no tiles typed
+                                     typing = False; selected_square = original_selected_square # Exit typing, restore arrow
+                            elif event.key == pygame.K_BACKSPACE:
+                                if word_positions: # Remove last typed tile
+                                    r_rem, c_rem, letter_rem = word_positions.pop()
+                                    tiles[r_rem][c_rem] = ''
+                                    if (r_rem, c_rem) in blanks: blanks.remove((r_rem, c_rem)); racks[turn-1].append(' ')
+                                    else: racks[turn-1].append(letter_rem)
+                                    current_r, current_c = r_rem, c_rem # Move cursor back
+                                else: # Backspace with no tiles placed cancels typing
+                                    typing = False; selected_square = original_selected_square
+                                    original_tiles = None; original_rack = None
+                            elif event.key == pygame.K_ESCAPE: # Cancel typing
+                                 if original_tiles and original_rack: # Revert
+                                     for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                     racks[turn-1] = original_rack[:]
+                                     blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                 typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
+                                 selected_square = original_selected_square # Restore arrow
+                            elif event.unicode.isalpha(): # Place next letter
+                                letter = event.unicode.upper()
+                                if 0 <= current_r < GRID_SIZE and 0 <= current_c < GRID_SIZE and not tiles[current_r][current_c]:
+                                    placed = False
+                                    if letter in racks[turn-1]: tiles[current_r][current_c] = letter; racks[turn-1].remove(letter); word_positions.append((current_r, current_c, letter)); placed = True
+                                    elif ' ' in racks[turn-1]: tiles[current_r][current_c] = letter; racks[turn-1].remove(' '); blanks.add((current_r, current_c)); word_positions.append((current_r, current_c, letter)); placed = True
+                                    if placed: # Move cursor
+                                        if typing_direction == "right":
+                                            current_c += 1;
+                                            while current_c < GRID_SIZE and tiles[current_r][current_c]: current_c += 1
+                                        elif typing_direction == "down":
+                                            current_r += 1;
+                                            while current_r < GRID_SIZE and tiles[current_r][current_c]: current_r += 1
+                                        current_r = min(current_r, GRID_SIZE - 1); current_c = min(current_c, GRID_SIZE - 1)
+                                else: print("Cannot type here (occupied or off-board).")
+
+            # --- AI Turn Trigger ---
+            # Trigger AI turn if it's AI's turn, not in replay, not game over, not paused,
+            # not 8-letter practice, and human didn't just play
+            if not game_over_state and not replay_mode and not paused_for_power_tile and \
+               practice_mode != "eight_letter" and is_ai[turn-1] and not human_played:
+                 print(f"Triggering AI turn for Player {turn}")
+                 ai_result = ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open, hinting, showing_all_words, letter_checks)
+                 if len(ai_result) == 11:
+                      turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile = ai_result
+                 else: print(f"Error: AI turn returned unexpected number of values: {len(ai_result)}")
+
+            # --- Game Over Check (Standard Modes Only) ---
+            if not replay_mode and not game_over_state and practice_mode != "eight_letter":
+                game_ended = False; reason = ""
+                if not bag and (not racks[0] or not racks[1]): game_ended = True; reason = "Bag empty & rack empty"
+                elif consecutive_zero_point_turns >= 6: game_ended = True; reason = "Six Consecutive Zero-Point Turns"
+                if game_ended:
+                    print(f"Game over triggered: {reason}")
+                    rack_values = [sum(TILE_DISTRIBUTION[tile][1] for tile in rack if tile != ' ') for rack in racks]
+                    final_scores = list(scores)
+                    p1_out = not racks[0] and not bag; p2_out = not racks[1] and not bag
+                    if p1_out: final_scores[0] += rack_values[1]; final_scores[1] -= rack_values[1]
+                    elif p2_out: final_scores[1] += rack_values[0]; final_scores[0] -= rack_values[0]
+                    else: final_scores[0] -= rack_values[0]; final_scores[1] -= rack_values[1]
+                    game_over_state = True; exchanging = False; hinting = False; showing_all_words = False; dropdown_open = False
+                    dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2
+
+            # --- Drawing Logic ---
+            screen.fill(WHITE)
+            # Determine display state
+            if replay_mode:
+                if 0 <= current_replay_turn <= len(move_history):
+                    tiles_to_display, blanks_to_display, scores_to_display, racks_to_display = get_replay_state(current_replay_turn, initial_racks)
+                    turn_to_display = 1 if current_replay_turn == 0 else 3 - move_history[current_replay_turn - 1]['player']
+                else: # Invalid replay index
+                    tiles_to_display, blanks_to_display, scores_to_display, racks_to_display = get_replay_state(0, initial_racks); turn_to_display = 1
+            else: # Active game or game over
+                tiles_to_display, blanks_to_display, racks_to_display = tiles, blanks, racks
+                scores_to_display = final_scores if game_over_state else scores
+                turn_to_display = turn
+
+            # Draw Board & Tiles
+            for r in range(GRID_SIZE):
+                for c in range(GRID_SIZE):
+                    pygame.draw.rect(screen, board[r][c], (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+                    pygame.draw.rect(screen, BLACK, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
+                    if tiles_to_display[r][c]:
+                        tile_char = tiles_to_display[r][c]; is_blank_on_board = (r, c) in blanks_to_display
+                        if is_blank_on_board:
+                            center = (40 + c * SQUARE_SIZE + SQUARE_SIZE // 2, 40 + r * SQUARE_SIZE + SQUARE_SIZE // 2); radius = SQUARE_SIZE // 2 - 3
+                            pygame.draw.circle(screen, BLACK, center, radius); text_surf = font.render(tile_char, True, WHITE)
+                            text_rect = text_surf.get_rect(center=center); screen.blit(text_surf, text_rect)
+                        else:
+                            tile_rect = pygame.Rect(40 + c * SQUARE_SIZE + 2, 40 + r * SQUARE_SIZE + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4)
+                            pygame.draw.rect(screen, GREEN, tile_rect); text_surf = font.render(tile_char, True, BLACK)
+                            text_rect = text_surf.get_rect(center=tile_rect.center); screen.blit(text_surf, text_rect)
+
+            # Highlight last move in replay
+            if replay_mode and current_replay_turn > 0:
+                 last_move_data = move_history[current_replay_turn - 1]
+                 if last_move_data['move_type'] == 'place' and 'positions' in last_move_data:
+                    original_replay_tiles, _, _, _ = get_replay_state(current_replay_turn - 1, initial_racks)
+                    for r, c, _ in last_move_data['positions']:
+                        if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE and not original_replay_tiles[r][c]: # Highlight only newly placed
+                             pygame.draw.rect(screen, YELLOW, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
+
+            # Draw Row/Column Labels
+            for r in range(GRID_SIZE): row_label = ui_font.render(str(r + 1), True, BLACK); screen.blit(row_label, (10, 40 + r * SQUARE_SIZE + (SQUARE_SIZE // 2 - row_label.get_height() // 2)))
+            for c in range(GRID_SIZE): col_label = ui_font.render(LETTERS[c], True, BLACK); screen.blit(col_label, (40 + c * SQUARE_SIZE + (SQUARE_SIZE // 2 - col_label.get_width() // 2), 10))
+
+            # Draw Racks, Scores, Buttons
+            p1_rack_to_draw = racks_to_display[0] if len(racks_to_display) > 0 else []
+            p1_alpha_rect, p1_rand_rect = draw_rack(1, p1_rack_to_draw, scores_to_display, turn_to_display, player_names, dragged_tile if dragged_tile and dragged_tile[0] == 1 else None, drag_pos)
+            p2_alpha_rect, p2_rand_rect = None, None
+            if practice_mode != "eight_letter": # Only draw P2 rack if not 8-letter mode
+                 p2_rack_to_draw = racks_to_display[1] if len(racks_to_display) > 1 else []
+                 p2_alpha_rect, p2_rand_rect = draw_rack(2, p2_rack_to_draw, scores_to_display, turn_to_display, player_names, dragged_tile if dragged_tile and dragged_tile[0] == 2 else None, drag_pos)
+
+            # Draw Remaining Tiles List (Skip in 8-letter practice)
+            if practice_mode != "eight_letter":
+                current_player_index = turn_to_display - 1
+                if 0 <= current_player_index < len(racks_to_display):
+                     remaining = get_remaining_tiles(racks_to_display[current_player_index], tiles_to_display, blanks_to_display)
+                     draw_remaining_tiles(remaining, turn_to_display)
+                else: draw_remaining_tiles({}, turn_to_display) # Draw empty if error
+
+            # Draw UI Buttons (Options, Suggest, Hint)
+            options_rect, dropdown_rects = draw_options_menu(turn_to_display, dropdown_open, len(bag))
+            suggest_rect = None; hint_rect = None
+            if not replay_mode:
+                 suggest_rect = draw_suggest_button()
+                 if paused_for_power_tile and suggest_rect: # Draw Hint button only when paused
+                     hint_x = suggest_rect.x; hint_y = suggest_rect.y + suggest_rect.height + BUTTON_GAP
+                     hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT)
+                     hover = hint_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR
+                     pygame.draw.rect(screen, color, hint_rect); hint_text = button_font.render("Hint", True, BLACK)
+                     hint_text_rect = hint_text.get_rect(center=hint_rect.center); screen.blit(hint_text, hint_text_rect)
+
+            # Draw Scoreboard
+            history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history
+            is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
+            draw_scoreboard(screen, history_to_draw, scroll_offset, scores_to_display, is_ai, final_scores=final_scores, game_over_state=game_over_state or is_final_turn_in_replay)
+
+            # Draw Typing Arrow/Cursor
+            if selected_square and not typing: draw_arrow(selected_square[0], selected_square[1], selected_square[2])
+            elif typing:
+                 cursor_x = 40 + current_c * SQUARE_SIZE + SQUARE_SIZE // 2; cursor_y = 40 + current_r * SQUARE_SIZE + SQUARE_SIZE - 5
+                 if int(time.time() * 2) % 2 == 0: pygame.draw.line(screen, BLACK, (cursor_x - 5, cursor_y), (cursor_x + 5, cursor_y), 2)
+
+            # Draw Dialogs
+            if exchanging: tile_rects, exchange_button_rect, cancel_button_rect = draw_exchange_dialog(racks[turn-1], selected_tiles)
+            elif hinting: hint_rects, play_button_rect, ok_button_rect, all_words_button_rect = draw_hint_dialog(hint_moves, selected_hint_index)
+            elif showing_all_words:
+                 moves_for_all = practice_target_moves if practice_mode == "eight_letter" else all_moves
+                 all_words_rects, all_words_play_rect, all_words_ok_rect = draw_all_words_dialog(moves_for_all, selected_hint_index, scroll_offset)
+            elif showing_practice_end_dialog: # Draw practice end dialog
+                 practice_play_again_rect, practice_main_menu_rect, practice_quit_rect = draw_practice_end_dialog(practice_end_message)
+
+            # Draw Replay Buttons
+            if replay_mode:
+                replay_controls = [(replay_start_rect, "start"), (replay_prev_rect, "prev"), (replay_next_rect, "next"), (replay_end_rect, "end")]
+                for rect, icon_type in replay_controls:
+                    hover = rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR
+                    pygame.draw.rect(screen, color, rect); draw_replay_icon(screen, rect, icon_type)
+
+            # Draw Game Over / Stats Dialog
+            if game_over_state:
+                if final_scores is not None:
+                    save_rect, quit_rect, replay_rect, play_again_rect, stats_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
+                    if showing_stats: ok_button_rect = draw_stats_dialog(dialog_x + 20, dialog_y + 20, player_names, final_scores, tiles)
+                else: print("Error: Game over state but final_scores is None.")
+
+            pygame.display.flip() # Update screen
+
+        # --- End of Main Game Loop ---
+        if return_to_mode_selection:
+             main_called = False # Reset flag
+             main() # Call main again to show mode selection
+        else:
+             pygame.quit()
+             sys.exit()
+
+    # else: # main_called was True
+    #     print("main() called recursively or unexpectedly. Exiting.")
+    #     pygame.quit()
+    #     sys.exit()
+
+
+# --- Program Entry Point ---
+if __name__ == "__main__":
+    main_called = False # Ensure flag is reset before first call
+    main()
+
+# End of Part 7
