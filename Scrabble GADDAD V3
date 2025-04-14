@@ -485,14 +485,13 @@ replay_end_rect = pygame.Rect(10 + 3 * (REPLAY_BUTTON_WIDTH + REPLAY_BUTTON_GAP)
 
 # Part 2: Drawing Functions
 
+# Part 2: Drawing Functions (Restored UI Logic)
+
 def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_pos=None, display_scores=None):
-    """Draw a player's rack with tiles, scores, and buttons."""
+    """Draw a player's rack with tiles, scores, and buttons. (UI Restored)"""
     global practice_mode, replay_mode # Access global flags
 
-    if not rack: return None, None, [], 0 # Return Nones and empty list/zero if no rack
-    if display_scores is None: display_scores = scores
-    if practice_mode == "eight_letter" and player == 2: return None, None, [], 0 # Don't draw P2 rack
-
+    # --- Rack Positioning Calculation (Restored) ---
     rack_width = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
     # Calculate the rightmost extent of the replay buttons area if they are visible
     replay_area_end_x = 0
@@ -507,24 +506,31 @@ def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_
 
     # Try to center the rack, but ensure it starts after the minimum x to avoid overlap
     start_x = max(min_rack_start_x, (BOARD_SIZE - rack_width) // 2)
+    # --- End Restored Positioning ---
 
+    # --- Vertical Positioning (Restored) ---
     rack_y = BOARD_SIZE + 80 if player == 1 else BOARD_SIZE + 150
+    # --- End Restored Vertical Positioning ---
 
-    # Draw turn indicator (star)
+    if not rack: return None, None, [], start_x # Return default start_x even if no rack
+    if display_scores is None: display_scores = scores
+    if practice_mode == "eight_letter" and player == 2: return None, None, [], start_x # Don't draw P2 rack
+
+    # Draw turn indicator (star) - Logic seems okay
     if turn == player and (practice_mode != "eight_letter" or player == 1):
-        center_x = start_x - 20
-        center_y = rack_y + TILE_HEIGHT // 2
+        center_x_star = start_x - 20 # Use start_x calculated above
+        center_y_star = rack_y + TILE_HEIGHT // 2
         radius = 10
         points = []
         for i in range(10):
             angle = i * math.pi / 5
             r = radius if i % 2 == 0 else radius / 2
-            x_star = center_x + r * math.cos(angle - math.pi / 2) # Adjust angle for point up
-            y_star = center_y + r * math.sin(angle - math.pi / 2)
+            x_star = center_x_star + r * math.cos(angle - math.pi / 2) # Adjust angle for point up
+            y_star = center_y_star + r * math.sin(angle - math.pi / 2)
             points.append((x_star, y_star))
         pygame.draw.polygon(screen, TURN_INDICATOR_COLOR, points)
 
-    # Draw tiles on rack
+    # Draw tiles on rack - Logic seems okay
     tile_rects_on_rack = [] # Store rects for drag detection
     for i, tile in enumerate(rack):
         tile_x = start_x + i * (TILE_WIDTH + TILE_GAP)
@@ -537,18 +543,16 @@ def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_
             center = tile_rect.center
             radius = TILE_WIDTH // 2 - 2
             pygame.draw.circle(screen, BLACK, center, radius)
-            # text = font.render('?', True, WHITE) # Optional: draw '?' on blank
-            # text_rect = text.get_rect(center=center)
-            # screen.blit(text, text_rect)
         else: # Draw regular tile
             pygame.draw.rect(screen, GREEN, tile_rect)
             text = font.render(tile, True, BLACK)
             text_rect = text.get_rect(center=tile_rect.center) # Center text
             screen.blit(text, text_rect)
 
-    # Draw dragged tile (if any for this player)
+    # Draw dragged tile - Logic seems okay
     if dragged_tile and dragged_tile[0] == player and drag_pos:
         tile_x_drag, tile_y_drag = drag_pos
+        # Ensure index is valid before accessing rack
         if 0 <= dragged_tile[1] < len(rack):
             tile = rack[dragged_tile[1]]
             drag_rect = pygame.Rect(tile_x_drag - TILE_WIDTH // 2, tile_y_drag - TILE_HEIGHT // 2, TILE_WIDTH, TILE_HEIGHT)
@@ -556,48 +560,41 @@ def draw_rack(player, rack, scores, turn, player_names, dragged_tile=None, drag_
                 center = drag_rect.center
                 radius = TILE_WIDTH // 2 - 2
                 pygame.draw.circle(screen, BLACK, center, radius)
-                # text = font.render('?', True, WHITE)
-                # text_rect = text.get_rect(center=center)
-                # screen.blit(text, text_rect)
             else:
                 pygame.draw.rect(screen, DARK_GREEN, drag_rect) # Slightly darker when dragged
                 text = font.render(tile, True, BLACK)
                 text_rect = text.get_rect(center=drag_rect.center)
                 screen.blit(text, text_rect)
 
-    # Draw Buttons (Alphabetize/Randomize) - only if not in replay mode
+    # Draw Buttons (Alphabetize/Randomize) - Logic seems okay
     alpha_button_rect = None
     rand_button_rect = None
     if not replay_mode:
         button_x = start_x + rack_width + BUTTON_GAP
         alpha_button_rect = pygame.Rect(button_x, rack_y, BUTTON_WIDTH, BUTTON_HEIGHT)
         rand_button_rect = pygame.Rect(button_x + BUTTON_WIDTH + BUTTON_GAP, rack_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-
-        # Hover effect
         mouse_pos = pygame.mouse.get_pos()
         alpha_color = BUTTON_HOVER if alpha_button_rect.collidepoint(mouse_pos) else BUTTON_COLOR
         rand_color = BUTTON_HOVER if rand_button_rect.collidepoint(mouse_pos) else BUTTON_COLOR
-
         pygame.draw.rect(screen, alpha_color, alpha_button_rect)
         pygame.draw.rect(screen, rand_color, rand_button_rect)
-
         alpha_text = button_font.render("Alphabetize", True, BLACK)
         alpha_rect = alpha_text.get_rect(center=alpha_button_rect.center)
         screen.blit(alpha_text, alpha_rect)
-
         rand_text = button_font.render("Randomize", True, BLACK)
         rand_rect = rand_text.get_rect(center=rand_button_rect.center)
         screen.blit(rand_text, rand_rect)
 
-    # Draw Score
+    # Draw Score - Restore position above rack
     player_idx = player - 1
     if 0 <= player_idx < len(player_names) and 0 <= player_idx < len(display_scores):
         player_name_display = player_names[player_idx] if player_names[player_idx] else f"Player {player}"
         score_text = ui_font.render(f"{player_name_display} Score: {display_scores[player_idx]}", True, BLACK)
-        screen.blit(score_text, (start_x, rack_y - 25)) # Position score above rack
+        # --- Restored Score Position ---
+        screen.blit(score_text, (start_x, rack_y - 25))
+        # --- End Restored Score Position ---
     else: print(f"Warning: Invalid player index {player} or scores length mismatch for score display.")
 
-    # Return button rects (or None if in replay) and tile rects for drag detection, and rack start x
     return alpha_button_rect, rand_button_rect, tile_rects_on_rack, start_x
 
 
@@ -618,24 +615,28 @@ def draw_replay_icon(screen, rect, icon_type):
 
 
 def draw_scoreboard(screen, move_history_to_draw, scroll_offset, scores_to_display, is_ai_list, final_scores=None, game_over_state=False):
-    """Draws the scrollable scoreboard."""
-    # Scoreboard dimensions and position
-    scoreboard_x = BOARD_SIZE + 20 # Adjusted position slightly left
+    """Draws the scrollable scoreboard. (UI Restored)"""
+    # --- Scoreboard Positioning (Restored) ---
+    scoreboard_x = BOARD_SIZE + 275 # Original position further right
     scoreboard_y = 40
-    scoreboard_width = WINDOW_WIDTH - scoreboard_x - 20 # Use remaining width with padding
-    scoreboard_height = WINDOW_HEIGHT - scoreboard_y - 20 # Use remaining height with padding
-    scoreboard_width = max(250, scoreboard_width) # Ensure minimum width
-    scoreboard_height = max(200, scoreboard_height) # Ensure minimum height
+    # Original width calculation
+    scoreboard_width = max(200, WINDOW_WIDTH - BOARD_SIZE - 20) # Base width
+    if scoreboard_x + scoreboard_width > WINDOW_WIDTH - 10: # Adjust if exceeds window
+        scoreboard_width = WINDOW_WIDTH - scoreboard_x - 10
+    if scoreboard_width < 200: # Ensure minimum width, potentially shifting left
+        scoreboard_x = WINDOW_WIDTH - 210
+        scoreboard_width = 200
+    scoreboard_height = WINDOW_HEIGHT - 80 # Original height calculation
+    # --- End Restored Positioning ---
 
     # Create surface for scoreboard content
-    # Check if dimensions are valid before creating surface
     if scoreboard_width <= 0 or scoreboard_height <= 0:
         print(f"Warning: Invalid scoreboard dimensions ({scoreboard_width}x{scoreboard_height}). Skipping draw.")
         return
 
     scoreboard_surface = pygame.Surface((scoreboard_width, scoreboard_height))
     scoreboard_surface.fill(WHITE)
-    pygame.draw.rect(scoreboard_surface, BLACK, (0, 0, scoreboard_width, scoreboard_height), 1) # Border
+    # No border in original version
 
     # Content drawing parameters
     line_height = 20
@@ -646,10 +647,7 @@ def draw_scoreboard(screen, move_history_to_draw, scroll_offset, scores_to_displ
     running_scores = [0, 0]
     for i, move in enumerate(move_history_to_draw):
         player_idx = move['player'] - 1
-        # Ensure player_idx is valid before accessing scores or is_ai_list
-        if not (0 <= player_idx < len(running_scores)):
-             print(f"Warning: Invalid player index {player_idx+1} in move {i+1}. Skipping scoreboard entry.")
-             continue
+        if not (0 <= player_idx < len(running_scores)): continue # Skip invalid index
 
         running_scores[player_idx] += move['score']
         player_label = "AI" if 0 <= player_idx < len(is_ai_list) and is_ai_list[player_idx] else f"P{move['player']}"
@@ -673,11 +671,13 @@ def draw_scoreboard(screen, move_history_to_draw, scroll_offset, scores_to_displ
             text_surface = ui_font.render(text, True, BLACK)
         except pygame.error as e:
             print(f"Warning: Error rendering scoreboard text '{text}': {e}")
-            text_surface = ui_font.render(f"{i+1}: Error rendering move", True, RED) # Show error indicator
+            text_surface = ui_font.render(f"{i+1}: Error rendering move", True, RED)
 
-        # Draw highlight for alternating turns (pairs of moves)
+        # Draw highlight for alternating turns (pairs of moves) - Original logic
         if (i // 2) % 2 == 0:
-             highlight_rect = pygame.Rect(0, y_pos, scoreboard_width, line_height)
+             # Calculate width needed for highlight based on text
+             rect_width = text_x_offset + text_surface.get_width() + 10 # Padding
+             highlight_rect = pygame.Rect(0, y_pos, rect_width, line_height)
              pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE, highlight_rect)
 
         # Blit text if visible within the current scroll view
@@ -688,7 +688,7 @@ def draw_scoreboard(screen, move_history_to_draw, scroll_offset, scores_to_displ
 
     # Draw final scores if game is over
     if game_over_state and final_scores is not None:
-        y_pos += 10 # Add some space
+        y_pos += 20 # Original spacing
         final_text = f"Final Scores: P1: {final_scores[0]}, P2: {final_scores[1]}"
         final_surface = ui_font.render(final_text, True, BLACK)
         if y_pos < scoreboard_height and y_pos + line_height > 0:
@@ -2096,19 +2096,22 @@ def get_remaining_tiles(rack, tiles, blanks):
 
 
 def draw_remaining_tiles(remaining, turn):
-    """Draw the list of remaining tiles."""
+    """Draw the list of remaining tiles. (UI Restored)"""
     global practice_mode
     if practice_mode == "eight_letter": return # Don't draw remaining tiles in this mode
 
-    # Position the remaining tiles list
-    remaining_x = BOARD_SIZE + 20 # Align with scoreboard start
-    remaining_y_start = BOARD_SIZE + 220 # Position below racks
-    title_text = ui_font.render(f"P{turn}'s Unseen Tiles:", True, BLACK)
-    screen.blit(title_text, (remaining_x, remaining_y_start))
+    # --- Positioning (Restored) ---
+    remaining_x = min(BOARD_SIZE + 70, WINDOW_WIDTH - 200) # Original calculation
+    if remaining_x < BOARD_SIZE + 10: remaining_x = BOARD_SIZE + 10 # Clamp left
+    remaining_y_start = 40 # Original Y start position
+    # --- End Restored Positioning ---
 
-    y_pos = remaining_y_start + 30
+    title_text = ui_font.render(f"P{turn}'s Unseen Tiles:", True, BLACK)
+    screen.blit(title_text, (remaining_x, 10)) # Title position restored
+
+    y_pos = remaining_y_start
     col_width = 60
-    max_y = WINDOW_HEIGHT - 40 # Limit drawing height
+    max_y = WINDOW_HEIGHT - 100 # Original max Y limit
     sorted_letters = sorted(remaining.keys())
     current_col_x = remaining_x
     items_in_col = 0
@@ -2128,7 +2131,7 @@ def draw_remaining_tiles(remaining, turn):
 
             # Check if we need to wrap to the next column
             if items_in_col >= max_items_per_col:
-                y_pos = remaining_y_start + 30 # Reset y_pos for the new column
+                y_pos = remaining_y_start # Reset y_pos for the new column
                 current_col_x += col_width
                 items_in_col = 0
 
@@ -2145,7 +2148,7 @@ def draw_remaining_tiles(remaining, turn):
     # Calculate summary position below the last drawn item's column
     summary_y_start = last_drawn_y + 20 + 5 # Position below last item + gap
     # Ensure summary doesn't go off screen
-    summary_y_start = min(summary_y_start, WINDOW_HEIGHT - 40)
+    summary_y_start = min(summary_y_start, max_y + 40) # Use original max_y for clamping
 
     # Calculate summary stats
     total_tiles = sum(remaining.values())
@@ -2163,6 +2166,9 @@ def draw_remaining_tiles(remaining, turn):
     # Ensure second line doesn't go off screen
     if summary_y_start + 20 < WINDOW_HEIGHT - 10:
         screen.blit(text2, (summary_x, summary_y_start + 20))
+
+# Other drawing functions (draw_checkbox, draw_replay_icon, dialogs, etc.)
+# are assumed to be okay unless specific issues arise.
 
 
 def draw_arrow(row, col, direction):
@@ -2539,7 +2545,8 @@ def _go_right(anchor_r, anchor_c, left_part_str, current_rack_counts, current_ga
                         new_placed_list = placed_tiles_list + [(anchor_r, anchor_c, actual_letter, is_blank, True)]
 
                         # Check if this placement forms a valid word *by itself*
-                        if next_gaddag_node.is_end:
+                        # --- CORRECTED ATTRIBUTE ---
+                        if next_gaddag_node.is_terminal:
                             _record_move(left_part_str + actual_letter, new_placed_list, anchor_r, anchor_c - len(left_part_str), "right",
                                          new_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
 
@@ -2580,7 +2587,8 @@ def _go_right(anchor_r, anchor_c, left_part_str, current_rack_counts, current_ga
                         new_placed_list = placed_tiles_list + [(current_r, current_c, actual_letter, is_blank, True)]
 
                         # Check if valid word formed
-                        if next_gaddag_node.is_end:
+                        # --- CORRECTED ATTRIBUTE ---
+                        if next_gaddag_node.is_terminal:
                              _record_move(left_part_str + "".join(p[2] for p in new_placed_list), new_placed_list, anchor_r, anchor_c - len(left_part_str), "right",
                                           new_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
 
@@ -2599,7 +2607,8 @@ def _go_right(anchor_r, anchor_c, left_part_str, current_rack_counts, current_ga
             new_placed_list = placed_tiles_list + [(current_r, current_c, actual_letter, False, False)] # Mark as not new
 
             # Check if valid word formed (using the existing tile)
-            if next_gaddag_node.is_end:
+            # --- CORRECTED ATTRIBUTE ---
+            if next_gaddag_node.is_terminal:
                  _record_move(left_part_str + "".join(p[2] for p in new_placed_list), new_placed_list, anchor_r, anchor_c - len(left_part_str), "right",
                               current_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
 
@@ -2609,11 +2618,12 @@ def _go_right(anchor_r, anchor_c, left_part_str, current_rack_counts, current_ga
                       current_r, current_c + 1, new_placed_list)
 
 
-# --- Vertical Extension Functions (Analogous to Horizontal) ---
-
 def _extend_down(anchor_r, anchor_c, tiles, board_colors, rack_counts, cross_checks, gaddag_node, moves, is_first_play, original_tiles_state, full_rack_size):
     """Generates vertical moves starting from an anchor square."""
+    # Try extending up first (similar logic to _left_part, but vertical)
     _up_part(anchor_r, anchor_c, "", rack_counts, gaddag_node, tiles, board_colors, cross_checks, gaddag_node, moves, is_first_play, original_tiles_state, full_rack_size)
+
+    # Start directly from the anchor extending down, only if anchor is empty
     if not tiles[anchor_r][anchor_c]:
         for tile, count in list(rack_counts.items()):
             if count > 0:
@@ -2621,16 +2631,25 @@ def _extend_down(anchor_r, anchor_c, tiles, board_colors, rack_counts, cross_che
                 is_blank = (tile == ' ')
                 possible_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if is_blank else [letter_to_try]
                 for actual_letter in possible_letters:
+                    # Cross check (Horizontal for Vertical play)
                     allowed_h = cross_checks.get((anchor_r, anchor_c), {}).get('H', set())
                     if actual_letter not in allowed_h and ' ' not in allowed_h: continue
+                    # GADDAG check
                     if actual_letter in gaddag_node.children:
                         next_gaddag_node = gaddag_node.children[actual_letter]
                         new_rack_counts = rack_counts.copy()
                         new_rack_counts[tile] -= 1
                         if new_rack_counts[tile] == 0: del new_rack_counts[tile]
                         placed_anchor_tile = [(anchor_r, anchor_c, actual_letter, is_blank, True)]
+                        # Check if placing only on anchor is a word
+                        if next_gaddag_node.is_terminal:
+                            _record_move(actual_letter, placed_anchor_tile, anchor_r, anchor_c, "down",
+                                         new_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
+                        # Recurse downwards starting from the position *after* the anchor (anchor_r + 1)
                         _go_down(anchor_r, anchor_c, "", new_rack_counts, next_gaddag_node, tiles, board_colors, cross_checks, gaddag_node, moves, is_first_play, original_tiles_state, full_rack_size, anchor_r + 1, anchor_c, placed_anchor_tile)
 
+    # --- Removed the incorrect NameError check here ---
+    # The bounds check belongs inside the recursive _go_down function.
 
 def _up_part(anchor_r, anchor_c, partial_word, current_rack_counts, current_gaddag_node, tiles, board_colors, cross_checks, gaddag_root, moves, is_first_play, original_tiles_state, full_rack_size, limit=7):
     """Recursive helper to build the part of a word ABOVE an anchor."""
@@ -2657,62 +2676,51 @@ def _up_part(anchor_r, anchor_c, partial_word, current_rack_counts, current_gadd
 
 
 def _go_down(anchor_r, anchor_c, up_part_str, current_rack_counts, current_gaddag_node, tiles, board_colors, cross_checks, gaddag_root, moves, is_first_play, original_tiles_state, full_rack_size, current_r, current_c, placed_tiles_list):
-    """Recursive helper to extend a word downwards."""
-    if current_r == anchor_r and not tiles[anchor_r][anchor_c]:
-        for tile, count in list(current_rack_counts.items()):
-            if count > 0:
-                letter_to_try = tile
-                is_blank = (tile == ' ')
-                possible_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if is_blank else [letter_to_try]
-                for actual_letter in possible_letters:
-                    allowed_h = cross_checks.get((anchor_r, anchor_c), {}).get('H', set())
-                    if actual_letter not in allowed_h and ' ' not in allowed_h: continue
-                    if actual_letter in current_gaddag_node.children:
-                        next_gaddag_node = current_gaddag_node.children[actual_letter]
-                        new_rack_counts = current_rack_counts.copy()
-                        new_rack_counts[tile] -= 1
-                        if new_rack_counts[tile] == 0: del new_rack_counts[tile]
-                        new_placed_list = placed_tiles_list + [(anchor_r, anchor_c, actual_letter, is_blank, True)]
-                        if next_gaddag_node.is_end:
-                            _record_move(up_part_str + actual_letter, new_placed_list, anchor_r - len(up_part_str), anchor_c, "down",
-                                         new_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
-                        _go_down(anchor_r, anchor_c, up_part_str, new_rack_counts, next_gaddag_node,
-                                 tiles, board_colors, cross_checks, gaddag_root, moves, is_first_play, original_tiles_state, full_rack_size,
-                                 current_r + 1, current_c, new_placed_list)
-        return
-
+    """Recursive helper to extend a word downwards from current_r, current_c."""
+    # Check bounds first
     if current_r >= GRID_SIZE: return
 
     existing_tile = tiles[current_r][current_c]
-    if not existing_tile:
+
+    if not existing_tile: # Square is empty, try placing from rack
         for tile, count in list(current_rack_counts.items()):
             if count > 0:
                 letter_to_try = tile
                 is_blank = (tile == ' ')
                 possible_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if is_blank else [letter_to_try]
                 for actual_letter in possible_letters:
+                    # 1. Cross-check (Horizontal check for Vertical play)
                     allowed_h = cross_checks.get((current_r, current_c), {}).get('H', set())
                     if actual_letter not in allowed_h and ' ' not in allowed_h: continue
+                    # 2. GADDAG check
                     if actual_letter in current_gaddag_node.children:
                         next_gaddag_node = current_gaddag_node.children[actual_letter]
                         new_rack_counts = current_rack_counts.copy()
                         new_rack_counts[tile] -= 1
                         if new_rack_counts[tile] == 0: del new_rack_counts[tile]
                         new_placed_list = placed_tiles_list + [(current_r, current_c, actual_letter, is_blank, True)]
-                        if next_gaddag_node.is_end:
+                        # Check if valid word formed
+                        # --- CORRECTED ATTRIBUTE ---
+                        if next_gaddag_node.is_terminal:
                             _record_move(up_part_str + "".join(p[2] for p in new_placed_list), new_placed_list, anchor_r - len(up_part_str), anchor_c, "down",
                                          new_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
+                        # Recurse
                         _go_down(anchor_r, anchor_c, up_part_str, new_rack_counts, next_gaddag_node,
                                  tiles, board_colors, cross_checks, gaddag_root, moves, is_first_play, original_tiles_state, full_rack_size,
                                  current_r + 1, current_c, new_placed_list)
-    else:
+    else: # Square has an existing tile
         actual_letter = existing_tile
+        # 1. Cross-check implicitly OK.
+        # 2. GADDAG check
         if actual_letter in current_gaddag_node.children:
             next_gaddag_node = current_gaddag_node.children[actual_letter]
-            new_placed_list = placed_tiles_list + [(current_r, current_c, actual_letter, False, False)]
-            if next_gaddag_node.is_end:
+            new_placed_list = placed_tiles_list + [(current_r, current_c, actual_letter, False, False)] # Mark as not new
+            # Check if valid word formed
+            # --- CORRECTED ATTRIBUTE ---
+            if next_gaddag_node.is_terminal:
                 _record_move(up_part_str + "".join(p[2] for p in new_placed_list), new_placed_list, anchor_r - len(up_part_str), anchor_c, "down",
                              current_rack_counts, board_colors, tiles, is_first_play, original_tiles_state, full_rack_size, moves)
+            # Recurse
             _go_down(anchor_r, anchor_c, up_part_str, current_rack_counts, next_gaddag_node,
                      tiles, board_colors, cross_checks, gaddag_root, moves, is_first_play, original_tiles_state, full_rack_size,
                      current_r + 1, current_c, new_placed_list)
@@ -2820,6 +2828,7 @@ def generate_moves(rack, tiles, board_colors, blanks, gaddag_root, dawg_obj):
         _extend_right(r_anchor, c_anchor, tiles, board_colors, rack_counts, cross_check_sets, gaddag_root, all_found_moves, is_first_play, original_tiles_state, full_rack_size)
 
         # Generate vertical moves starting/passing through this anchor
+        # Ensure this call uses the correct function name: _extend_down
         _extend_down(r_anchor, c_anchor, tiles, board_colors, rack_counts, cross_check_sets, gaddag_root, all_found_moves, is_first_play, original_tiles_state, full_rack_size)
 
     print(f"--- generate_moves: Anchor traversal complete. Found {len(all_found_moves)} potential moves before final sort. ---")
@@ -3398,6 +3407,8 @@ def get_replay_state(turn_idx, initial_racks_replay):
 
 # Part 9: Main Game Loop and Entry Point
 
+# Part 9: Main Game Loop and Entry Point (Restored UI Calls)
+
 def main():
     # Make DAWG and GADDAG global, needed by generate_moves and ai_turn
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE, DAWG, initial_racks # Add initial_racks
@@ -3878,6 +3889,7 @@ def main():
                                 # Suggest Button Click Handling
                                 suggest_rect = draw_suggest_button() # Get current rect
                                 if suggest_rect and suggest_rect.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
+                                    # Use the globally available `all_moves` or `practice_target_moves`
                                     moves_to_hint = practice_target_moves if practice_mode == "eight_letter" else all_moves
                                     if paused_for_power_tile: # Filter hints for power tile
                                          power_moves_hint = [m for m in moves_to_hint if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]
@@ -3885,6 +3897,9 @@ def main():
                                     else:
                                          hint_moves = moves_to_hint[:5]
                                     hinting = True; selected_hint_index = 0 if hint_moves else None
+
+                                # Hint button specifically for paused power tile mode (if needed, currently suggest handles it)
+                                # if paused_for_power_tile and hint_rect and hint_rect.collidepoint(x, y): ...
 
                                 # Rack Buttons (Alphabetize/Randomize) Click Handling
                                 current_player_idx = turn - 1
@@ -3992,16 +4007,18 @@ def main():
                               scroll_offset -= event.y * SCROLL_SPEED
                               scroll_offset = max(0, min(scroll_offset, max_scroll))
                     else: # Scroll Scoreboard
-                        sb_x = BOARD_SIZE + 20; sb_y = 40
-                        sb_w = WINDOW_WIDTH - sb_x - 20; sb_h = WINDOW_HEIGHT - sb_y - 20
-                        sb_w = max(250, sb_w); sb_h = max(200, sb_h)
+                        sb_x = BOARD_SIZE + 275; sb_y = 40 # Use original scoreboard position
+                        sb_w = max(200, WINDOW_WIDTH - BOARD_SIZE - 20)
+                        if sb_x + sb_w > WINDOW_WIDTH - 10: sb_w = WINDOW_WIDTH - sb_x - 10
+                        if sb_w < 200: sb_x = WINDOW_WIDTH - 210; sb_w = 200
+                        sb_h = WINDOW_HEIGHT - 80
                         scoreboard_rect = pygame.Rect(sb_x, sb_y, sb_w, sb_h)
 
                         if scoreboard_rect.collidepoint(mouse_x, mouse_y):
                              history_len = current_replay_turn if replay_mode else len(move_history)
                              total_content_height = history_len * 20 # Approx height
                              if (game_over_state or (replay_mode and current_replay_turn == len(move_history))) and final_scores: total_content_height += 40 # Add space for final score line
-                             max_scroll = max(0, total_content_height - scoreboard_height)
+                             max_scroll = max(0, total_content_height - sb_h) # Use scoreboard height (sb_h)
                              scroll_offset -= event.y * SCROLL_SPEED
                              scroll_offset = max(0, min(scroll_offset, max_scroll))
 
@@ -4187,12 +4204,12 @@ def main():
                                     if typing_direction == "right":
                                         current_c = c_rem # Move cursor to the now empty square
                                         # Now check if the square *before* that had an existing tile
-                                        while current_c > 0 and original_tiles[current_r][current_c - 1]:
+                                        while current_c > 0 and original_tiles[current_r][current_c - 1]: # Check original state
                                             current_c -= 1 # Keep moving back if original was filled
                                     elif typing_direction == "down":
                                         current_r = r_rem # Move cursor to the now empty square
                                         # Now check if the square *above* that had an existing tile
-                                        while current_r > 0 and original_tiles[current_r - 1][current_c]:
+                                        while current_r > 0 and original_tiles[current_r - 1][current_c]: # Check original state
                                             current_r -= 1 # Keep moving back if original was filled
                                     # If backspace removes the very first typed letter, reset cursor to start
                                     if not word_positions:
@@ -4274,7 +4291,7 @@ def main():
                     dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2
 
 
-            # --- Drawing Logic ---
+            # --- Drawing Logic (Restored UI Calls) ---
             screen.fill(WHITE)
             # Determine state to display (replay vs live)
             if replay_mode:
@@ -4327,11 +4344,13 @@ def main():
             for c in range(GRID_SIZE): col_label = ui_font.render(LETTERS[c], True, BLACK); screen.blit(col_label, (40 + c * SQUARE_SIZE + (SQUARE_SIZE // 2 - col_label.get_width() // 2), 10))
 
             # Draw Racks (racks_to_display are already sorted in replay mode by get_replay_state)
+            # Pass correct display scores
             p1_rack_to_draw = racks_to_display[0] if len(racks_to_display) > 0 else []
             p1_alpha_rect, p1_rand_rect, _, _ = draw_rack(1, p1_rack_to_draw, scores_to_display, turn_to_display, player_names, dragged_tile if dragged_tile and dragged_tile[0] == 1 else None, drag_pos)
             p2_alpha_rect, p2_rand_rect = None, None
             if practice_mode != "eight_letter":
                  p2_rack_to_draw = racks_to_display[1] if len(racks_to_display) > 1 else []
+                 # Pass correct display scores
                  p2_alpha_rect, p2_rand_rect, _, _ = draw_rack(2, p2_rack_to_draw, scores_to_display, turn_to_display, player_names, dragged_tile if dragged_tile and dragged_tile[0] == 2 else None, drag_pos)
 
             # Draw Remaining Tiles (skip in 8-letter practice)
@@ -4340,11 +4359,13 @@ def main():
                 if 0 <= current_player_index < len(racks_to_display):
                     # Show remaining tiles based on current state if not replay
                     if not replay_mode:
+                         # Use correct display variables
                          remaining = get_remaining_tiles(racks_to_display[current_player_index], tiles_to_display, blanks_to_display)
                          draw_remaining_tiles(remaining, turn_to_display)
                     # else: Consider showing full initial bag count or skipping in replay?
 
             # Draw UI Elements (Options, Suggest, etc.)
+            # Pass correct turn variable
             options_rect, dropdown_rects = draw_options_menu(turn_to_display, dropdown_open, len(bag))
             suggest_rect = None; hint_rect = None # Reset rects
             if not replay_mode:
@@ -4361,9 +4382,10 @@ def main():
                       hint_text_rect = hint_text.get_rect(center=hint_rect.center)
                       screen.blit(hint_text, hint_text_rect)
 
-            # Draw Scoreboard
+            # Draw Scoreboard - Pass correct display scores and is_ai list
             history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history
             is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
+            # Use the global is_ai list
             draw_scoreboard(screen, history_to_draw, scroll_offset, scores_to_display, is_ai, final_scores=final_scores, game_over_state=game_over_state or is_final_turn_in_replay)
 
             # Draw Typing Arrow or Cursor
@@ -4395,8 +4417,10 @@ def main():
 
             # Draw Game Over Dialog / Stats
             if game_over_state:
-                if final_scores is not None: save_rect, quit_rect, replay_rect, play_again_rect, stats_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
-                if showing_stats and final_scores:
+                # Pass correct final_scores if available
+                current_final_scores = final_scores if final_scores is not None else [0, 0]
+                save_rect, quit_rect, replay_rect, play_again_rect, stats_rect = draw_game_over_dialog(dialog_x, dialog_y, current_final_scores, reason, player_names)
+                if showing_stats and final_scores is not None:
                      # Draw stats dialog slightly offset from game over dialog
                      stats_ok_button_rect = draw_stats_dialog(dialog_x + 20, dialog_y + 20, player_names, final_scores, tiles)
 
