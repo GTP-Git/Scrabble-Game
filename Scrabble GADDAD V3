@@ -1843,22 +1843,41 @@ def calculate_final_scores(current_scores, racks, bag):
 
 
 # --- Playing Moves ---
-# play_hint_move (Unchanged from Part 6 provided previously)
+# Function to Modify: play_hint_move
+# REASON: Added sorting of the rack *after* drawing new tiles.
+
 def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
-    """Plays a move (usually from hint/AI), updates state. Handles practice mode."""
-    global practice_mode # Access global practice_mode
+    """Plays a move (usually from hint/AI), updates state. Handles practice mode. Sorts rack."""
+    global practice_mode, is_ai # Need is_ai to check if player is human
+
     player_idx = turn - 1
-    if not (0 <= player_idx < len(racks)): print(f"Error: Invalid player index {player_idx} in play_hint_move."); return turn, [], []
-    current_rack = racks[player_idx]; move_positions = move.get('positions', []); move_blanks_coords = move.get('blanks', set()); newly_placed_details = move.get('newly_placed', [])
-    needed_tiles = Counter(); blanks_needed_count = 0 # Verify tiles needed
+    if not (0 <= player_idx < len(racks)):
+        print(f"Error: Invalid player index {player_idx} in play_hint_move.")
+        return turn, [], []
+
+    current_rack = racks[player_idx]
+    move_positions = move.get('positions', [])
+    move_blanks_coords = move.get('blanks', set())
+    newly_placed_details = move.get('newly_placed', [])
+
+    # --- Verification (no changes needed here) ---
+    needed_tiles = Counter()
+    blanks_needed_count = 0
     for r, c, letter in newly_placed_details:
         if (r, c) in move_blanks_coords: blanks_needed_count += 1
         else: needed_tiles[letter] += 1
     rack_counter = Counter(current_rack)
-    if blanks_needed_count > rack_counter.get(' ', 0): print(f"Error playing move: Needs {blanks_needed_count} blanks, only {rack_counter.get(' ', 0)} available."); return turn, [], []
+    if blanks_needed_count > rack_counter.get(' ', 0):
+        print(f"Error playing move: Needs {blanks_needed_count} blanks, only {rack_counter.get(' ', 0)} available.")
+        return turn, [], []
     for letter, count in needed_tiles.items():
-        if rack_counter.get(letter, 0) < count: print(f"Error playing move: Needs {count} '{letter}', only {rack_counter.get(letter, 0)} available."); return turn, [], []
-    rack_after_play = current_rack[:] # Place tiles & update rack
+        if rack_counter.get(letter, 0) < count:
+            print(f"Error playing move: Needs {count} '{letter}', only {rack_counter.get(letter, 0)} available.")
+            return turn, [], []
+    # --- End Verification ---
+
+    # Place tiles & update rack
+    rack_after_play = current_rack[:] # Work with a copy
     for r, c, letter in newly_placed_details:
         tiles[r][c] = letter
         if (r, c) in move_blanks_coords:
@@ -1867,11 +1886,25 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
         else:
             if letter in rack_after_play: rack_after_play.remove(letter)
             else: print(f"Error: Tried to play '{letter}' but not in rack_after_play!")
-    score = move.get('score', 0); scores[player_idx] += score # Update score
-    drawn_tiles = [] # Draw new tiles (Skip in 8-letter practice)
+
+    score = move.get('score', 0)
+    scores[player_idx] += score # Update score
+
+    # Draw new tiles (Skip in 8-letter practice)
+    drawn_tiles = []
     if practice_mode != "eight_letter":
-        num_to_draw = len(newly_placed_details); drawn_tiles = [bag.pop() for _ in range(num_to_draw) if bag]; rack_after_play.extend(drawn_tiles)
-    racks[player_idx] = rack_after_play # Update main rack
+        num_to_draw = len(newly_placed_details)
+        drawn_tiles = [bag.pop() for _ in range(num_to_draw) if bag]
+        rack_after_play.extend(drawn_tiles)
+
+    # --- ADDED SORTING ---
+    # Sort the rack alphabetically if the player is human
+    if not is_ai[player_idx]:
+        rack_after_play.sort()
+    # --- END ADDED SORTING ---
+
+    racks[player_idx] = rack_after_play # Update main rack AFTER potential sort
+
     next_turn = turn if practice_mode == "eight_letter" else 3 - turn # Determine next turn
     return next_turn, drawn_tiles, newly_placed_details
 
