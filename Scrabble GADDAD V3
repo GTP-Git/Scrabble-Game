@@ -1791,6 +1791,56 @@ def count_consecutive_existing(row, col, direction, tiles):
     while r < GRID_SIZE and tiles[r][col]: count += 1; r += 1
     return count
 
+# New function to handle end-of-game score adjustments
+def calculate_final_scores(current_scores, racks, bag):
+    """
+    Calculates the final scores based on game end conditions and remaining tiles.
+
+    Args:
+        current_scores (list): List containing the scores of [Player1, Player2] before adjustments.
+        racks (list): List containing the tile lists for [Player1's rack, Player2's rack].
+        bag (list): The list representing the tile bag.
+
+    Returns:
+        list: A new list containing the final adjusted scores for [Player1, Player2].
+    """
+    final_scores = list(current_scores) # Start with a copy of current scores
+    rack_values = [0, 0]
+
+    # Calculate the value of tiles left on each rack (blanks count as 0)
+    for i in range(2):
+        if i < len(racks) and racks[i]: # Check if rack exists and is not None
+             rack_values[i] = sum(TILE_DISTRIBUTION[tile][1] for tile in racks[i] if tile != ' ')
+        # else: rack_values[i] remains 0
+
+    # Determine if a player went out (must have empty rack AND bag must be empty)
+    p1_out = (not racks[0]) and (not bag)
+    p2_out = (not racks[1]) and (not bag)
+
+    if p1_out:
+        print("Final Score Adjust: P1 went out.")
+        # Player 1 went out: Add double Player 2's remaining tile value to P1's score. P2 score unchanged.
+        adjustment = 2 * rack_values[1]
+        final_scores[0] += adjustment
+        # final_scores[1] remains unchanged
+        print(f"  P2 tiles value: {rack_values[1]}, P1 adjustment: +{adjustment}")
+    elif p2_out:
+        print("Final Score Adjust: P2 went out.")
+        # Player 2 went out: Add double Player 1's remaining tile value to P2's score. P1 score unchanged.
+        adjustment = 2 * rack_values[0]
+        final_scores[1] += adjustment
+        # final_scores[0] remains unchanged
+        print(f"  P1 tiles value: {rack_values[0]}, P2 adjustment: +{adjustment}")
+    else:
+        # Neither player went out: Subtract each player's own remaining tile value from their score.
+        print("Final Score Adjust: Neither player went out.")
+        final_scores[0] -= rack_values[0]
+        final_scores[1] -= rack_values[1]
+        print(f"  P1 adjustment: -{rack_values[0]}, P2 adjustment: -{rack_values[1]}")
+
+    print(f"  Scores before: {current_scores}, Scores after: {final_scores}")
+    return final_scores
+
 
 # --- Playing Moves ---
 # play_hint_move (Unchanged from Part 6 provided previously)
@@ -2552,11 +2602,10 @@ def main():
                 if not bag and (not racks[0] or not racks[1]): game_ended = True; reason = "Bag empty & rack empty"
                 elif consecutive_zero_point_turns >= 6: game_ended = True; reason = "Six Consecutive Zero-Point Turns"
                 if game_ended:
-                    print(f"Game over triggered: {reason}"); rack_values = [sum(TILE_DISTRIBUTION[tile][1] for tile in rack if tile != ' ') for rack in racks]; final_scores = list(scores)
-                    p1_out = not racks[0] and not bag; p2_out = not racks[1] and not bag
-                    if p1_out: final_scores[0] += rack_values[1]; final_scores[1] -= rack_values[1]
-                    elif p2_out: final_scores[1] += rack_values[0]; final_scores[0] -= rack_values[0]
-                    else: final_scores[0] -= rack_values[0]; final_scores[1] -= rack_values[1]
+                    print(f"Game over triggered: {reason}");
+                    # Calculate final scores using the helper function
+                    final_scores = calculate_final_scores(scores, racks, bag)
+
                     game_over_state = True; exchanging = False; hinting = False; showing_all_words = False; dropdown_open = False; dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2
 
 
