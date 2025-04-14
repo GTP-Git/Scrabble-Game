@@ -2,6 +2,8 @@
 # python
 #Stable 13APR24
 
+#Host of small bugs fixed, doing quite well now!
+
 # Part 1
 
 
@@ -1783,83 +1785,80 @@ def power_tile_practice():
 
 # Part 7
 
-# --- Replay Logic ---
 def get_replay_state(turn_idx, initial_racks):
-    """Recreate the game state up to turn_idx, including racks."""
-    # Start with initial state (ensure deep copies if initial_racks can be modified)
+    """
+    Recreate the game state up to turn_idx ITERATIVELY.
+    """
+    # Start with initial state (ensure deep copies)
     tiles_state = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
     blanks_state = set()
     scores_state = [0, 0]
-    # IMPORTANT: Start with deep copies of the initial racks
-    # Ensure initial_racks is a list of two lists before copying
+
     if not isinstance(initial_racks, list) or len(initial_racks) != 2 or \
        not isinstance(initial_racks[0], list) or not isinstance(initial_racks[1], list):
         print(f"Error: Invalid initial_racks format in get_replay_state: {initial_racks}")
-        # Return a default empty state or raise an error
-        return tiles_state, blanks_state, scores_state, [[], []] # Default empty state
+        return tiles_state, blanks_state, scores_state, [[], []]
 
     racks_state = [initial_racks[0][:], initial_racks[1][:]]
 
     # Apply moves sequentially up to turn_idx
     for i in range(turn_idx):
-        if i >= len(move_history): # Safety check
+        if i >= len(move_history):
              print(f"Warning: Replay index {i} out of bounds for move_history (len {len(move_history)})")
              break
         move = move_history[i]
-        player_idx = move['player'] - 1 # 0-based index
+        player_idx = move['player'] - 1
 
-        # Get the rack state *from the end of the previous iteration*
-        current_rack_before_move = racks_state[player_idx][:] # Copy the rack state *before* this move 'i'
+        # Get the rack state *before* applying this move's changes
+        current_rack_before_move = racks_state[player_idx][:]
+        rack_after_move = current_rack_before_move[:] # Work with a copy for this move
 
         if move['move_type'] == 'place':
-            # Place tiles on board
-            for r, c, letter in move.get('positions', []):
-                # Basic bounds check before placing
+            positions = move.get('positions', [])
+            blanks_in_move = move.get('blanks', set())
+
+            # Apply board changes and update rack based on *this* move
+            for r, c, letter in positions:
+                # Check if this square was empty *before* this move (using current tiles_state)
+                is_newly_placed = (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE and not tiles_state[r][c])
+
+                # Place tile on board state
                 if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
                     tiles_state[r][c] = letter
-                    if (r, c) in move.get('blanks', set()):
+                    if (r, c) in blanks_in_move:
                         blanks_state.add((r, c))
                 else:
                     print(f"Replay Warning: Invalid position ({r},{c}) in move {i}")
+                    continue # Skip processing this invalid position
+
+                # If it was newly placed, remove the corresponding tile from the rack_after_move
+                if is_newly_placed:
+                    if (r,c) in blanks_in_move:
+                        if ' ' in rack_after_move: rack_after_move.remove(' ')
+                        else: print(f"Replay Warning: Tried to remove blank from rack for move {i}, but not found.")
+                    else:
+                        if letter in rack_after_move: rack_after_move.remove(letter)
+                        else: print(f"Replay Warning: Tried to remove '{letter}' from rack for move {i}, but not found.")
+
             # Update score
             scores_state[player_idx] += move.get('score', 0)
-
-            # Update rack: remove played tiles, add drawn tiles
-            rack_after_move = current_rack_before_move[:] # Work with a copy
-            blanks_in_move = move.get('blanks', set())
-            positions = move.get('positions', [])
-
-            # Need the board state *before* this move to know which tiles were newly placed
-            # Avoid infinite recursion by getting state up to i, not i+1
-            temp_tiles_before, _, _, _ = get_replay_state(i, initial_racks)
-
-            for r, c, letter in positions:
-                 # Check if tile was placed in this move (i.e., square was empty before)
-                 if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE and not temp_tiles_before[r][c]:
-                      if (r,c) in blanks_in_move:
-                           if ' ' in rack_after_move: rack_after_move.remove(' ')
-                           else: print(f"Replay Warning: Tried to remove blank from rack for move {i}, but not found.")
-                      else:
-                           if letter in rack_after_move: rack_after_move.remove(letter)
-                           else: print(f"Replay Warning: Tried to remove '{letter}' from rack for move {i}, but not found.")
-            # Add drawn tiles
+            # Add drawn tiles to the rack for the *next* turn's state
             rack_after_move.extend(move.get('drawn', []))
-            racks_state[player_idx] = rack_after_move # Update the state rack for the *next* iteration
+            racks_state[player_idx] = rack_after_move
 
         elif move['move_type'] == 'exchange':
             # Update rack: remove exchanged, add drawn
-            rack_after_move = current_rack_before_move[:] # Work with copy
             exchanged = move.get('exchanged_tiles', [])
             for tile in exchanged:
                  if tile in rack_after_move: rack_after_move.remove(tile)
                  else: print(f"Replay Warning: Tried to remove exchanged tile '{tile}' from rack for move {i}, but not found.")
             rack_after_move.extend(move.get('drawn', []))
             racks_state[player_idx] = rack_after_move
+            # Score doesn't change
 
         elif move['move_type'] == 'pass':
-            # No change to board, score, or rack content
-            # Rack state remains racks_state[player_idx] = current_rack_before_move
-            pass # racks_state[player_idx] is already correct for next iteration
+            # No change to board, score, or rack content needed for the state
+            racks_state[player_idx] = rack_after_move # Rack state carries over
 
     # Return the state *after* turn_idx moves have been applied
     return tiles_state, blanks_state, scores_state, racks_state
