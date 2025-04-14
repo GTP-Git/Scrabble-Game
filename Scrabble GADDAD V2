@@ -2,9 +2,6 @@
 # python
 #Stable 13APR24
 
-#P1/P2 swap issue fixed
-#KAEr played, invalid word
-
 # Part 1
 
 
@@ -1108,47 +1105,96 @@ def draw_arrow(row, col, direction):
 
 def is_valid_play(word_positions, tiles, is_first_play, initial_rack_size, original_tiles, rack):
     """Validate a potential play against game rules and dictionary."""
-    if not word_positions: return False, False
-    newly_placed_positions_coords = set(); all_play_coords = set(); valid_input_format = True
-    for item in word_positions:
-        if isinstance(item, tuple) and len(item) >= 3:
-            r, c = item[0], item[1]; all_play_coords.add((r,c))
-            if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE): print(f"Validation Error: Invalid coordinates ({r},{c})"); valid_input_format = False; break
-            if not original_tiles[r][c]: newly_placed_positions_coords.add((r, c))
-        else: print(f"Validation Error: Invalid item format: {item}"); valid_input_format = False; break
-    if not valid_input_format: return False, False
-    if not newly_placed_positions_coords: return False, False # No new tiles placed
+    # word_positions here is the list of newly placed tiles: [(r, c, letter), ...]
+    if not word_positions:
+        # print("DEBUG is_valid_play: No word_positions provided.")
+        return False, False
+
+    newly_placed_positions_coords = set((r, c) for r, c, _ in word_positions)
+    if not newly_placed_positions_coords:
+        # print("DEBUG is_valid_play: No new tiles identified.")
+        return False, False # No new tiles placed
+
+    # --- Alignment and Gap Checks (remain the same) ---
     rows = sorted(list(set(r for r, _, _ in word_positions))); cols = sorted(list(set(c for _, c, _ in word_positions)))
     is_horizontal = len(rows) == 1; is_vertical = len(cols) == 1
-    if not (is_horizontal or is_vertical): return False, False # Not aligned
-    if is_horizontal: # Check H gaps
-        r = rows[0]; min_col = min(cols); max_col = max(cols); temp_min_col = min_col; temp_max_col = max_col
-        while temp_min_col > 0 and original_tiles[r][temp_min_col - 1]: temp_min_col -= 1
-        while temp_max_col < GRID_SIZE - 1 and original_tiles[r][temp_max_col + 1]: temp_max_col += 1
+    if not (is_horizontal or is_vertical):
+        # print(f"DEBUG is_valid_play: Not aligned. Rows: {rows}, Cols: {cols}")
+        return False, False # Not aligned
+
+    # Check for gaps within the main line of play
+    if is_horizontal:
+        r = rows[0]; min_col = min(cols); max_col = max(cols)
+        # Extend bounds to include adjacent existing tiles
+        temp_min_col = min_col; temp_max_col = max_col
+        while temp_min_col > 0 and tiles[r][temp_min_col - 1]: temp_min_col -= 1
+        while temp_max_col < GRID_SIZE - 1 and tiles[r][temp_max_col + 1]: temp_max_col += 1
+        # Check for empty squares within these bounds
         for c in range(temp_min_col, temp_max_col + 1):
-            if not tiles[r][c]: return False, False # Gap found
-    elif is_vertical: # Check V gaps
-        c = cols[0]; min_row = min(rows); max_row = max(rows); temp_min_row = min_row; temp_max_row = max_row
-        while temp_min_row > 0 and original_tiles[temp_min_row - 1][c]: temp_min_row -= 1
-        while temp_max_row < GRID_SIZE - 1 and original_tiles[temp_max_row + 1][c]: temp_max_row += 1
+            if not tiles[r][c]:
+                # print(f"DEBUG is_valid_play: Gap found horizontally at ({r},{c})")
+                return False, False # Gap found
+    elif is_vertical:
+        c = cols[0]; min_row = min(rows); max_row = max(rows)
+        # Extend bounds
+        temp_min_row = min_row; temp_max_row = max_row
+        while temp_min_row > 0 and tiles[temp_min_row - 1][c]: temp_min_row -= 1
+        while temp_max_row < GRID_SIZE - 1 and tiles[temp_max_row + 1][c]: temp_max_row += 1
+        # Check for gaps
         for r in range(temp_min_row, temp_max_row + 1):
-            if not tiles[r][c]: return False, False # Gap found
-    formed_word_strings = get_words_played(word_positions, tiles) # Check word validity
-    if not formed_word_strings: return False, False # No words >= length 2 formed
+            if not tiles[r][c]:
+                # print(f"DEBUG is_valid_play: Gap found vertically at ({r},{c})")
+                return False, False # Gap found
+
+    # --- Word Validity Check (Use find_all_words_formed) ---
+    # Use the more robust function to find all words based on the newly placed tiles
+    # It correctly handles single-tile placements forming cross-words.
+    all_words_details = find_all_words_formed(word_positions, tiles)
+
+    if not all_words_details:
+         # This might happen if only a single letter was placed and it didn't connect
+         # to form any word of length 2+ (already checked by connection rule below)
+         # Or if find_all_words_formed has a bug.
+         # Let's assume connection rule handles the first case.
+         # If this triggers otherwise, it indicates an issue.
+         # print(f"DEBUG is_valid_play: find_all_words_formed returned empty list for {word_positions}")
+         # We might need a connection check *before* this word check?
+         pass # Continue to connection check
+
+    formed_word_strings = ["".join(tile[2] for tile in word_detail) for word_detail in all_words_details]
+
+    if not formed_word_strings and len(word_positions) > 1: # If multiple tiles placed but no words formed -> invalid
+         # print(f"DEBUG is_valid_play: Multiple tiles placed but no words formed: {word_positions}")
+         return False, False
+
+    # Check each formed word string against the DAWG
     for word in formed_word_strings:
-        if not DAWG.search(word): return False, False # Word not in dictionary
-    if is_first_play: # Check connection rules
-        if CENTER_SQUARE not in newly_placed_positions_coords: return False, False
+        if not DAWG.search(word):
+            # print(f"DEBUG is_valid_play: Word '{word}' not in DAWG.")
+            return False, False # Word not in dictionary
+
+    # --- Connection Rules Check (remain the same) ---
+    if is_first_play:
+        if CENTER_SQUARE not in newly_placed_positions_coords:
+            # print("DEBUG is_valid_play: First play not on center square.")
+            return False, False
     else:
         connects = False
         for r, c in newly_placed_positions_coords:
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 nr, nc = r + dr, c + dc
-                if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and original_tiles[nr][nc]: connects = True; break
+                if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and original_tiles[nr][nc]:
+                    connects = True; break
             if connects: break
-        if not connects: return False, False
-    tiles_played_from_rack = len(newly_placed_positions_coords) # Check bingo
+        if not connects:
+            # print("DEBUG is_valid_play: Play does not connect to existing tiles.")
+            return False, False
+
+    # --- Bingo Check (remains the same) ---
+    tiles_played_from_rack = len(newly_placed_positions_coords)
     is_bingo = (initial_rack_size == 7 and tiles_played_from_rack == 7)
+
+    # If all checks passed
     return True, is_bingo
 
 def get_anchor_points(tiles, is_first_play):
