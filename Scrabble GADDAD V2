@@ -1,4 +1,5 @@
 
+
 # python
 #Stable 13APR24
 
@@ -1691,8 +1692,16 @@ def draw_all_words_dialog(moves, selected_index, scroll_offset):
 # get_tile_under_mouse, get_insertion_index, count_consecutive_existing (Unchanged from Part 6 provided previously)
 def get_tile_under_mouse(x, y, rack_start_x, rack_y, rack_len):
     """Determine which tile index (0 to rack_len-1) is under the mouse cursor."""
-    for i in range(rack_len): tile_x = rack_start_x + i * (TILE_WIDTH + TILE_GAP); tile_rect = pygame.Rect(tile_x, rack_y, TILE_WIDTH, TILE_HEIGHT);
-    if tile_rect.collidepoint(x, y): return i
+    # Iterate through each potential tile position on the rack
+    for i in range(rack_len):
+        # Calculate the x-coordinate for the current tile
+        tile_x = rack_start_x + i * (TILE_WIDTH + TILE_GAP)
+        # Create the rectangle for the current tile *inside* the loop
+        tile_rect = pygame.Rect(tile_x, rack_y, TILE_WIDTH, TILE_HEIGHT)
+        # Check if the mouse coordinates collide with this specific tile's rectangle *inside* the loop
+        if tile_rect.collidepoint(x, y):
+            return i # Return the index of the collided tile immediately
+    # If the loop finishes without finding any collision (or if rack_len was 0), return None
     return None
 
 def get_insertion_index(x, rack_start_x, rack_len):
