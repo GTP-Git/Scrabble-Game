@@ -1835,6 +1835,7 @@ def power_tile_practice():
 def get_replay_state(turn_idx, initial_racks):
     """
     Recreate the game state up to turn_idx ITERATIVELY.
+    Sorts the racks alphabetically before returning.
     """
     # Start with initial state (ensure deep copies)
     tiles_state = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
@@ -1906,6 +1907,10 @@ def get_replay_state(turn_idx, initial_racks):
         elif move['move_type'] == 'pass':
             # No change to board, score, or rack content needed for the state
             racks_state[player_idx] = rack_after_move # Rack state carries over
+
+    # Sort racks alphabetically before returning for replay display
+    for rack in racks_state:
+        rack.sort() # In-place sort
 
     # Return the state *after* turn_idx moves have been applied
     return tiles_state, blanks_state, scores_state, racks_state
