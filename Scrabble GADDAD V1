@@ -2,6 +2,8 @@
 # python
 #Stable 13APR24
 
+#Word-generation appears to be working! Yay!!!
+
 # Part 1
 
 
@@ -1556,8 +1558,6 @@ def draw_hint_dialog(moves, selected_index):
 
 # Part 6
 
-# --- All Words Dialog ---
-# draw_all_words_dialog (Unchanged from Part 6 provided previously)
 def draw_all_words_dialog(moves, selected_index, scroll_offset):
     """Draw the dialog showing all valid moves with scrolling."""
     dialog_x = (WINDOW_WIDTH - ALL_WORDS_DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - ALL_WORDS_DIALOG_HEIGHT) // 2
@@ -1573,13 +1573,24 @@ def draw_all_words_dialog(moves, selected_index, scroll_offset):
             word = move.get('word', 'N/A'); score = move.get('score', 0); start_pos = move.get('start', (0,0)); direction = move.get('direction', 'right'); leave = move.get('leave', []); word_display = move.get('word_with_blanks', word.upper())
             coord = get_coord(start_pos, direction); leave_str = ''.join(sorted(l if l != ' ' else '?' for l in leave)); text_str = f"{i+1}. {word_display} ({score} pts) at {coord} ({leave_str})"; text = ui_font.render(text_str, True, BLACK)
             max_text_width = rect_on_surface.width - 10 # Truncate text
-            if text.get_width() > max_text_width: avg_char_width = text.get_width() / len(text_str) if len(text_str) > 0 else 10;
-            if avg_char_width > 0: max_chars = int(max_text_width / avg_char_width) - 3;
-            if max_chars < 5: max_chars = 5; text_str = text_str[:max_chars] + "..."; text = ui_font.render(text_str, True, BLACK)
+
+            # --- CORRECTED INDENTATION BLOCK START ---
+            if text.get_width() > max_text_width:
+                avg_char_width = text.get_width() / len(text_str) if len(text_str) > 0 else 10
+                if avg_char_width > 0:
+                    max_chars = int(max_text_width / avg_char_width) - 3
+                    if max_chars < 5: max_chars = 5 # Ensure at least a few chars show
+                    text_str = text_str[:max_chars] + "..."
+                    text = ui_font.render(text_str, True, BLACK) # Re-render truncated text
+                # else: # Handle case where avg_char_width is 0 (e.g., empty text_str) - text won't be truncated anyway
+                #    pass
+            # --- CORRECTED INDENTATION BLOCK END ---
+
             content_surface.blit(text, (15, y_pos_on_surface + 5))
             screen_y = content_area_y + y_pos_on_surface - scroll_offset; screen_rect = pygame.Rect(dialog_x + 10, screen_y, content_surface_width - 20, item_height)
             visible_top = content_area_y; visible_bottom = content_area_y + content_area_height; clipped_top = max(visible_top, screen_rect.top); clipped_bottom = min(visible_bottom, screen_rect.bottom)
             if clipped_bottom > clipped_top: clipped_rect = pygame.Rect(screen_rect.left, clipped_top, screen_rect.width, clipped_bottom - clipped_top); all_words_rects.append((clipped_rect, i))
+
     visible_area_on_surface = pygame.Rect(0, scroll_offset, content_surface_width, content_area_height); screen.blit(content_surface, (dialog_x + 10, content_area_y), visible_area_on_surface)
     pygame.draw.rect(screen, BLACK, (dialog_x + 10, content_area_y, content_surface_width, content_area_height), 1) # Optional border
     total_button_width = 2 * BUTTON_WIDTH + BUTTON_GAP; buttons_x = dialog_x + (ALL_WORDS_DIALOG_WIDTH - total_button_width) // 2; button_y = dialog_y + ALL_WORDS_DIALOG_HEIGHT - BUTTON_HEIGHT - 20
