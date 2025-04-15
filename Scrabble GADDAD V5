@@ -2229,8 +2229,12 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
 # --- AI Strategy Helper Functions ---
 
 # Define constants for leave evaluation heuristics (tunable)
-GOOD_LEAVE_BONUS = {' ': 25, 'S': 8, 'Z': -8,'E': 1, 'A': 1, 'R': 2, 'T': 1, 'I': 1, 'N': 2, 'L': 2} # Bonus points for keeping these
-BAD_LEAVE_PENALTY = {'Q': -10, 'J': -8, 'X': -8, 'V': -5, 'W': -5, 'K': -4, 'F': -3, 'H': -3, 'Y': -3, 'C': -4, 'U': -3, 'B':-4, 'G':-4, 'M':-4, 'P':-4, 'D':-3} # Penalty points for keeping these
+#GOOD_LEAVE_BONUS = {' ': 25, 'S': 8, 'Z': -8,'E': 1, 'A': 1, 'R': 2, 'T': 1, 'I': 1, 'N': 2, 'L': 2} # Bonus points for keeping these
+#BAD_LEAVE_PENALTY = {'Q': -10, 'J': -8, 'X': -8, 'V': -5, 'W': -5, 'K': -4, 'F': -3, 'H': -3, 'Y': -3, 'C': -4, 'U': -3, 'B':-4, 'G':-4, 'M':-4, 'P':-4, 'D':-3} # Penalty points for keeping these
+
+GOOD_LEAVE_BONUS = {' ': 25.6, 'S': 8, 'Z': 5.1, 'X': 3.3, 'E': .3, 'A': .6, 'R': 1.1, 'N': .2,'H': 1.1, 'C': .9, 'M': .6, 'D': .5}
+BAD_LEAVE_PENALTY = {'T': -.1, 'I': -2.1, 'L': -.2, 'Q': -6.8, 'J': -1.5, 'V': -5.5, 'W': -3.8, 'K': -.5, 'F': -2.2, 'Y': -.6, 'U': -5.1, 'B': -2, 'G': -2.9, 'P': -.5, 'O': -2.5}
+
 VOWELS = "AEIOU"
 IDEAL_VOWEL_COUNT_MIN = 2 # For a 7-tile rack, adjust if rack size varies
 IDEAL_VOWEL_COUNT_MAX = 4
@@ -2328,12 +2332,10 @@ def evaluate_single_move(move_dict, leave_evaluation_func):
 
 
 
-# Function to Modify: ai_turn
-# REASON: Incorporates move evaluation based on immediate score + leave quality.
 
 def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
     """Handles the AI's turn, selecting moves based on score and leave evaluation."""
-    global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE
+    global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords # Added last_played_highlight_coords to global
 
     # Skip AI turn entirely in 8-letter practice mode
     if practice_mode == "eight_letter":
@@ -2341,8 +2343,8 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     print(f"AI Player {turn} turn started. Rack: {''.join(racks[turn-1])}")
     paused_for_power_tile = False
-    current_power_tile = None # The specific power tile the player must use
-    all_moves = [] # Initialize default
+    current_power_tile = None
+    all_moves = []
 
     # Generate moves using GADDAG
     if GADDAG_STRUCTURE:
@@ -2362,45 +2364,69 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             current_power_tile = power_tiles_on_rack[0]
             paused_for_power_tile = True
             print(f"AI turn paused for power tile practice. Target: {current_power_tile}")
-            # Return generated moves for validation by human player
             return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
 
     # --- AI Action: Play, Exchange, or Pass (Only if not paused) ---
     move_rack_before = racks[turn-1][:]
     exchanged_tiles_for_history = []
     best_move_chosen = None
-    best_evaluated_score = -float('inf') # Initialize with very low score
+    best_evaluated_score = -float('inf')
+    top_raw_score_move = None # Track move with highest immediate score
 
     if all_moves:
         print(f"AI {turn} evaluating {len(all_moves)} moves...")
         # Evaluate each move based on score + leave
+        current_top_raw_score = -float('inf')
         for move in all_moves:
-            # Use the standard leave evaluation function for now
             evaluated_score = evaluate_single_move(move, evaluate_leave)
-            # Optional: Print evaluation details for debugging
-            # print(f"  Move: {move.get('word', 'N/A')}, Score: {move.get('score',0)}, Leave: {''.join(move.get('leave',[]))}, Leave Adj: {evaluated_score - move.get('score',0)}, Total Eval: {evaluated_score}")
+            immediate_score = move.get('score', 0)
+
+            # Track best evaluated move
             if evaluated_score > best_evaluated_score:
                 best_evaluated_score = evaluated_score
                 best_move_chosen = move
 
-        print(f"AI {turn} chose move: {best_move_chosen.get('word','N/A')} (Score: {best_move_chosen.get('score',0)}, Eval: {best_evaluated_score})")
-        # Basic decision: If a best move was found (even if eval is low), play it.
-        # Future: Compare best_evaluated_score to exchange threshold.
+            # Track best raw score move
+            if immediate_score > current_top_raw_score:
+                 current_top_raw_score = immediate_score
+                 top_raw_score_move = move
+
+        # --- ADDED: Debug Prints ---
+        print("-" * 20)
+        print(f"AI {turn} Evaluation Complete:")
+        if top_raw_score_move:
+            print(f"  Top Raw Score Move : '{top_raw_score_move.get('word','N/A')}' ({top_raw_score_move.get('score',0)} pts)")
+        else:
+            print("  Top Raw Score Move : None Found")
+
+        if best_move_chosen:
+            chosen_score = best_move_chosen.get('score', 0)
+            chosen_leave_str = ''.join(sorted(best_move_chosen.get('leave', [])))
+            leave_adjust = evaluate_leave(best_move_chosen.get('leave', [])) # Recalculate for clarity
+            print(f"  Chosen Evaluated Move: '{best_move_chosen.get('word','N/A')}'")
+            print(f"    Raw Score: {chosen_score}")
+            print(f"    Leave Adj: {leave_adjust}")
+            print(f"    Total Eval: {best_evaluated_score:.2f}") # Use the stored best eval score
+            print(f"    Leave Tiles: '{chosen_leave_str}'")
+        else:
+            print("  Chosen Evaluated Move: None Found")
+        print("-" * 20)
+        # --- END ADDED ---
 
     # --- Decide Action ---
     if not racks[turn-1] and not bag: # Out of tiles - must pass
         print(f"AI {turn} passing (empty rack/bag)."); move_type = 'pass'; score = 0; word = ''; positions = []; blanks_used = set(); drawn_tiles = []; coord = ''; word_with_blanks = ''; is_bingo = False
         consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; next_turn = 3 - turn
+        last_played_highlight_coords = set() # Clear highlight
     elif best_move_chosen: # Play the best evaluated move
         print(f"AI {turn} playing best evaluated move.")
-        next_turn, drawn_tiles, newly_placed = play_hint_move(best_move_chosen, tiles, racks, blanks, scores, turn, bag, board) # play_hint_move handles sorting human racks
+        next_turn, drawn_tiles, newly_placed = play_hint_move(best_move_chosen, tiles, racks, blanks, scores, turn, bag, board) # play_hint_move sorts human racks
         move_type = 'place'; score = best_move_chosen.get('score', 0); word = best_move_chosen.get('word', 'N/A'); positions = best_move_chosen.get('positions', []); blanks_used = best_move_chosen.get('blanks', set())
         start = best_move_chosen.get('start', (0,0)); direction = best_move_chosen.get('direction', 'right'); coord = get_coord(start, direction); word_with_blanks = best_move_chosen.get('word_with_blanks', ''); is_bingo = best_move_chosen.get('is_bingo', False)
         first_play = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
         last_played_highlight_coords = set((pos[0], pos[1]) for pos in positions) # Update highlight
     elif len(bag) >= 7: # No moves found, exchange if enough tiles in bag
-        # Basic exchange: exchange first 3 tiles (can be improved using evaluate_leave)
-        print(f"AI {turn} exchanging tiles (no good moves found).");
+        print(f"AI {turn} exchanging tiles (no moves found).");
         num_to_exchange = min(len(racks[turn-1]), 3) # Simple exchange strategy
         tiles_to_exchange = racks[turn-1][:num_to_exchange]; exchanged_tiles_for_history = tiles_to_exchange[:]
         drawn_tiles = [bag.pop() for _ in range(num_to_exchange) if bag]; new_rack = racks[turn-1][num_to_exchange:] + drawn_tiles; racks[turn-1] = new_rack; bag.extend(tiles_to_exchange); random.shuffle(bag)
@@ -2415,13 +2441,12 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     # Record Move
     move_data = {'player': turn, 'move_type': move_type, 'rack': move_rack_before, 'score': score, 'word': word, 'positions': positions, 'blanks': blanks_used, 'drawn': drawn_tiles, 'coord': coord, 'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo}
     if move_type == 'exchange': move_data['exchanged_tiles'] = exchanged_tiles_for_history
-    # Add newly_placed if it's a place move (needed for replay highlight)
     if move_type == 'place' and best_move_chosen:
          move_data['newly_placed'] = best_move_chosen.get('newly_placed', [])
 
     move_history.append(move_data); current_replay_turn = len(move_history)
 
-    # Return updated state (return empty list for all_moves as AI turn consumed them if it played)
+    # Return updated state
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
 
 
