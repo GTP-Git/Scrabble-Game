@@ -1227,6 +1227,73 @@ def calculate_bingo_avg_per_player(move_history):
     avg_p1 = sum(bingo_scores[1]) / len(bingo_scores[1]) if bingo_scores[1] else 0.0; avg_p2 = sum(bingo_scores[2]) / len(bingo_scores[2]) if bingo_scores[2] else 0.0
     return avg_p1, avg_p2
 
+def calculate_tiles_per_turn(move_history):
+    """
+    Calculate the average number of tiles played per turn for each player.
+    Only counts 'place' moves.
+    """
+    tiles_played_count = {1: 0, 2: 0}
+    place_moves_count = {1: 0, 2: 0}
+
+    for move in move_history:
+        if move['move_type'] == 'place':
+            player = move['player']
+            place_moves_count[player] += 1
+            # Use 'newly_placed' if available, otherwise fallback to 'positions'
+            # 'newly_placed' should be more accurate for tiles *actually* played from the rack
+            tiles_played = move.get('newly_placed', move.get('positions', []))
+            tiles_played_count[player] += len(tiles_played)
+
+    avg_p1 = tiles_played_count[1] / place_moves_count[1] if place_moves_count[1] > 0 else 0.0
+    avg_p2 = tiles_played_count[2] / place_moves_count[2] if place_moves_count[2] > 0 else 0.0
+
+    return avg_p1, avg_p2
+
+def calculate_avg_leave(move_history):
+    """
+    Calculate the average leave value for each player's rack after their turn.
+    Uses the 'rack' field from the move history (which stores the rack *before* the move).
+    """
+    leave_scores_sum = {1: 0.0, 2: 0.0}
+    moves_count = {1: 0, 2: 0}
+
+    for move in move_history:
+        player = move['player']
+        # Only count moves where a rack was recorded (should be all moves)
+        if 'rack' in move and move['rack'] is not None:
+            moves_count[player] += 1
+            # Evaluate the leave *before* the move was made
+            # The 'rack' field in move_history stores the rack *before* the move
+            leave_score = evaluate_leave(move['rack'])
+            leave_scores_sum[player] += leave_score
+
+    avg_p1 = leave_scores_sum[1] / moves_count[1] if moves_count[1] > 0 else 0.0
+    avg_p2 = leave_scores_sum[2] / moves_count[2] if moves_count[2] > 0 else 0.0
+
+    return avg_p1, avg_p2
+
+# --- NEW Statistics Drawing Functions ---
+
+def draw_tiles_per_turn_row(screen, dialog_x, y_pos, avg_p1, avg_p2):
+    """Draw the average tiles per turn row for the statistics dialog."""
+    label = ui_font.render("Tiles Per Turn:", True, BLACK)
+    p1_text = ui_font.render(f"{avg_p1:.2f}", True, BLACK)
+    p2_text = ui_font.render(f"{avg_p2:.2f}", True, BLACK)
+    screen.blit(label, (dialog_x + 10, y_pos))
+    screen.blit(p1_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_text, (dialog_x + 230, y_pos))
+
+def draw_avg_leave_row(screen, dialog_x, y_pos, avg_p1, avg_p2):
+    """Draw the average leave value row for the statistics dialog."""
+    label = ui_font.render("Avg Leave:", True, BLACK)
+    p1_text = ui_font.render(f"{avg_p1:.2f}", True, BLACK)
+    p2_text = ui_font.render(f"{avg_p2:.2f}", True, BLACK)
+    screen.blit(label, (dialog_x + 10, y_pos))
+    screen.blit(p1_text, (dialog_x + 120, y_pos))
+    screen.blit(p2_text, (dialog_x + 230, y_pos))
+
+
+
 def draw_moves_row(screen, dialog_x, y_pos, moves_p1, moves_p2):
     """Draw the moves row for the statistics dialog."""
     moves_label = ui_font.render("Moves:", True, BLACK); p1_moves_text = ui_font.render(str(moves_p1), True, BLACK); p2_moves_text = ui_font.render(str(moves_p2), True, BLACK)
@@ -1264,7 +1331,7 @@ def draw_blanks_row(screen, dialog_x, y_pos, blanks_p1, blanks_p2):
 
 def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
     """Draw the complete statistics dialog."""
-    stats_dialog_width, stats_dialog_height = 400, 360
+    stats_dialog_width, stats_dialog_height = 400, 360 # Adjusted height to accommodate new rows
     pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height))
     pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, stats_dialog_width, stats_dialog_height), 2)
 
@@ -1286,6 +1353,8 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
     bingos_p1, bingos_p2 = calculate_bingos_per_player(move_history)
     bingo_avg_p1, bingo_avg_p2 = calculate_bingo_avg_per_player(move_history)
     blanks_p1, blanks_p2 = calculate_blanks_per_player(move_history)
+    tiles_per_turn_p1, tiles_per_turn_p2 = calculate_tiles_per_turn(move_history) # NEW
+    avg_leave_p1, avg_leave_p2 = calculate_avg_leave(move_history) # NEW
 
     # Draw Rows
     y = dialog_y + 70
@@ -1295,11 +1364,15 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
     y += 30
     draw_avg_score_row(screen, dialog_x, y, avg_p1, avg_p2)
     y += 30
+    draw_tiles_per_turn_row(screen, dialog_x, y, tiles_per_turn_p1, tiles_per_turn_p2) # NEW
+    y += 30
     draw_bingos_row(screen, dialog_x, y, bingos_p1, bingos_p2)
     y += 30
     draw_bingo_avg_row(screen, dialog_x, y, bingo_avg_p1, bingo_avg_p2, bingos_p1, bingos_p2)
     y += 30
     draw_blanks_row(screen, dialog_x, y, blanks_p1, blanks_p2)
+    y += 30
+    draw_avg_leave_row(screen, dialog_x, y, avg_leave_p1, avg_leave_p2) # NEW
     y += 30
 
     # OK Button
