@@ -1451,29 +1451,147 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles):
     return ok_button_rect
 
 def show_message_dialog(message, title="Message"):
-    """Display a general message dialog with an OK button, wrapping text."""
-    dialog_width, dialog_height = 400, 150; dialog_x = (WINDOW_WIDTH - dialog_width) // 2; dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
-    words = message.split(' '); lines = []; current_line = ''; max_line_width = dialog_width - 20
-    for word in words: test_line = current_line + word + ' ';
-    if ui_font.size(test_line)[0] < max_line_width: current_line = test_line
-    else: lines.append(current_line.strip()); current_line = word + ' '
-    if current_line: lines.append(current_line.strip())
-    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height)); pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
-    title_surf = dialog_font.render(title, True, BLACK); screen.blit(title_surf, (dialog_x + 10, dialog_y + 5))
-    y_offset = 10 + dialog_font.get_linesize()
-    for line in lines: text = ui_font.render(line, True, BLACK); screen.blit(text, (dialog_x + 10, dialog_y + y_offset)); y_offset += ui_font.get_linesize()
-    ok_button_rect = pygame.Rect(dialog_x + dialog_width - BUTTON_WIDTH - 10, dialog_y + dialog_height - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
-    hover = ok_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, ok_button_rect)
-    ok_text = button_font.render("OK", True, BLACK); ok_text_rect = ok_text.get_rect(center=ok_button_rect.center); screen.blit(ok_text, ok_text_rect)
-    pygame.display.flip()
+    """
+    Display a general message dialog with an OK button, wrapping text
+    and dynamically adjusting height.
+    """
+    # --- MODIFICATION START: Dynamic Height Calculation ---
+    base_dialog_width = 400
+    min_dialog_height = 150 # Minimum height
+    padding = 10 # Padding around elements
+    line_spacing = 5 # Extra space between lines
+    button_area_height = BUTTON_HEIGHT + padding * 2 # Space for OK button
+
+    # 1. Wrap text first to determine needed lines
+    words = message.split(' ')
+    lines = []
+    current_line = ''
+    # Use a slightly reduced width for text wrapping calculation to avoid edge cases
+    max_line_width = base_dialog_width - padding * 2 - 10
+
+    for word in words:
+        # Handle newline characters explicitly
+        if '\n' in word:
+            parts = word.split('\n')
+            for i, part in enumerate(parts):
+                if not part: # Handle consecutive newlines or newline at start/end
+                    if current_line: # Add previous line if any
+                         lines.append(current_line.strip())
+                    lines.append("") # Add empty line for the newline itself
+                    current_line = ""
+                    continue
+
+                test_line = current_line + part + ' '
+                if ui_font.size(test_line)[0] < max_line_width:
+                    current_line = test_line
+                else:
+                    if current_line: # Add the line before the current part
+                        lines.append(current_line.strip())
+                    # Start new line with the current part, handle if it's too long itself
+                    if ui_font.size(part + ' ')[0] < max_line_width:
+                         current_line = part + ' '
+                    else: # Word itself is too long, just put it on its own line (will overflow visually)
+                         lines.append(part)
+                         current_line = "" # Start fresh after the long word
+
+                # Add empty line if this part was followed by a newline (except for the last part)
+                if i < len(parts) - 1:
+                     if current_line: # Add the line formed by the part first
+                          lines.append(current_line.strip())
+                     lines.append("") # Add the blank line for the newline
+                     current_line = ""
+
+        else: # Word does not contain newline
+            test_line = current_line + word + ' '
+            if ui_font.size(test_line)[0] < max_line_width:
+                current_line = test_line
+            else:
+                if current_line: # Add previous line if any
+                    lines.append(current_line.strip())
+                # Start new line with the current word, handle if it's too long itself
+                if ui_font.size(word + ' ')[0] < max_line_width:
+                     current_line = word + ' '
+                else: # Word itself is too long
+                     lines.append(word)
+                     current_line = ""
+
+    if current_line: # Add the last line
+        lines.append(current_line.strip())
+
+    # 2. Calculate required height
+    title_height = dialog_font.get_linesize()
+    text_height = len(lines) * ui_font.get_linesize() + max(0, len(lines) - 1) * line_spacing
+    required_height = title_height + text_height + button_area_height + padding * 3 # Title + Text + Button Area + Paddings
+
+    dialog_height = max(min_dialog_height, required_height)
+    dialog_width = base_dialog_width # Keep width fixed for now
+
+    # 3. Calculate dialog position
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+    # --- MODIFICATION END ---
+
+    # Drawing uses calculated dimensions
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+    title_surf = dialog_font.render(title, True, BLACK)
+    screen.blit(title_surf, (dialog_x + padding, dialog_y + padding))
+
+    # Draw the wrapped text lines
+    y_offset = dialog_y + padding + title_height + padding # Start below title
+    for line in lines:
+        text = ui_font.render(line, True, BLACK)
+        screen.blit(text, (dialog_x + padding, y_offset))
+        y_offset += ui_font.get_linesize() + line_spacing
+
+    # OK Button position adjusted to new height
+    ok_button_rect = pygame.Rect(dialog_x + dialog_width - BUTTON_WIDTH - padding,
+                                 dialog_y + dialog_height - BUTTON_HEIGHT - padding,
+                                 BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    hover = ok_button_rect.collidepoint(pygame.mouse.get_pos())
+    color = BUTTON_HOVER if hover else BUTTON_COLOR
+    pygame.draw.rect(screen, color, ok_button_rect)
+    ok_text = button_font.render("OK", True, BLACK)
+    ok_text_rect = ok_text.get_rect(center=ok_button_rect.center)
+    screen.blit(ok_text, ok_text_rect)
+
+    pygame.display.flip() # Update display to show the dialog immediately
+
+    # Event loop for the dialog
     dialog_running = True
     while dialog_running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                 if ok_button_rect.collidepoint(event.pos): return
+                 if ok_button_rect.collidepoint(event.pos):
+                     dialog_running = False # Exit dialog loop
+                     return # Return control to the main loop
             elif event.type == pygame.KEYDOWN:
-                 if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER: return
+                 if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                     dialog_running = False # Exit dialog loop
+                     return # Return control to the main loop
+
+        # Keep drawing the dialog while waiting for input
+        # (Redrawing everything might be overkill, but ensures it stays visible if covered/revealed)
+        # Alternatively, just flip without redrawing if performance is an issue.
+        pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+        pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+        screen.blit(title_surf, (dialog_x + padding, dialog_y + padding))
+        y_offset = dialog_y + padding + title_height + padding
+        for line in lines:
+            text = ui_font.render(line, True, BLACK)
+            screen.blit(text, (dialog_x + padding, y_offset))
+            y_offset += ui_font.get_linesize() + line_spacing
+        hover = ok_button_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, ok_button_rect)
+        screen.blit(ok_text, ok_text_rect)
+        pygame.display.flip()
+        pygame.time.Clock().tick(30) # Limit frame rate in dialog loop
 
 def draw_practice_end_dialog(message):
     """Draw the dialog shown at the end of a practice puzzle."""
@@ -3044,11 +3162,11 @@ def get_replay_state(turn_idx, initial_racks):
 
 # No changes needed to draw_options_menu as the filtering happens in main's event handling
 
+# No changes needed to mode_selection_screen, is_word_length_allowed, or show_message_dialog
+
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
     global is_loaded_game, replay_initial_shuffled_bag, initial_racks
-
-    # --- MODIFICATION: Add variable for number_checks ---
     global number_checks # Make it accessible within main
 
     print("--- main() function entered ---")
@@ -3082,13 +3200,11 @@ def main():
             board, _, tiles = create_board(); scores = [0, 0]; blanks = set(); racks = [[], []]; bag = []
             replay_mode = True; current_replay_turn = 0; practice_mode = None; is_ai = [False, False]; human_player = 1; first_play = False
             initial_racks = [[], []]
-            # --- MODIFICATION: Set default number_checks for loaded games ---
             number_checks = [True] * 6 # Default to all lengths allowed if loading
             print(f"--- main(): Loaded Game Setup Complete. Players: {player_names}, Moves: {len(move_history)} ---")
         elif selected_mode_result is not None: # Handle New Game Modes
             print(f"--- main(): Handling New Game Setup ({selected_mode_result}) ---")
             game_mode = selected_mode_result; is_loaded_game = False; replay_initial_shuffled_bag = None
-            # --- MODIFICATION: Unpack number_checks ---
             player_names, human_player, practice_mode, letter_checks, number_checks, practice_state = return_data
             if practice_state and practice_mode == "eight_letter": # 8-Letter Practice Setup
                 print("Loading state from 8-letter practice..."); board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]; is_ai = [False, False]; print("--- main(): Loaded state from 8-letter practice. ---")
@@ -3164,11 +3280,9 @@ def main():
         if not game_over_state and not replay_mode and not paused_for_power_tile and \
            practice_mode != "eight_letter" and 0 <= turn-1 < len(is_ai) and is_ai[turn-1] and not human_played: # Added bounds check for is_ai
             print(f"Triggering AI turn for Player {turn}")
-            # Pass number_checks to ai_turn (though it doesn't use it directly yet)
             ai_result = ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open, hinting, showing_all_words, letter_checks) # number_checks not needed by ai_turn itself
             if len(ai_result) == 11:
                 turn_after_ai, first_play, pass_count, exchange_count, consecutive_zero_point_turns, returned_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile = ai_result
-                # Update highlight coords after AI move
                 if turn_after_ai != turn and move_history:
                      last_ai_move = move_history[-1]
                      if last_ai_move.get('move_type') == 'place': last_played_highlight_coords = set((pos[0], pos[1]) for pos in last_ai_move.get('positions', []))
@@ -3206,7 +3320,6 @@ def main():
                                         except ValueError: continue # Correctly indented except
                             seq_num = max_existing_num + 1
                         except OSError as e: print(f"Error listing directory for sequence number: {e}")
-                        # Use initial_racks if available, otherwise use empty racks for GCG
                         racks_for_gcg = initial_racks if initial_racks and len(initial_racks) == 2 else [[], []]
                         save_filename = f"{date_str}-{time_str}-{seq_num}.gcg"; gcg_content = save_game_to_gcg(player_names, move_history, racks_for_gcg, final_scores)
                         try:
@@ -3356,9 +3469,7 @@ def main():
                                      if word_positions and original_tiles and original_rack: # Revert
                                           for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
                                           racks[turn-1] = original_rack[:]
-                                          # --- ADDED SORT ---
                                           if not is_ai[turn-1]: racks[turn-1].sort() # Sort after reverting
-                                          # ------------------
                                           blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove); word_positions = []; original_tiles = None; original_rack = None
                                 elif selected_square is None or selected_square[:2] != (row, col): selected_square = (row, col, "right"); typing = False; word_positions = [] # 1st click
                                 elif selected_square[2] == "right": selected_square = (row, col, "down") # 2nd click
@@ -3395,14 +3506,12 @@ def main():
                        if play_button_rect and play_button_rect.collidepoint(x, y) and selected_hint_index is not None and selected_hint_index < len(hint_moves):
                            clicked_in_dialog = True; selected_move = hint_moves[selected_hint_index]; move_rack = racks[turn-1][:]
                            if paused_for_power_tile: # Hint in Power Tile Practice ...
-                               # --- MODIFICATION: Use filtered score for comparison ---
                                power_moves_filtered = [
                                    m for m in all_moves
                                    if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))
                                    and is_word_length_allowed(len(m.get('word','')), number_checks)
                                ]
                                max_power_score_filtered = max(m['score'] for m in power_moves_filtered) if power_moves_filtered else 0
-                               # --- END MODIFICATION ---
                                if selected_move['score'] >= max_power_score_filtered:
                                    next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board) # play_hint_move sorts human rack if needed
                                    human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
@@ -3530,8 +3639,10 @@ def main():
                     elif typing:
                         if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER: # Finalize Typed Play ...
                             play_finalized_normally = False
+                            revert_play = False # Flag to indicate if the play should be reverted
+                            message_to_show = None # Store message to show after potential reversion
+
                             if word_positions:
-                                # --- MODIFICATION: Use find_all_words_formed to get actual words ---
                                 # Simulate the board state *after* typing
                                 temp_tiles_val = [row[:] for row in original_tiles]
                                 for r_wp, c_wp, l_wp in word_positions:
@@ -3550,80 +3661,85 @@ def main():
                                     typed_word_str = ""
                                     typed_word_len = 0
                                     if all_words_details:
-                                        # Heuristic: find the word that contains the starting typed position
                                         start_r_type, start_c_type = typing_start
                                         for word_detail in all_words_details:
                                             if any(t[0] == start_r_type and t[1] == start_c_type for t in word_detail):
                                                 typed_word_str = "".join(tile[2] for tile in word_detail)
                                                 typed_word_len = len(typed_word_str)
                                                 break
-                                        # Fallback if start pos not found (e.g., single letter cross word)
                                         if not typed_word_str and all_words_details:
                                              typed_word_str = "".join(tile[2] for tile in all_words_details[0])
                                              typed_word_len = len(typed_word_str)
 
-
                                     # --- Practice Mode Checks ---
                                     if practice_mode == "eight_letter":
                                         print("DEBUG: Checking 8-letter practice logic...");
-                                        if practice_best_move and score == practice_best_move['score']: practice_end_message = f"Congratulations! Best: {practice_best_move['word_with_blanks']} ({score} pts)"; practice_solved = True; showing_practice_end_dialog = True
-                                        elif practice_best_move: show_message_dialog(f"Try again. There is another word that scores {practice_best_move['score']}.", "Incorrect")
-                                        else: show_message_dialog("Error: No best move data available.", "Error"); return_to_mode_selection = True; running = False
-                                        if not practice_solved: # Revert
-                                            if original_tiles and original_rack:
-                                                for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                                racks[turn-1] = original_rack[:]
-                                                if not is_ai[turn-1]: racks[turn-1].sort()
-                                                blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
-                                        typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
-                                        if not practice_solved and not return_to_mode_selection: selected_square = original_selected_square
+                                        if practice_best_move and score == practice_best_move['score']:
+                                            practice_end_message = f"Congratulations! Best: {practice_best_move['word_with_blanks']} ({score} pts)"
+                                            practice_solved = True
+                                            showing_practice_end_dialog = True # Show the end dialog instead of message box
+                                            # Don't revert, play is correct
+                                        elif practice_best_move:
+                                            message_to_show = (f"Try again. There is another word that scores {practice_best_move['score']}.", "Incorrect")
+                                            revert_play = True
+                                        else: # Error case
+                                            message_to_show = ("Error: No best move data available.", "Error")
+                                            return_to_mode_selection = True; running = False # Exit on error
+                                            revert_play = True # Revert before exiting
 
                                     elif practice_mode == "power_tiles" and paused_for_power_tile:
                                          print(f"DEBUG: Checking Power Tile ({current_power_tile}) practice logic...")
                                          uses_power = any(letter == current_power_tile for r_wp, c_wp, letter in word_positions)
-
-                                         # --- MODIFICATION: Filter moves by length and power tile ---
                                          power_moves_filtered = [
                                              m for m in all_moves
-                                             if any(pt[2] == current_power_tile for pt in m.get('newly_placed', [])) # Must use the power tile
-                                             and is_word_length_allowed(len(m.get('word','')), number_checks) # Must match allowed lengths
+                                             if any(pt[2] == current_power_tile for pt in m.get('newly_placed', []))
+                                             and is_word_length_allowed(len(m.get('word','')), number_checks)
                                          ]
                                          max_power_score_filtered = max(m['score'] for m in power_moves_filtered) if power_moves_filtered else 0
                                          print(f"DEBUG: Player used power tile: {uses_power}. Player score: {score}. Max filtered power score: {max_power_score_filtered}")
-                                         # --- END MODIFICATION ---
 
-                                         if not uses_power: show_message_dialog(f"Move must use the {current_power_tile}!", "Incorrect")
-                                         # --- MODIFICATION: Check length allowance ---
+                                         if not uses_power:
+                                             message_to_show = (f"Move must use the {current_power_tile}!", "Incorrect")
+                                             revert_play = True
                                          elif not is_word_length_allowed(typed_word_len, number_checks):
-                                             show_message_dialog(f"Word length ({typed_word_len}) is not allowed by your selection.", "Incorrect Length")
-                                         # --- END MODIFICATION ---
+                                             message_to_show = (f"Word length ({typed_word_len}) is not allowed by your selection.", "Incorrect Length")
+                                             revert_play = True
                                          elif score < max_power_score_filtered:
-                                             show_message_dialog(f"Try again. There is another word using {current_power_tile} with allowed length(s) that scores {max_power_score_filtered}.", "Higher Score Exists")
+                                             message_to_show = (f"Try again. There is another word using {current_power_tile} with allowed length(s) that scores {max_power_score_filtered}.", "Higher Score Exists")
+                                             revert_play = True
                                          else: # Correct!
-                                             show_message_dialog("That's correct! Great job.", "Correct!");
-                                             paused_for_power_tile = False; power_tile_message_shown = False; play_finalized_normally = True # Allow normal finalization
+                                             message_to_show = ("That's correct! Great job.", "Correct!")
+                                             paused_for_power_tile = False; power_tile_message_shown = False
+                                             play_finalized_normally = True # Allow normal finalization
+                                             # Don't revert, play is correct
 
-                                         # Revert if not correct
-                                         if not play_finalized_normally:
-                                              if original_tiles and original_rack:
-                                                  for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                                  racks[turn-1] = original_rack[:]
-                                                  if not is_ai[turn-1]: racks[turn-1].sort()
-                                                  blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
-                                              typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None; selected_square = original_selected_square
                                     else: # Normal game mode
                                         play_finalized_normally = True # Finalize normal play
 
                                 else: # Invalid play
                                     print(f"Invalid play.");
-                                    if original_tiles and original_rack: # Revert
-                                        for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                        racks[turn-1] = original_rack[:]
-                                        if not is_ai[turn-1]: racks[turn-1].sort()
-                                        blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
-                                    typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None; selected_square = original_selected_square
+                                    message_to_show = ("Invalid play.", "Error") # Inform user
+                                    revert_play = True
+
                             else: # Pressed Enter with no letters typed
                                  typing = False; selected_square = original_selected_square # Revert to arrow
+                                 # No message needed here
+
+                            # --- Centralized Reversion and Message Display ---
+                            if revert_play:
+                                if original_tiles and original_rack:
+                                    for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
+                                    racks[turn-1] = original_rack[:]
+                                    if not is_ai[turn-1]: racks[turn-1].sort()
+                                    blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
+                                if not return_to_mode_selection: # Don't reset arrow if exiting
+                                    selected_square = original_selected_square
+
+                            # Show message *after* potential reversion is complete
+                            if message_to_show:
+                                show_message_dialog(message_to_show[0], message_to_show[1])
+                                message_to_show = None # Clear message after showing
 
                             # --- Normal Play Finalization (only if play_finalized_normally is True) ---
                             if play_finalized_normally:
