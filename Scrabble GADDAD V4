@@ -2157,6 +2157,9 @@ def calculate_final_scores(current_scores, racks, bag):
 # Function to Modify: play_hint_move
 # REASON: Re-added sorting of the rack *after* drawing new tiles for human players.
 
+# Function to Modify: play_hint_move
+# REASON: Added sorting of the rack *after* drawing new tiles for human players.
+
 def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
     """Plays a move (usually from hint/AI), updates state. Handles practice mode. Sorts human rack."""
     global practice_mode, is_ai # Need is_ai to check if player is human
@@ -2171,7 +2174,7 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
     move_blanks_coords = move.get('blanks', set())
     newly_placed_details = move.get('newly_placed', [])
 
-    # --- Verification (no changes needed here) ---
+    # --- Verification ---
     needed_tiles = Counter()
     blanks_needed_count = 0
     for r, c, letter in newly_placed_details:
@@ -2387,9 +2390,9 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 
-
 # Function to Replace: main()
-# REASON: Adds Score Preview checkbox and live score display during typing.
+# REASON: Adds human rack sorting after typed plays, exchanges,
+#         and cancellation of typed plays. Includes last-word highlighting.
 
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
@@ -2440,8 +2443,7 @@ def main():
                 print("Performing standard game initialization..."); board, _, tiles = create_board(); bag = create_standard_bag(); random.shuffle(bag); racks = [[], []]; scores = [0, 0]; turn = 1; blanks = set(); first_play = True
                 try: racks[0] = [bag.pop() for _ in range(7)]; racks[1] = [bag.pop() for _ in range(7)]
                 except IndexError: print("Error: Not enough tiles in bag."); pygame.quit(); sys.exit()
-                # NOTE: Using the version that sorts initial racks
-                for rack in racks: rack.sort()
+                for rack in racks: rack.sort() # Sort initial racks
                 is_ai = [False, False]
                 if game_mode == MODE_HVA: is_ai[2 - human_player] = True
                 elif game_mode == MODE_AVA: is_ai = [True, True]; print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
@@ -2461,12 +2463,10 @@ def main():
         previous_turn = 0; game_over_state = False; showing_stats = False; dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2; dragging = False;
         if selected_mode_result != "LOADED_GAME": final_scores = None
         reason = ""; action = None; scoreboard_height = WINDOW_HEIGHT - 80; paused_for_power_tile = False; current_power_tile = None; power_tile_message_shown = False
-        last_played_highlight_coords = set()
-        # --- ADDED: State for Score Preview ---
-        preview_score_enabled = False
+        last_played_highlight_coords = set() # Store coords of last play for highlighting
+        preview_score_enabled = False # State for Score Preview
         current_preview_score = 0
-        preview_checkbox_rect = None # Will be calculated later
-        # ------------------------------------
+        preview_checkbox_rect = None
         print("--- main(): Performed common variable resets. ---")
 
         # --- 8-Letter Practice Specific Initialization ---
@@ -2486,17 +2486,11 @@ def main():
     # --- Main Game Loop ---
     print("--- main(): Entering main game loop (while running:)... ---")
     while running:
-        # --- ADDED: Calculate Preview Score ---
-        current_preview_score = 0 # Reset each frame
+        # Calculate Preview Score
+        current_preview_score = 0
         if typing and preview_score_enabled and word_positions:
-            try:
-                # Directly calculate score based on current placement in 'tiles'/'blanks'
-                # This reflects the score if the current typed letters were the final play
-                current_preview_score = calculate_score(word_positions, board, tiles, blanks)
-            except Exception as e:
-                # print(f"DEBUG: Error during preview score calc: {e}") # Optional debug
-                current_preview_score = 0 # Show 0 on error
-        # --- END ADDED ---
+            try: current_preview_score = calculate_score(word_positions, board, tiles, blanks)
+            except Exception as e: current_preview_score = 0
 
         # Generate moves at start of turn
         if turn != previous_turn and not replay_mode and not game_over_state and not paused_for_power_tile and practice_mode != "eight_letter":
@@ -2540,48 +2534,25 @@ def main():
             # --- Game Over Event Handling ---
             elif game_over_state:
                 # Define save action nested function ... (Using corrected save logic)
-                                # Define save action nested function (uses local variables like final_scores)
-                def perform_save_action():
+                def perform_save_action(): # ... (save logic) ...
                     if final_scores:
                         now = datetime.datetime.now(); date_str = now.strftime("%d%b%y").upper(); time_str = now.strftime("%H%M"); seq_num = 1; max_existing_num = 0
                         try:
-                            # List files in the current directory to find existing sequence numbers
                             for filename in os.listdir('.'):
                                 if filename.startswith(date_str + "-") and filename.endswith(".gcg"):
                                     parts = filename[:-4].split('-');
                                     if len(parts) == 3:
-                                        # ---- CORRECTED Inner Try/Except Indentation ----
                                         try:
-                                            num = int(parts[2]) # Try converting the sequence part to int
-                                            # This check only happens if int() succeeds
-                                            if num > max_existing_num:
-                                                max_existing_num = num
-                                        except ValueError:
-                                            # If int() fails, ignore this file and continue loop
-                                            continue
-                                        # ---------------------------------------------
-                            seq_num = max_existing_num + 1 # Set the next sequence number
-                        except OSError as e:
-                            # Handle potential errors listing the directory
-                            print(f"Error listing directory for sequence number: {e}")
-
-                        # Construct filename and save
-                        save_filename = f"{date_str}-{time_str}-{seq_num}.gcg";
-                        gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                                            num = int(parts[2])
+                                            if num > max_existing_num: max_existing_num = num
+                                        except ValueError: continue # Correctly indented except
+                            seq_num = max_existing_num + 1
+                        except OSError as e: print(f"Error listing directory for sequence number: {e}")
+                        save_filename = f"{date_str}-{time_str}-{seq_num}.gcg"; gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
                         try:
-                            with open(save_filename, "w") as f: f.write(gcg_content);
-                            print(f"Game saved to {save_filename}");
-                            show_message_dialog(f"Game saved as {save_filename}", "Save Successful")
-                        except IOError as e:
-                            print(f"Error saving game to {save_filename}: {e}");
-                            show_message_dialog(f"Error saving game: {e}", "Save Error")
-                    else:
-                        # Cannot save if final scores aren't calculated
-                        print("Cannot save game: Final scores not calculated.");
-                        show_message_dialog("Cannot save game - final scores missing.", "Save Error")
-                # End of perform_save_action definition
-
-
+                            with open(save_filename, "w") as f: f.write(gcg_content); print(f"Game saved to {save_filename}"); show_message_dialog(f"Game saved as {save_filename}", "Save Successful")
+                        except IOError as e: print(f"Error saving game to {save_filename}: {e}"); show_message_dialog(f"Error saving game: {e}", "Save Error")
+                    else: print("Cannot save game: Final scores not calculated."); show_message_dialog("Cannot save game - final scores missing.", "Save Error")
                 # Handle events in game over state ...
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     x, y = event.pos # ... (drag, stats, other buttons) ...
@@ -2627,7 +2598,9 @@ def main():
                                 clicked_in_dialog = True; move_rack = racks[turn-1][:]; tiles_to_exchange = [racks[turn-1][i] for i in sorted(selected_tiles, reverse=True)]
                                 temp_rack = [tile for i, tile in enumerate(racks[turn-1]) if i not in selected_tiles]; drawn_tiles = [bag.pop() for _ in range(len(tiles_to_exchange)) if bag]
                                 temp_rack.extend(drawn_tiles); racks[turn-1] = temp_rack
-                                # NOTE: No automatic sort here
+                                # --- ADDED SORT ---
+                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
+                                # ------------------
                                 bag.extend(tiles_to_exchange); random.shuffle(bag); consecutive_zero_point_turns += 1; print(f"Player {turn} exchanged {len(tiles_to_exchange)} tiles")
                                 exchanging = False; selected_tiles.clear(); human_played = True; exchange_count += 1; pass_count = 0; paused_for_power_tile = False
                                 move_history.append({'player': turn, 'move_type': 'exchange', 'rack': move_rack, 'exchanged_tiles': tiles_to_exchange, 'drawn': drawn_tiles, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'is_bingo': False, 'word_with_blanks': ''})
@@ -2715,10 +2688,9 @@ def main():
                                 hinting = True; selected_hint_index = 0 if hint_moves else None
                             if paused_for_power_tile and hint_rect and hint_rect.collidepoint(x, y): # Hint button (Paused) ...
                                  power_moves_hint = [m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]; hint_moves = sorted(power_moves_hint, key=lambda m: m['score'], reverse=True)[:5]; hinting = True; selected_hint_index = 0 if hint_moves else None
-                            # --- ADDED: Handle Score Preview Checkbox Click ---
+                            # Handle Score Preview Checkbox Click
                             if preview_checkbox_rect and preview_checkbox_rect.collidepoint(x, y):
                                 preview_score_enabled = not preview_score_enabled
-                            # --- END ADDED ---
                             current_player_idx = turn - 1 # Rack Buttons ...
                             if not is_ai[current_player_idx] or paused_for_power_tile:
                                  p1_alpha_rect, p1_rand_rect = None, None; p2_alpha_rect, p2_rand_rect = None, None
@@ -2744,7 +2716,11 @@ def main():
                                          selected_square = None; typing = False
                                          if word_positions and original_tiles and original_rack: # Revert
                                               for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                              racks[turn-1] = original_rack[:]; blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove); word_positions = []; original_tiles = None; original_rack = None
+                                              racks[turn-1] = original_rack[:]
+                                              # --- ADDED SORT ---
+                                              if not is_ai[turn-1]: racks[turn-1].sort() # Sort after reverting
+                                              # ------------------
+                                              blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove); word_positions = []; original_tiles = None; original_rack = None
                                     elif selected_square is None or selected_square[:2] != (row, col): selected_square = (row, col, "right"); typing = False; word_positions = [] # 1st click
                                     elif selected_square[2] == "right": selected_square = (row, col, "down") # 2nd click
                                     elif selected_square[2] == "down": selected_square = None # 3rd click
@@ -2757,6 +2733,9 @@ def main():
                         if original_tiles and original_rack:
                             for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
                             racks[turn-1] = original_rack[:]
+                            # --- ADDED SORT ---
+                            if not is_ai[turn-1]: racks[turn-1].sort() # Sort after reverting
+                            # ------------------
                             blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks)
                             blanks.difference_update(blanks_to_remove)
                         # Reset typing state variables (Correctly indented)
@@ -2848,7 +2827,11 @@ def main():
                                         if not practice_solved: # Revert
                                             if original_tiles and original_rack:
                                                 for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                                racks[turn-1] = original_rack[:]; blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                                racks[turn-1] = original_rack[:]
+                                                # --- ADDED SORT ---
+                                                if not is_ai[turn-1]: racks[turn-1].sort()
+                                                # ------------------
+                                                blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
                                         typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None
                                         if not practice_solved and not return_to_mode_selection: selected_square = original_selected_square
 
@@ -2862,7 +2845,11 @@ def main():
                                          if not play_finalized_normally: # Revert
                                               if original_tiles and original_rack:
                                                   for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                                  racks[turn-1] = original_rack[:]; blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                                  racks[turn-1] = original_rack[:]
+                                                  # --- ADDED SORT ---
+                                                  if not is_ai[turn-1]: racks[turn-1].sort()
+                                                  # ------------------
+                                                  blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
                                               typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None; selected_square = original_selected_square
                                     else:
                                         play_finalized_normally = True # Finalize normal play
@@ -2871,7 +2858,11 @@ def main():
                                     print(f"Invalid play.");
                                     if original_tiles and original_rack: # Revert
                                         for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                        racks[turn-1] = original_rack[:]; blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                        racks[turn-1] = original_rack[:]
+                                        # --- ADDED SORT ---
+                                        if not is_ai[turn-1]: racks[turn-1].sort()
+                                        # ------------------
+                                        blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
                                     typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None; selected_square = original_selected_square
                             else:
                                  typing = False; selected_square = original_selected_square # Enter with no tiles
@@ -2879,25 +2870,22 @@ def main():
                             # --- Normal Play Finalization ---
                             if play_finalized_normally:
                                 scores[turn-1] += score; first_play = False; drawn_tiles = [bag.pop() for _ in range(len(word_positions)) if bag]; racks[turn-1].extend(drawn_tiles)
-                                # NOTE: No automatic sort here
-                                # if not is_ai[turn-1]: racks[turn-1].sort()
-
+                                # --- ADDED SORT ---
+                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
+                                # ------------------
                                 # Find the full word and its actual start position/direction
                                 full_word_tiles_hist, _ = find_main_word(word_positions, tiles)
                                 full_word_hist = "".join(t[2] for t in full_word_tiles_hist) if full_word_tiles_hist else "ERROR"
-
                                 # Calculate coord based on actual word start
                                 if full_word_tiles_hist:
                                     actual_start_pos = (full_word_tiles_hist[0][0], full_word_tiles_hist[0][1])
                                     actual_direction = "right" if len(set(r for r,c,l in full_word_tiles_hist)) == 1 else "down"
                                     coord_hist = get_coord(actual_start_pos, actual_direction)
                                 else: coord_hist = "???"; print("WARNING: Could not determine actual start pos for history coord.")
-
                                 # Format word_with_blanks based on full word
                                 word_with_blanks_list_hist = []; placed_pos_set_hist = set((p[0], p[1]) for p in word_positions); blanks_in_play = blanks.copy() & placed_pos_set_hist
                                 for wr, wc, w_letter in full_word_tiles_hist: is_blank_hist = (wr, wc) in blanks_in_play; word_with_blanks_list_hist.append(w_letter.lower() if is_blank_hist else w_letter.upper())
                                 word_with_blanks_hist = "".join(word_with_blanks_list_hist)
-
                                 # Append correct info to history
                                 move_history.append({
                                     'player': turn, 'move_type': 'place', 'rack': original_rack[:],
@@ -2908,9 +2896,8 @@ def main():
                                     'newly_placed': word_positions # Keep track of only typed tiles if needed elsewhere
                                 })
                                 current_replay_turn = len(move_history); print(f"Player {turn} played: {full_word_hist} at {coord_hist} for {score} points")
-                                # --- ADDED: Update highlight coords after HUMAN move ---
+                                # Update highlight coords after HUMAN move
                                 last_played_highlight_coords = set((pos[0], pos[1]) for pos in full_word_tiles_hist)
-                                # --- END ADDED ---
                                 consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; human_played = True; turn = 3 - turn
                                 typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None; selected_square = None
 
@@ -2919,13 +2906,20 @@ def main():
                                 r_rem, c_rem, letter_rem = word_positions.pop(); tiles[r_rem][c_rem] = ''
                                 if (r_rem, c_rem) in blanks: blanks.remove((r_rem, c_rem)); racks[turn-1].append(' ')
                                 else: racks[turn-1].append(letter_rem)
+                                # --- ADDED SORT ---
+                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort after returning tile
+                                # ------------------
                                 current_r, current_c = r_rem, c_rem # Move cursor back
                             else: # Backspace when no letters typed yet
                                 typing = False; selected_square = original_selected_square; original_tiles = None; original_rack = None
                         elif event.key == pygame.K_ESCAPE: # Cancel typing ...
                              if original_tiles and original_rack:
                                  for r_wp, c_wp, _ in word_positions: tiles[r_wp][c_wp] = original_tiles[r_wp][c_wp]
-                                 racks[turn-1] = original_rack[:]; blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
+                                 racks[turn-1] = original_rack[:]
+                                 # --- ADDED SORT ---
+                                 if not is_ai[turn-1]: racks[turn-1].sort() # Sort after reverting
+                                 # ------------------
+                                 blanks_to_remove = set((r_wp, c_wp) for r_wp, c_wp, _ in word_positions if (r_wp, c_wp) in blanks); blanks.difference_update(blanks_to_remove)
                              typing = False; typing_start = None; typing_direction = None; word_positions = []; original_tiles = None; original_rack = None; selected_square = original_selected_square
                         elif event.unicode.isalpha(): # Typing subsequent letters
                             letter = event.unicode.upper()
@@ -2974,11 +2968,8 @@ def main():
                 pygame.draw.rect(screen, board[r][c], (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)); pygame.draw.rect(screen, BLACK, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
                 if tiles_to_display[r][c]:
                     tile_char = tiles_to_display[r][c]; is_blank_on_board = (r, c) in blanks_to_display;
-                    # --- MODIFIED: Check for last played highlight (only in live game) ---
                     is_last_played = (r, c) in last_played_highlight_coords and not replay_mode
                     tile_bg_color = PALE_YELLOW if is_last_played else GREEN
-                    # --- END MODIFIED ---
-
                     if is_blank_on_board: # Draw blank tile
                         center = (40 + c * SQUARE_SIZE + SQUARE_SIZE // 2, 40 + r * SQUARE_SIZE + SQUARE_SIZE // 2); radius = SQUARE_SIZE // 2 - 3
                         if is_last_played: pygame.draw.rect(screen, tile_bg_color, (40 + c * SQUARE_SIZE + 2, 40 + r * SQUARE_SIZE + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4)) # Highlight behind circle
@@ -2993,15 +2984,13 @@ def main():
             last_move_data = move_history[current_replay_turn - 1]
             if last_move_data['move_type'] == 'place':
                  newly_placed_coords = last_move_data.get('newly_placed') # Use newly_placed if available
-                 if newly_placed_coords is None: # Fallback for older history or AI moves without it
+                 if newly_placed_coords is None: # Fallback calculation
                      original_replay_tiles = [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)];
                      try:
                          if is_loaded_game and replay_initial_shuffled_bag: original_replay_tiles,_,_,_ = simulate_game_up_to(current_replay_turn - 1, move_history, replay_initial_shuffled_bag)
                          elif not is_loaded_game: original_replay_tiles,_,_,_ = get_replay_state(current_replay_turn - 1, initial_racks)
                      except Exception as e: print(f"Error getting prev state for highlight: {e}")
-                     # Determine newly placed based on comparing 'positions' to previous state
                      newly_placed_coords = [(p[0], p[1], p[2]) for p in last_move_data.get('positions', []) if 0<=p[0]<GRID_SIZE and 0<=p[1]<GRID_SIZE and not original_replay_tiles[p[0]][p[1]]]
-                 # Draw the yellow highlight box
                  for r, c, _ in newly_placed_coords:
                       if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
                            pygame.draw.rect(screen, YELLOW, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
@@ -3025,15 +3014,14 @@ def main():
         if not replay_mode:
              suggest_rect = draw_suggest_button()
              if paused_for_power_tile and suggest_rect: hint_x = suggest_rect.x; hint_y = suggest_rect.y + suggest_rect.height + BUTTON_GAP; hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT); hover = hint_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, hint_rect); hint_text = button_font.render("Hint", True, BLACK); hint_text_rect = hint_text.get_rect(center=hint_rect.center); screen.blit(hint_text, hint_text_rect)
-             # --- ADDED: Draw Score Preview Checkbox ---
-             if suggest_rect: # Ensure suggest_rect exists before positioning below it
+             # Draw Score Preview Checkbox
+             if suggest_rect:
                  checkbox_x = suggest_rect.left
                  checkbox_y = suggest_rect.bottom + BUTTON_GAP
-                 preview_checkbox_rect = pygame.Rect(checkbox_x, checkbox_y, 20, 20)
+                 preview_checkbox_rect = pygame.Rect(checkbox_x, checkbox_y, 20, 20) # Store rect for click detection
                  draw_checkbox(screen, checkbox_x, checkbox_y, preview_score_enabled)
                  label_surf = ui_font.render("Score Preview", True, BLACK)
                  screen.blit(label_surf, (checkbox_x + 25, checkbox_y + (preview_checkbox_rect.height - label_surf.get_height()) // 2))
-             # --- END ADDED ---
 
         # Draw Scoreboard ...
         history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history; is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
@@ -3043,16 +3031,14 @@ def main():
         elif typing:
              if current_r is not None and current_c is not None: cursor_x = 40 + current_c * SQUARE_SIZE + SQUARE_SIZE // 2; cursor_y = 40 + current_r * SQUARE_SIZE + SQUARE_SIZE - 5;
              if int(time.time() * 2) % 2 == 0: pygame.draw.line(screen, BLACK, (cursor_x - 5, cursor_y), (cursor_x + 5, cursor_y), 2)
-             # --- ADDED: Draw Preview Score Text ---
+             # Draw Preview Score Text
              if preview_score_enabled:
                  preview_text = f"Preview: {current_preview_score}"
                  preview_surf = ui_font.render(preview_text, True, BLACK)
-                 # Position it somewhere, e.g., above the current player's rack
                  rack_y_preview = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
                  preview_x = BOARD_SIZE - preview_surf.get_width() - 10 # Example: bottom right of board area
                  preview_y = rack_y_preview - 30 # Example: Above the rack
                  screen.blit(preview_surf, (preview_x, preview_y))
-             # --- END ADDED ---
 
         # Draw Dialogs ...
         if exchanging: tile_rects, exchange_button_rect, cancel_button_rect = draw_exchange_dialog(racks[turn-1], selected_tiles)
