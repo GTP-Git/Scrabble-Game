@@ -675,30 +675,89 @@ def draw_replay_icon(screen, rect, icon_type):
     elif icon_type == "next": pygame.draw.polygon(screen, BLACK, [(center_x - 6, center_y - arrow_size), (center_x + 6, center_y), (center_x - 6, center_y + arrow_size)])
     elif icon_type == "end": pygame.draw.polygon(screen, BLACK, [(center_x - 6, center_y - arrow_size), (center_x + 2, center_y), (center_x - 6, center_y + arrow_size)]); pygame.draw.polygon(screen, BLACK, [(center_x + 2, center_y - arrow_size), (center_x + 10, center_y), (center_x + 2, center_y + arrow_size)])
 
-def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, final_scores=None, game_over_state=False):
-    """Draws the scrollable scoreboard."""
-    scoreboard_x = BOARD_SIZE + 275; scoreboard_y = 40; scoreboard_width = max(200, WINDOW_WIDTH - BOARD_SIZE - 20); scoreboard_height = WINDOW_HEIGHT - 80
-    if scoreboard_x + scoreboard_width > WINDOW_WIDTH - 10: scoreboard_width = WINDOW_WIDTH - scoreboard_x - 10
-    if scoreboard_width < 200: scoreboard_x = WINDOW_WIDTH - 210; scoreboard_width = 200
-    scoreboard_surface = pygame.Surface((scoreboard_width, scoreboard_height)); scoreboard_surface.fill(WHITE)
-    running_scores = [0, 0]; y_pos = 10 - scroll_offset
+def draw_scoreboard(screen, move_history, scroll_offset, scores, is_ai, player_names, final_scores=None, game_over_state=False): # Added player_names parameter
+    """Draws the scrollable scoreboard using full player names."""
+    scoreboard_x = BOARD_SIZE + 275
+    scoreboard_y = 40
+    # Adjust width calculation slightly to prevent potential overlap with window edge
+    scoreboard_width = max(200, WINDOW_WIDTH - scoreboard_x - 20) # Use scoreboard_x in calculation
+    scoreboard_height = WINDOW_HEIGHT - 80
+
+    # Ensure width doesn't make it go off-screen if window is narrow
+    if scoreboard_x + scoreboard_width > WINDOW_WIDTH - 10:
+        scoreboard_width = WINDOW_WIDTH - scoreboard_x - 10
+
+    # Fallback if width becomes too small
+    if scoreboard_width < 150: # Reduced minimum slightly
+        scoreboard_x = WINDOW_WIDTH - 160 # Adjust position too
+        scoreboard_width = 150
+
+    scoreboard_surface = pygame.Surface((scoreboard_width, scoreboard_height))
+    scoreboard_surface.fill(WHITE)
+    running_scores = [0, 0]
+    y_pos = 10 - scroll_offset
+    line_height = 20 # ui_font.get_linesize() might be better if font changes
+
     for i, move in enumerate(move_history):
-        player_idx = move['player'] - 1; running_scores[player_idx] += move['score']
-        player_label = "AI" if 0 <= player_idx < len(is_ai) and is_ai[player_idx] else f"P{move['player']}"
+        player_idx = move.get('player', 1) - 1 # Default to player 1 if missing, get 0-based index
+        if not (0 <= player_idx < 2): # Basic validation
+             print(f"Warning: Invalid player index {player_idx+1} in move history item {i}")
+             continue
+
+        running_scores[player_idx] += move.get('score', 0)
+
+        # --- MODIFICATION: Use player_names list ---
+        player_label = f"P{player_idx + 1}" # Default label
+        if player_names and 0 <= player_idx < len(player_names) and player_names[player_idx]:
+            player_label = player_names[player_idx] # Use the actual name
+        # --- END MODIFICATION ---
+
         display_score = running_scores[player_idx]
-        if move['move_type'] == 'place': word = move.get('word', 'N/A'); coord = move.get('coord', 'N/A'); text = f"{i+1}: {player_label} - {word} at {coord} (+{move['score']}) Total: {display_score}"
-        elif move['move_type'] == 'pass': text = f"{i+1}: {player_label} - Pass (+0) Total: {display_score}"
-        elif move['move_type'] == 'exchange': text = f"{i+1}: {player_label} - Exchange (+0) Total: {display_score}"
-        else: text = f"{i+1}: {player_label} - Unknown Move Type"
+        move_score = move.get('score', 0)
+        score_sign = "+" if move_score >= 0 else "" # Add sign for score delta
+
+        # Construct text string
+        if move.get('move_type') == 'place':
+            word = move.get('word_with_blanks', move.get('word', 'N/A')) # Prefer word_with_blanks
+            coord = move.get('coord', 'N/A')
+            text = f"{i+1}: {player_label} - {word} at {coord} ({score_sign}{move_score}) Total: {display_score}"
+        elif move.get('move_type') == 'pass':
+            text = f"{i+1}: {player_label} - Pass ({score_sign}{move_score}) Total: {display_score}"
+        elif move.get('move_type') == 'exchange':
+            exchanged_count = len(move.get('exchanged_tiles', []))
+            text = f"{i+1}: {player_label} - Exch. {exchanged_count} ({score_sign}{move_score}) Total: {display_score}"
+        else:
+            text = f"{i+1}: {player_label} - Unknown Move Type"
+
+        # Render and blit if visible
         text_surface = ui_font.render(text, True, BLACK)
-        if y_pos < scoreboard_height and y_pos + 20 > 0:
-            if (i // 2) % 2 == 0: rect_width = 10 + text_surface.get_width() + 10; highlight_rect = pygame.Rect(0, y_pos, rect_width, 20); pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE, highlight_rect)
+        if y_pos < scoreboard_height and y_pos + line_height > 0:
+            # Highlight alternate player turns for readability
+            if player_idx == 0: # Player 1's turn background
+                 highlight_rect = pygame.Rect(0, y_pos, scoreboard_width, line_height)
+                 pygame.draw.rect(scoreboard_surface, HIGHLIGHT_BLUE, highlight_rect) # Light blue for P1
+            # else: Player 2's turn uses default WHITE background
+
             scoreboard_surface.blit(text_surface, (10, y_pos))
-        y_pos += 20
+
+        y_pos += line_height
+
+    # Draw final scores if game is over
     if game_over_state and final_scores is not None:
-        y_pos += 20; final_text = f"Final Scores: P1: {final_scores[0]}, P2: {final_scores[1]}"; final_surface = ui_font.render(final_text, True, BLACK)
-        if y_pos < scoreboard_height and y_pos + 20 > 0: scoreboard_surface.blit(final_surface, (10, y_pos))
+        y_pos += line_height // 2 # Add a small gap
+        p1_final_name = player_names[0] if player_names and player_names[0] else "P1"
+        p2_final_name = player_names[1] if player_names and player_names[1] else "P2"
+        final_text = f"Final: {p1_final_name}: {final_scores[0]}, {p2_final_name}: {final_scores[1]}"
+        final_surface = ui_font.render(final_text, True, BLACK)
+        if y_pos < scoreboard_height and y_pos + line_height > 0:
+            scoreboard_surface.blit(final_surface, (10, y_pos))
+
+    # Blit the complete scoreboard surface onto the main screen
     screen.blit(scoreboard_surface, (scoreboard_x, scoreboard_y))
+    # Draw border around scoreboard area
+    pygame.draw.rect(screen, BLACK, (scoreboard_x, scoreboard_y, scoreboard_width, scoreboard_height), 1)
+
+
 
 # End of Part 1 (Includes basic drawing functions)
 
@@ -3258,6 +3317,21 @@ def get_replay_state(turn_idx, initial_racks):
 
 # No changes needed to mode_selection_screen, is_word_length_allowed, or show_message_dialog
 
+import pygame
+import random
+import math
+import sys
+import time
+import pickle
+import os
+import datetime
+from itertools import permutations, product
+from collections import Counter
+
+# Assume all necessary imports, constants, helper functions (like draw_*, calculate_*, etc.)
+# and class definitions (GaddagNode, Gaddag, TrieNode, Dawg) are defined above this point.
+# Also assume global variables like screen, fonts, colors, etc., are initialized.
+
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
     global is_loaded_game, replay_initial_shuffled_bag, initial_racks
@@ -3293,13 +3367,13 @@ def main():
             base_bag = create_standard_bag(); random.shuffle(base_bag); replay_initial_shuffled_bag = base_bag[:]
             board, _, tiles = create_board(); scores = [0, 0]; blanks = set(); racks = [[], []]; bag = []
             replay_mode = True; current_replay_turn = 0; practice_mode = None; is_ai = [False, False]; human_player = 1; first_play = False
-            initial_racks = [[], []]
+            initial_racks = [[], []] # Cannot reliably get initial racks from GCG
             number_checks = [True] * 6 # Default to all lengths allowed if loading
             print(f"--- main(): Loaded Game Setup Complete. Players: {player_names}, Moves: {len(move_history)} ---")
         elif selected_mode_result is not None: # Handle New Game Modes
             print(f"--- main(): Handling New Game Setup ({selected_mode_result}) ---")
             game_mode = selected_mode_result; is_loaded_game = False; replay_initial_shuffled_bag = None
-            player_names, human_player, practice_mode, letter_checks, number_checks, practice_state = return_data
+            player_names, human_player, practice_mode, letter_checks, number_checks, practice_state = return_data # Unpack number_checks
             if practice_state and practice_mode == "eight_letter": # 8-Letter Practice Setup
                 print("Loading state from 8-letter practice..."); board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]; is_ai = [False, False]; print("--- main(): Loaded state from 8-letter practice. ---")
             elif practice_state: # Other Practice Modes (like Power Tiles)
@@ -3314,6 +3388,7 @@ def main():
                 is_ai = [False, False]
                 if game_mode == MODE_HVA: is_ai[2 - human_player] = True
                 elif game_mode == MODE_AVA: is_ai = [True, True]; print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
+            # Store initial racks *after* they are populated for new games
             initial_racks = [rack[:] for rack in racks]
         else: print("--- main(): Mode selection returned None. Exiting. ---"); pygame.quit(); sys.exit()
 
@@ -3463,21 +3538,15 @@ def main():
                         # Determine options based on mode for action filtering
                         if replay_mode:
                             allowed_options = {"Main", "Quit"}
-                        elif practice_mode == "eight_letter":
-                            allowed_options = {"Give Up", "Main", "Quit"}
-                        else:
-                            allowed_options = {"Pass", "Exchange", "Main", "Quit"}
-
-                        current_options_list = ["Give Up", "Main", "Quit"] if practice_mode == "eight_letter" else ["Pass", "Exchange", "Main", "Quit"]
-                        if replay_mode: # Override options list if in replay for correct indexing
-                            current_options_list = ["Main", "Quit"]
-                            temp_standard_options = ["Pass", "Exchange", "Main", "Quit"]
+                            current_options_list = ["Main", "Quit"] # Explicit list for replay
+                            temp_standard_options = ["Pass", "Exchange", "Main", "Quit"] # Map from standard draw
                             clicked_standard_option = None
                             for i, rect in enumerate(dropdown_rects_base):
                                 if rect and rect.collidepoint(x, y):
-                                    if i < len(temp_standard_options):
-                                        clicked_standard_option = temp_standard_options[i]
-                                        break
+                                    # Map index based on standard options potentially drawn
+                                    if i == 2: clicked_standard_option = "Main"
+                                    elif i == 3: clicked_standard_option = "Quit"
+                                    break
                             if clicked_standard_option in allowed_options:
                                 selected_option = clicked_standard_option # Use the mapped option
                                 clicked_dropdown = True
@@ -3489,30 +3558,38 @@ def main():
                                     if confirm_quit(): running = False
                             else: # Clicked outside allowed options or on disabled rect
                                 dropdown_open = False # Close dropdown
-
                         else: # Not in replay mode
+                            if practice_mode == "eight_letter":
+                                allowed_options = {"Give Up", "Main", "Quit"}
+                                current_options_list = ["Give Up", "Main", "Quit"]
+                            else:
+                                allowed_options = {"Pass", "Exchange", "Main", "Quit"}
+                                current_options_list = ["Pass", "Exchange", "Main", "Quit"]
+
                             for i, rect in enumerate(dropdown_rects_base):
                                 if rect and rect.collidepoint(x, y):
-                                    selected_option = current_options_list[i]
-                                    if selected_option in allowed_options: # Check if allowed in current mode
-                                        clicked_dropdown = True
-                                        dropdown_open = False
-                                        # --- Standard Actions (Non-Replay) ---
-                                        if selected_option == "Pass":
-                                            move_rack = racks[turn-1][:]; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; print(f"Player {turn} passed"); human_played = True; paused_for_power_tile = False; move_history.append({'player': turn, 'move_type': 'pass', 'rack': move_rack, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'drawn': [], 'is_bingo': False, 'word_with_blanks': ''}); current_replay_turn = len(move_history); turn = 3 - turn; last_played_highlight_coords = set() # Clear highlight
-                                        elif selected_option == "Exchange":
-                                            if len(bag) >= 7:
-                                                exchanging = True; selected_tiles.clear()
-                                            else:
-                                                show_message_dialog("Cannot exchange, less than 7 tiles in bag.", "Exchange Error")
-                                        elif selected_option == "Give Up": # Specific to 8-letter practice
-                                            practice_end_message = f"Best: {practice_best_move['word_with_blanks']} ({practice_best_move['score']} pts)" if practice_best_move else "No best move found."; practice_solved = True; showing_practice_end_dialog = True
-                                        elif selected_option == "Main":
-                                            running = False; return_to_mode_selection = True
-                                        elif selected_option == "Quit":
-                                            if confirm_quit(): running = False
-                                        # --- End Standard Actions ---
-                                        break # Exit inner loop once action is taken
+                                    # Check if index is valid for the current options list
+                                    if i < len(current_options_list):
+                                        selected_option = current_options_list[i]
+                                        if selected_option in allowed_options: # Check if allowed in current mode
+                                            clicked_dropdown = True
+                                            dropdown_open = False
+                                            # --- Standard Actions (Non-Replay) ---
+                                            if selected_option == "Pass":
+                                                move_rack = racks[turn-1][:]; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; print(f"Player {turn} passed"); human_played = True; paused_for_power_tile = False; move_history.append({'player': turn, 'move_type': 'pass', 'rack': move_rack, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'drawn': [], 'is_bingo': False, 'word_with_blanks': ''}); current_replay_turn = len(move_history); turn = 3 - turn; last_played_highlight_coords = set() # Clear highlight
+                                            elif selected_option == "Exchange":
+                                                if len(bag) >= 7:
+                                                    exchanging = True; selected_tiles.clear()
+                                                else:
+                                                    show_message_dialog("Cannot exchange, less than 7 tiles in bag.", "Exchange Error")
+                                            elif selected_option == "Give Up": # Specific to 8-letter practice
+                                                practice_end_message = f"Best: {practice_best_move['word_with_blanks']} ({practice_best_move['score']} pts)" if practice_best_move else "No best move found."; practice_solved = True; showing_practice_end_dialog = True
+                                            elif selected_option == "Main":
+                                                running = False; return_to_mode_selection = True
+                                            elif selected_option == "Quit":
+                                                if confirm_quit(): running = False
+                                            # --- End Standard Actions ---
+                                            break # Exit inner loop once action is taken
                             if not clicked_dropdown: # Clicked outside any valid dropdown item
                                 dropdown_open = False
                     # --- End Options Button Handling ---
@@ -3936,7 +4013,7 @@ def main():
             scores_to_display = final_scores if game_over_state else scores
             turn_to_display = turn # Already set correctly
 
-        # Draw Board/Tiles ... (No changes needed here)
+        # Draw Board/Tiles ...
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
                 pygame.draw.rect(screen, board[r][c], (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)); pygame.draw.rect(screen, BLACK, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
@@ -3953,7 +4030,7 @@ def main():
                         pygame.draw.rect(screen, tile_bg_color, tile_rect); # Use determined bg color
                         text_surf = font.render(tile_char, True, BLACK); text_rect = text_surf.get_rect(center=tile_rect.center); screen.blit(text_surf, text_rect)
 
-        # Highlight *new* tiles for the current replay turn (Yellow border) (No changes needed here)
+        # Highlight *new* tiles for the current replay turn (Yellow border)
         if replay_mode and current_replay_turn > 0 and current_replay_turn <= len(move_history): # Check bounds
             last_move_data = move_history[current_replay_turn - 1]
             if last_move_data['move_type'] == 'place':
@@ -3970,22 +4047,22 @@ def main():
                       if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
                            pygame.draw.rect(screen, YELLOW, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
 
-        # Draw Labels ... (No changes needed here)
+        # Draw Labels ...
         for r in range(GRID_SIZE): row_label = ui_font.render(str(r + 1), True, BLACK); screen.blit(row_label, (10, 40 + r * SQUARE_SIZE + (SQUARE_SIZE // 2 - row_label.get_height() // 2)))
         for c in range(GRID_SIZE): col_label = ui_font.render(LETTERS[c], True, BLACK); screen.blit(col_label, (40 + c * SQUARE_SIZE + (SQUARE_SIZE // 2 - col_label.get_width() // 2), 10))
-        # Draw Racks ... (No changes needed here)
+        # Draw Racks ...
         p1_rack_to_draw = racks_to_display[0] if len(racks_to_display) > 0 else []; p1_drag_info = dragged_tile if dragged_tile and dragged_tile[0] == 1 else None
         p1_alpha_rect, p1_rand_rect = draw_rack(1, p1_rack_to_draw, scores_to_display, turn_to_display, player_names, p1_drag_info, drag_pos)
         p2_alpha_rect, p2_rand_rect = None, None
         if practice_mode != "eight_letter": p2_rack_to_draw = racks_to_display[1] if len(racks_to_display) > 1 else []; p2_drag_info = dragged_tile if dragged_tile and dragged_tile[0] == 2 else None; p2_alpha_rect, p2_rand_rect = draw_rack(2, p2_rack_to_draw, scores_to_display, turn_to_display, player_names, p2_drag_info, drag_pos)
-        # Draw Remaining Tiles ... (No changes needed here)
+        # Draw Remaining Tiles ...
         if practice_mode != "eight_letter":
             current_player_index = turn_to_display - 1
             if 0 <= current_player_index < len(racks_to_display):
                  remaining = get_remaining_tiles(racks_to_display[current_player_index], tiles_to_display, blanks_to_display)
                  draw_remaining_tiles(remaining, turn_to_display)
             else: draw_remaining_tiles({}, turn_to_display) # Show empty if rack invalid
-        # Draw UI Buttons ... (No changes needed here)
+        # Draw UI Buttons ...
         options_rect, dropdown_rects = draw_options_menu(turn_to_display, dropdown_open, len(bag))
         suggest_rect = None; hint_rect = None
         if not replay_mode: # Only draw Suggest button if not in replay
@@ -4000,10 +4077,13 @@ def main():
                  label_surf = ui_font.render("Score Preview", True, BLACK)
                  screen.blit(label_surf, (checkbox_x + 25, checkbox_y + (preview_checkbox_rect.height - label_surf.get_height()) // 2))
 
-        # Draw Scoreboard ... (No changes needed here)
-        history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history; is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
-        draw_scoreboard(screen, history_to_draw, scroll_offset, scores_to_display, is_ai, final_scores=final_scores, game_over_state=game_over_state or is_final_turn_in_replay)
-        # Draw Typing Arrow / Cursor ... (No changes needed here)
+        # Draw Scoreboard ...
+        history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history
+        is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
+        # Pass player_names to draw_scoreboard
+        draw_scoreboard(screen, history_to_draw, scroll_offset, scores_to_display, is_ai, player_names, final_scores=final_scores, game_over_state=game_over_state or is_final_turn_in_replay)
+
+        # Draw Typing Arrow / Cursor ...
         if selected_square and not typing: draw_arrow(selected_square[0], selected_square[1], selected_square[2])
         elif typing:
              if current_r is not None and current_c is not None: cursor_x = 40 + current_c * SQUARE_SIZE + SQUARE_SIZE // 2; cursor_y = 40 + current_r * SQUARE_SIZE + SQUARE_SIZE - 5;
@@ -4017,20 +4097,20 @@ def main():
                  preview_y = rack_y_preview - 30 # Example: Above the rack
                  screen.blit(preview_surf, (preview_x, preview_y))
 
-        # Draw Dialogs ... (No changes needed here)
+        # Draw Dialogs ...
         if exchanging: tile_rects, exchange_button_rect, cancel_button_rect = draw_exchange_dialog(racks[turn-1], selected_tiles)
         elif hinting: hint_rects, play_button_rect, ok_button_rect, all_words_button_rect = draw_hint_dialog(hint_moves, selected_hint_index)
         elif showing_all_words: moves_for_all = practice_target_moves if practice_mode == "eight_letter" else all_moves; all_words_rects, all_words_play_rect, all_words_ok_rect = draw_all_words_dialog(moves_for_all, selected_hint_index, scroll_offset)
         elif showing_practice_end_dialog: practice_play_again_rect, practice_main_menu_rect, practice_quit_rect = draw_practice_end_dialog(practice_end_message)
-        # Draw Replay Controls ... (No changes needed here)
+        # Draw Replay Controls ...
         if replay_mode:
             replay_controls = [(replay_start_rect, "start"), (replay_prev_rect, "prev"), (replay_next_rect, "next"), (replay_end_rect, "end")]
             for rect, icon_type in replay_controls: hover = rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, rect); draw_replay_icon(screen, rect, icon_type)
-        # Draw Game Over / Stats Dialog ... (No changes needed here)
+        # Draw Game Over / Stats Dialog ...
         if game_over_state:
             if final_scores is not None: save_rect, quit_rect, replay_rect, play_again_rect, stats_rect = draw_game_over_dialog(dialog_x, dialog_y, final_scores, reason, player_names)
             if showing_stats and final_scores: ok_button_rect = draw_stats_dialog(dialog_x + 20, dialog_y + 20, player_names, final_scores, tiles)
-        # Draw dragged tile last ... (No changes needed here)
+        # Draw dragged tile last ...
         if dragged_tile and drag_pos:
             player_idx_drag = dragged_tile[0]-1; tile_val = None
             current_racks_for_drag = racks_to_display if replay_mode else racks
@@ -4052,6 +4132,8 @@ def main():
     else:
         print("--- main(): Quitting pygame and exiting. ---")
         pygame.quit(); sys.exit()
+
+
 
 # --- Program Entry Point ---
 if __name__ == "__main__":
