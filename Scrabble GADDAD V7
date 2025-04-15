@@ -1884,6 +1884,9 @@ def draw_remaining_tiles(remaining, turn):
     screen.blit(text1, (summary_x, summary_y_start));
     screen.blit(text2, (summary_x, summary_y_start + 20)) # Draw second line below first
 
+
+
+
 def draw_arrow(row, col, direction):
     """Draw an arrow indicating play direction."""
     center_x = 40 + col * SQUARE_SIZE + SQUARE_SIZE // 2; center_y = 40 + row * SQUARE_SIZE + SQUARE_SIZE // 2; arrow_length = SQUARE_SIZE * 0.4; arrow_width = SQUARE_SIZE * 0.2
@@ -2222,8 +2225,9 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
     Generates ALL valid Scrabble moves using GADDAG traversal.
     Initiates the traversal from anchor points and adjacent existing tiles.
     Includes corrected Strategy 2 initiation.
+    (Removed verbose debug prints)
     """
-    print(f"--- generate_all_moves_gaddag called. Rack: {''.join(sorted(rack))} ---") # Sort rack for consistent logging
+    # print(f"--- generate_all_moves_gaddag called. Rack: {''.join(sorted(rack))}") # Keep initial call log? Optional.
     if not gaddag_root:
         print("ERROR: GADDAG structure not loaded.")
         return []
@@ -2233,12 +2237,12 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
     rack_counts = Counter(rack)
     is_first_play = sum(1 for row in tiles for t in row if t) == 0
     anchors = get_anchor_points(tiles, is_first_play)
-    print(f"--- generate_all_moves_gaddag: Found anchors: {anchors} ---")
+    # REMOVED: print(f"--- generate_all_moves_gaddag: Found anchors: {anchors} ---")
     original_tiles_state = [row[:] for row in tiles] # Keep a safe copy
     full_rack_size = len(rack) # Needed for bingo check
 
     # --- Precompute Cross-Check Sets ---
-    print("--- generate_all_moves_gaddag: Generating cross-check sets... ---")
+    # REMOVED: print("--- generate_all_moves_gaddag: Generating cross-check sets... ---")
     cross_check_sets = {}
     for r in range(GRID_SIZE):
         for c in range(GRID_SIZE):
@@ -2268,17 +2272,16 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
                     if allowed_letters_h: allowed_letters_h.add(' ')
 
                 cross_check_sets[(r, c)] = {'V': allowed_letters_v, 'H': allowed_letters_h}
-    print("--- generate_all_moves_gaddag: Cross-check sets generated. ---")
+    # REMOVED: print("--- generate_all_moves_gaddag: Cross-check sets generated. ---")
 
     # --- Initiate Traversal from Each Anchor ---
-    print("--- generate_all_moves_gaddag: Starting traversal... ---")
+    # REMOVED: print("--- generate_all_moves_gaddag: Starting traversal... ---")
     processed_adjacent_starts = set() # Prevent redundant starts *from the same adjacent tile* for different anchors
 
     for r_anchor, c_anchor in anchors:
         anchor_pos = (r_anchor, c_anchor)
 
         # --- Strategy 1: Place the first letter *on* the anchor square itself ---
-        # This is the primary strategy for the first move of the game.
         allowed_h = cross_check_sets.get(anchor_pos, {}).get('H', set())
         allowed_v = cross_check_sets.get(anchor_pos, {}).get('V', set())
         # Try placing regular tiles from rack onto the anchor
@@ -2286,22 +2289,19 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
             if count > 0 and tile_letter != ' ':
                 if tile_letter in gaddag_root.children:
                     next_node = gaddag_root.children[tile_letter]
-                    # Create a fresh copy for each starting path
                     new_rack_counts = rack_counts.copy(); new_rack_counts[tile_letter] -= 1
                     if new_rack_counts[tile_letter] == 0: del new_rack_counts[tile_letter]
                     initial_tiles = [(r_anchor, c_anchor, tile_letter, False, True)]
                     # Initiate HORIZONTAL exploration (checks Vertical cross-check)
                     if tile_letter in allowed_v:
-                         # Pass a copy of the rack counter
                          _gaddag_traverse(anchor_pos, new_rack_counts.copy(), tiles, board, blanks, cross_check_sets, next_node, initial_tiles, True, 'H', all_found_moves, unique_move_signatures, original_tiles_state, is_first_play, full_rack_size)
                     # Initiate VERTICAL exploration (checks Horizontal cross-check)
                     if tile_letter in allowed_h:
-                         # Pass a copy of the rack counter
                          _gaddag_traverse(anchor_pos, new_rack_counts.copy(), tiles, board, blanks, cross_check_sets, next_node, initial_tiles, True, 'V', all_found_moves, unique_move_signatures, original_tiles_state, is_first_play, full_rack_size)
         # Try placing a blank tile from rack onto the anchor
         if rack_counts[' '] > 0:
-            if ' ' in allowed_h and ' ' in allowed_v:
-                # Create a base rack count with blank removed
+            # Check if blank is allowed in *either* direction for the anchor
+            if ' ' in allowed_h or ' ' in allowed_v:
                 new_rack_counts_blank_base = rack_counts.copy(); new_rack_counts_blank_base[' '] -= 1
                 if new_rack_counts_blank_base[' '] == 0: del new_rack_counts_blank_base[' ']
 
@@ -2309,16 +2309,15 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
                     if assigned_letter in gaddag_root.children:
                         next_node = gaddag_root.children[assigned_letter]
                         initial_tiles = [(r_anchor, c_anchor, assigned_letter, True, True)]
-                        # Initiate HORIZONTAL exploration
-                        # Pass a copy for this branch
-                        _gaddag_traverse(anchor_pos, new_rack_counts_blank_base.copy(), tiles, board, blanks, cross_check_sets, next_node, initial_tiles, True, 'H', all_found_moves, unique_move_signatures, original_tiles_state, is_first_play, full_rack_size)
-                        # Initiate VERTICAL exploration
-                        # Pass a copy for this branch
-                        _gaddag_traverse(anchor_pos, new_rack_counts_blank_base.copy(), tiles, board, blanks, cross_check_sets, next_node, initial_tiles, True, 'V', all_found_moves, unique_move_signatures, original_tiles_state, is_first_play, full_rack_size)
+                        # Initiate HORIZONTAL exploration (if blank allowed vertically)
+                        if ' ' in allowed_v:
+                            _gaddag_traverse(anchor_pos, new_rack_counts_blank_base.copy(), tiles, board, blanks, cross_check_sets, next_node, initial_tiles, True, 'H', all_found_moves, unique_move_signatures, original_tiles_state, is_first_play, full_rack_size)
+                        # Initiate VERTICAL exploration (if blank allowed horizontally)
+                        if ' ' in allowed_h:
+                            _gaddag_traverse(anchor_pos, new_rack_counts_blank_base.copy(), tiles, board, blanks, cross_check_sets, next_node, initial_tiles, True, 'V', all_found_moves, unique_move_signatures, original_tiles_state, is_first_play, full_rack_size)
 
 
         # --- Strategy 2: Start traversal from an *existing* tile adjacent to the anchor ---
-        # This strategy only applies if not the first play (anchors != {(7,7)})
         if not is_first_play:
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]: # Check N, S, W, E neighbors
                 nr, nc = r_anchor + dr, c_anchor + dc
@@ -2326,22 +2325,15 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
 
                 if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE:
                     existing_tile_letter = tiles[nr][nc]
-                    # Check if it's an existing tile AND we haven't already started traversals from this specific tile position
                     if existing_tile_letter and adj_pos not in processed_adjacent_starts:
-                         # Mark this adjacent tile as processed FOR THIS generate_all_moves call
-                         # to avoid redundant work if it's adjacent to multiple anchors.
                          processed_adjacent_starts.add(adj_pos)
 
                          if existing_tile_letter in gaddag_root.children:
                             next_node = gaddag_root.children[existing_tile_letter]
                             initial_tiles = [(nr, nc, existing_tile_letter, False, False)] # Existing tile is not blank, not new
 
-                            # Determine the axis based on the direction *from* the existing tile *to* the anchor
-                            start_axis = None
-                            if dr != 0: start_axis = 'V' # Moved vertically to anchor, so word axis is Vertical
-                            else:       start_axis = 'H' # Moved horizontally to anchor, so word axis is Horizontal
+                            start_axis = 'V' if dr != 0 else 'H'
 
-                            # **** Explore both directions from the adjacent tile ****
                             # Explore FORWARDS (away from existing tile, past the anchor)
                             _gaddag_traverse(
                                 anchor_pos, rack_counts.copy(), tiles, board, blanks, cross_check_sets, # Pass copy of rack_counts
@@ -2349,7 +2341,7 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
                                 all_found_moves, unique_move_signatures, original_tiles_state,
                                 is_first_play, full_rack_size
                             )
-                            # Explore BACKWARDS (towards where the existing tile came from - effectively extending the other way)
+                            # Explore BACKWARDS (towards where the existing tile came from)
                             _gaddag_traverse(
                                 anchor_pos, rack_counts.copy(), tiles, board, blanks, cross_check_sets, # Pass copy of rack_counts
                                 next_node, initial_tiles[:], True, start_axis, # is_reversed = True
@@ -2358,20 +2350,19 @@ def generate_all_moves_gaddag(rack, tiles, board, blanks, gaddag_root):
                             )
 
 
-    print(f"--- generate_all_moves_gaddag: Traversal complete. Found {len(all_found_moves)} potential moves before sorting/final check. ---")
+    # REMOVED: print(f"--- generate_all_moves_gaddag: Traversal complete. Found {len(all_found_moves)} potential moves before sorting/final check. ---")
 
     # --- Post-processing ---
     all_found_moves.sort(key=lambda m: m['score'], reverse=True)
     final_unique_moves = []
     seen_final_signatures = set()
     for move in all_found_moves:
-        # Signature includes sorted new tiles tuple + score
         sig_tuple = tuple(sorted(move['newly_placed'])) + (move['score'],)
         if sig_tuple not in seen_final_signatures:
             final_unique_moves.append(move)
             seen_final_signatures.add(sig_tuple)
 
-    print(f"--- generate_all_moves_gaddag: Returning {len(final_unique_moves)} unique moves. ---")
+    # print(f"--- generate_all_moves_gaddag: Returning {len(final_unique_moves)} unique moves. ---") # Keep final count? Optional.
     return final_unique_moves
 
 
@@ -3021,16 +3012,13 @@ def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
     # --- Base Cases: Game Over ---
     if not rack_player or not rack_opponent or pass_count >= 6 or depth >= max_depth:
         final_diff = calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
-        # print(f"DEBUG Depth {depth}: Terminal Node. Racks: P={rack_player}, O={rack_opponent}. ScoreDiff: {current_score_diff} -> FinalDiff: {final_diff}")
         return final_diff, [] # Return score diff and empty move sequence
 
     # --- Generate Moves ---
-    # Use copy of board state for generation as it doesn't change during generation
     possible_moves = generate_all_moves_gaddag(rack_player, tiles, board, blanks, GADDAG_STRUCTURE.root)
     if possible_moves is None: possible_moves = []
 
     # --- Include Pass as an option ---
-    # Pass is always possible unless it's the 6th consecutive pass
     can_pass = True # Assume pass is possible initially
 
     # --- Evaluate Moves ---
@@ -3040,21 +3028,19 @@ def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
     # Heuristic: Evaluate playout moves first if they exist
     playout_moves = [m for m in possible_moves if len(m.get('leave', rack_player)) == 0]
     other_moves = [m for m in possible_moves if len(m.get('leave', rack_player)) > 0]
-    # Simple score sort for other moves (could be improved with heuristics)
-    other_moves.sort(key=lambda m: m.get('score', 0), reverse=True)
+    other_moves.sort(key=lambda m: m.get('score', 0), reverse=True) # Simple score sort
 
     ordered_moves = playout_moves + other_moves
     if can_pass:
         ordered_moves.append("PASS") # Add PASS marker
 
-    if not ordered_moves: # No plays and cannot pass (should only happen if pass_count was already 5)
+    if not ordered_moves: # No plays and cannot pass
         final_diff = calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
         return final_diff, []
 
-
     # --- Iterate Through Moves ---
     for move in ordered_moves:
-        # Create copies for simulation - DEEPCOPY needed for nested lists (tiles)
+        # Create copies for simulation
         sim_tiles = copy.deepcopy(tiles)
         sim_blanks = blanks.copy()
         sim_rack_player = rack_player[:]
@@ -3065,14 +3051,13 @@ def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
 
         if move == "PASS":
             sim_pass_count += 1
-            # Score diff doesn't change immediately on pass
             value, subsequent_sequence = negamax_endgame(
                 sim_rack_opponent, sim_rack_player, sim_tiles, sim_blanks, board,
                 -sim_score_diff, -beta, -alpha, depth + 1, sim_pass_count, max_depth
             )
             value = -value # Flip score back
         else: # It's a play move (dictionary)
-            sim_pass_count = 0 # Reset pass count on a play
+            sim_pass_count = 0 # Reset pass count
             newly_placed_details = move.get('newly_placed', [])
             move_blanks = move.get('blanks', set())
             move_score = move.get('score', 0)
@@ -3100,18 +3085,15 @@ def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
         # --- Update Best Sequence ---
         if value > best_value:
             best_value = value
-            # Prepend the current move to the sequence returned by the recursive call
             best_sequence = [move_details_for_debug] + subsequent_sequence
-            # print(f"DEBUG Depth {depth}: New best seq found. Value: {best_value:.1f}, Move: {format_move_for_debug(move, rack_player)}, Seq: {[format_move_for_debug(m, []) for m in best_sequence]}")
-
+            # REMOVED intermediate debug print here
 
         # --- Alpha-Beta Pruning ---
         alpha = max(alpha, value)
         if alpha >= beta:
-            # print(f"DEBUG Depth {depth}: Pruning (alpha={alpha:.1f} >= beta={beta:.1f})")
             break # Prune
 
-    # If no moves were possible at all (should be caught earlier, but safety)
+    # If no moves were possible at all
     if best_sequence is None:
          final_diff = calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
          return final_diff, []
@@ -3119,9 +3101,11 @@ def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
     return best_value, best_sequence
 
 
+# --- MODIFIED Endgame Solver Function (Prints only final chosen sequence) ---
 def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_score_diff):
     """
     Top-level function to initiate the endgame solver.
+    Prints only the final chosen sequence.
     """
     global is_solving_endgame, endgame_start_time
     print("--- Starting Endgame Solver ---")
@@ -3135,8 +3119,6 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
     rack_opponent_copy = rack_opponent[:]
 
     # Initial call to negamax
-    # Depth starts at 0, pass_count starts at 0
-    # Max depth can be set based on total tiles remaining
     max_depth_search = len(rack_player_copy) + len(rack_opponent_copy)
     best_score_diff, best_move_sequence = negamax_endgame(
         rack_player_copy, rack_opponent_copy, tiles_copy, blanks_copy, board,
@@ -3145,10 +3127,11 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
 
     solve_duration = time.time() - endgame_start_time
     print(f"--- Endgame Solver Finished ({solve_duration:.2f}s) ---")
-    is_solving_endgame = False
+    is_solving_endgame = False # Set flag back immediately after solving
 
     if best_move_sequence:
-        print(f"Optimal Endgame Sequence Found (Score Diff: {best_score_diff:.0f}):")
+        # --- MODIFICATION: Only print the final chosen sequence ---
+        print(f"Optimal Endgame Sequence Found (Final Score Diff: {best_score_diff:.0f}):")
         current_player_idx = 0 # 0 for initial player, 1 for opponent
         turn_num = 1
         temp_rack_p = rack_player[:] # Use copies for printing debug sequence
@@ -3166,11 +3149,7 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
 
             current_player_idx = 1 - current_player_idx # Switch player
             if current_player_idx == 0: turn_num += 1 # Increment turn number after P2 moves
-
-        # Determine final score based on the calculated diff and initial scores
-        # This requires knowing the initial scores when solve_endgame was called
-        # For now, just print the score difference achieved by the sequence
-        print(f"  Predicted Final Score Difference: {best_score_diff:.0f}")
+        # --- END MODIFICATION ---
 
         return best_move_sequence[0] # Return only the first move to make
     else:
@@ -3193,6 +3172,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     """
     Handles the AI's turn, selecting moves based on score and leave evaluation,
     incorporating the new exchange strategy, practice mode rules, and endgame solver.
+    Includes screen update before long endgame calculation.
     """
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords
     global is_solving_endgame # Access the global flag
@@ -3203,13 +3183,46 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     bag_count = len(bag)
     print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}, Practice: {practice_mode}") # Log sorted rack
 
-    # --- MODIFICATION: Endgame Solver Check ---
+    # --- Endgame Solver Check ---
     if bag_count == 0 and practice_mode != "eight_letter" and not is_solving_endgame:
         print("AI: Bag empty, entering endgame solver...")
         opponent_rack = racks[opponent_idx][:]
         current_score_diff = scores[player_idx] - scores[opponent_idx]
-        # Call the endgame solver
+
+        # --- MODIFICATION: Update screen to show indicator BEFORE solving ---
+        is_solving_endgame = True # Set flag
+        # Force redraw of the current screen state including the indicator
+        # (This assumes drawing functions can access necessary globals or are passed parameters)
+        screen.fill(WHITE) # Clear screen
+        # Redraw necessary elements (board, racks, scoreboard, indicator)
+        # Simplified redraw - adapt based on actual drawing dependencies
+        for r in range(GRID_SIZE): # Draw board and tiles
+            for c in range(GRID_SIZE):
+                pygame.draw.rect(screen, board[r][c], (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)); pygame.draw.rect(screen, BLACK, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
+                if tiles[r][c]:
+                    # Simplified tile drawing - copy relevant parts from main loop if needed
+                    tile_char = tiles[r][c]; is_blank_on_board = (r, c) in blanks;
+                    tile_bg_color = GREEN
+                    if is_blank_on_board: center = (40 + c * SQUARE_SIZE + SQUARE_SIZE // 2, 40 + r * SQUARE_SIZE + SQUARE_SIZE // 2); radius = SQUARE_SIZE // 2 - 3; pygame.draw.circle(screen, BLACK, center, radius); text_surf = font.render(tile_char, True, WHITE); text_rect = text_surf.get_rect(center=center); screen.blit(text_surf, text_rect)
+                    else: tile_rect = pygame.Rect(40 + c * SQUARE_SIZE + 2, 40 + r * SQUARE_SIZE + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4); pygame.draw.rect(screen, tile_bg_color, tile_rect); text_surf = font.render(tile_char, True, BLACK); text_rect = text_surf.get_rect(center=tile_rect.center); screen.blit(text_surf, text_rect)
+        draw_rack(1, racks[0], scores, turn, player_names) # Draw racks
+        if practice_mode != "eight_letter": draw_rack(2, racks[1], scores, turn, player_names)
+        draw_scoreboard(screen, move_history, 0, scores, is_ai, player_names) # Draw scoreboard (scroll 0)
+        # Draw the indicator itself
+        solve_text = "AI Solving Endgame..."
+        solve_surf = dialog_font.render(solve_text, True, RED)
+        solve_rect = solve_surf.get_rect(centerx=WINDOW_WIDTH // 2, top=10)
+        bg_rect = solve_rect.inflate(20, 10)
+        bg_surf = pygame.Surface(bg_rect.size, pygame.SRCALPHA)
+        bg_surf.fill((200, 200, 200, 180)) # Grayish background
+        screen.blit(bg_surf, bg_rect)
+        screen.blit(solve_surf, solve_rect)
+        pygame.display.flip() # Update the display NOW
+        # --- END MODIFICATION ---
+
+        # Call the endgame solver (this might take time)
         best_first_move = solve_endgame(current_rack, opponent_rack, tiles, blanks, board, current_score_diff)
+        # is_solving_endgame is reset inside solve_endgame after calculation
 
         if best_first_move == "PASS":
             print("AI Endgame: Optimal move is PASS.")
@@ -3275,10 +3288,8 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         # Return state after executing the solver's first move
         return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, False, None # Reset paused state
 
-    # --- END Endgame Solver Check ---
-
-
     # --- Normal Turn Logic (if not in endgame solver) ---
+    # [ ... Rest of the ai_turn function remains the same ... ]
     paused_for_power_tile = False
     current_power_tile = None
     all_moves = []
@@ -3340,7 +3351,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     # 1. Evaluate Best Play
     if can_play:
-        # [ ... Same evaluation logic as before ... ]
         print(f"AI {turn} evaluating {len(all_moves)} plays...")
         current_top_raw_score = -float('inf')
         top_raw_score_move = None # Keep track for logging
@@ -3355,7 +3365,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             if immediate_score > current_top_raw_score:
                  current_top_raw_score = immediate_score
                  top_raw_score_move = move
-        # [ ... Same debug prints for play evaluation ... ]
         print("-" * 20)
         print(f"AI {turn} Play Evaluation Complete:")
         if top_raw_score_move: print(f"  Top Raw Score Move : '{top_raw_score_move.get('word','N/A')}' ({top_raw_score_move.get('score',0)} pts)")
@@ -3370,7 +3379,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     # 2. Evaluate Best Exchange Option
     if not can_play or can_exchange_proactively:
-        # [ ... Same exchange evaluation logic as before ... ]
         print(f"AI {turn} evaluating exchange options...")
         remaining_tiles_dict = get_remaining_tiles(racks[player_idx], tiles, blanks)
         best_exchange_tiles, best_exchange_evaluation = find_best_exchange_option(racks[player_idx], remaining_tiles_dict, bag_count)
@@ -3400,8 +3408,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         action_chosen = 'pass'
 
     # --- Execute Action (Normal Turn) ---
-    # [ ... Same execution logic as before for play, exchange, pass ... ]
-    # [ ... This section remains unchanged from the previous version ... ]
     next_turn = turn # Default, might change
     drawn_tiles = []
     newly_placed = []
@@ -3452,7 +3458,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     # --- Return updated state ---
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
-
 
 '''
 def power_tile_practice():
