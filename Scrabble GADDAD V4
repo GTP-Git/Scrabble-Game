@@ -2216,8 +2216,11 @@ def calculate_final_scores(current_scores, racks, bag):
 # Function to Modify: play_hint_move
 # REASON: Added sorting of the rack *after* drawing new tiles.
 
+# Function to Modify: play_hint_move
+# REASON: Re-added sorting of the rack *after* drawing new tiles for human players.
+
 def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
-    """Plays a move (usually from hint/AI), updates state. Handles practice mode. Sorts rack."""
+    """Plays a move (usually from hint/AI), updates state. Handles practice mode. Sorts human rack."""
     global practice_mode, is_ai # Need is_ai to check if player is human
 
     player_idx = turn - 1
@@ -2444,10 +2447,11 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 
+
+
 # Function to Replace: main()
-# REASON: Adds logic to track and highlight the coordinates of the
-#         last successfully placed primary word. Based *exactly* on
-#         the version provided by the user previously.
+# REASON: Re-adds human rack sorting after typed plays and exchanges.
+#         Also includes last-word highlighting.
 
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
@@ -2470,63 +2474,40 @@ def main():
             load_start = time.time()
             with open("gaddag.pkl", 'rb') as f_load: GADDAG_STRUCTURE = pickle.load(f_load)
             print(f"GADDAG loaded in {time.time() - load_start:.2f} seconds.")
-            # Add GADDAG validation if needed
-        except Exception as e:
-            print(f"\n--- ERROR Loading GADDAG: {e} ---"); pygame.quit(); sys.exit()
+        except Exception as e: print(f"\n--- ERROR Loading GADDAG: {e} ---"); pygame.quit(); sys.exit()
         print("GADDAG loading block finished.")
 
         # --- Game State Initialization ---
         print("--- main(): Starting game state initialization... ---")
-
-        # Handle LOADED_GAME mode
-        if selected_mode_result == "LOADED_GAME":
+        if selected_mode_result == "LOADED_GAME": # Handle LOADED_GAME mode
             print("--- main(): Handling LOADED_GAME setup ---")
             game_mode = "LOADED_GAME"; is_loaded_game = True
             player_names, loaded_history, final_scores_loaded = return_data
             move_history = loaded_history; final_scores = final_scores_loaded
-            base_bag = create_standard_bag(); random.shuffle(base_bag)
-            replay_initial_shuffled_bag = base_bag[:]
-            board, _, tiles = create_board(); scores = [0, 0]; blanks = set()
-            racks = [[], []]; bag = [] # Live bag empty
-            replay_mode = True; current_replay_turn = 0; practice_mode = None
-            is_ai = [False, False]; human_player = 1; first_play = False
+            base_bag = create_standard_bag(); random.shuffle(base_bag); replay_initial_shuffled_bag = base_bag[:]
+            board, _, tiles = create_board(); scores = [0, 0]; blanks = set(); racks = [[], []]; bag = []
+            replay_mode = True; current_replay_turn = 0; practice_mode = None; is_ai = [False, False]; human_player = 1; first_play = False
             print(f"--- main(): Loaded Game Setup Complete. Players: {player_names}, Moves: {len(move_history)} ---")
-
-        # Handle New Game Modes (Practice or Standard)
-        elif selected_mode_result is not None:
+        elif selected_mode_result is not None: # Handle New Game Modes
             print(f"--- main(): Handling New Game Setup ({selected_mode_result}) ---")
             game_mode = selected_mode_result; is_loaded_game = False; replay_initial_shuffled_bag = None
             player_names, human_player, practice_mode, letter_checks, practice_state = return_data
-
             if practice_state and practice_mode == "eight_letter": # 8-Letter Practice Setup
-                print("Loading state from 8-letter practice...")
-                board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]
-                is_ai = [False, False]
-                print("--- main(): Loaded state from 8-letter practice. ---")
-            elif practice_state: # Other Practice Modes (Power Tiles)
-                print("Loading state from other practice mode...")
-                board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]
-                is_ai = [False, False];
+                print("Loading state from 8-letter practice..."); board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]; is_ai = [False, False]; print("--- main(): Loaded state from 8-letter practice. ---")
+            elif practice_state: # Other Practice Modes
+                print("Loading state from other practice mode..."); board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]; is_ai = [False, False];
                 if game_mode == MODE_HVA: is_ai[2 - human_player] = True
-                elif game_mode == MODE_AVA or practice_mode == "power_tiles": is_ai = [True, True]
-                print(f"--- main(): Loaded state from other practice mode. is_ai: {is_ai} ---")
+                elif game_mode == MODE_AVA or practice_mode == "power_tiles": is_ai = [True, True]; print(f"--- main(): Loaded state from other practice mode. is_ai: {is_ai} ---")
             else: # Standard New Game Setup
-                print("Performing standard game initialization...")
-                board, _, tiles = create_board()
-                bag = create_standard_bag(); random.shuffle(bag)
-                racks = [[], []]; scores = [0, 0]; turn = 1; blanks = set(); first_play = True
+                print("Performing standard game initialization..."); board, _, tiles = create_board(); bag = create_standard_bag(); random.shuffle(bag); racks = [[], []]; scores = [0, 0]; turn = 1; blanks = set(); first_play = True
                 try: racks[0] = [bag.pop() for _ in range(7)]; racks[1] = [bag.pop() for _ in range(7)]
                 except IndexError: print("Error: Not enough tiles in bag."); pygame.quit(); sys.exit()
-                # NOTE: Using the version that sorts initial racks
-                for rack in racks: rack.sort()
+                for rack in racks: rack.sort() # Sort initial racks
                 is_ai = [False, False]
                 if game_mode == MODE_HVA: is_ai[2 - human_player] = True
-                elif game_mode == MODE_AVA: is_ai = [True, True]
-                print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
+                elif game_mode == MODE_AVA: is_ai = [True, True]; print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
             initial_racks = [rack[:] for rack in racks] # Store initial racks for GCG saving
-
-        else: # Mode selection returned None
-             print("--- main(): Mode selection returned None. Exiting. ---"); pygame.quit(); sys.exit()
+        else: print("--- main(): Mode selection returned None. Exiting. ---"); pygame.quit(); sys.exit()
 
         # --- Common Initializations & Resets ---
         word_positions = []; running = True; dropdown_open = False; return_to_mode_selection = False; all_words_ok_rect = None; all_words_play_rect = None
@@ -2541,9 +2522,7 @@ def main():
         previous_turn = 0; game_over_state = False; showing_stats = False; dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2; dragging = False;
         if selected_mode_result != "LOADED_GAME": final_scores = None
         reason = ""; action = None; scoreboard_height = WINDOW_HEIGHT - 80; paused_for_power_tile = False; current_power_tile = None; power_tile_message_shown = False
-        # --- ADDED: Initialize highlight tracking ---
-        last_played_highlight_coords = set()
-        # -------------------------------------------
+        last_played_highlight_coords = set() # Store coords of last play for highlighting
         print("--- main(): Performed common variable resets. ---")
 
         # --- 8-Letter Practice Specific Initialization ---
@@ -2554,8 +2533,7 @@ def main():
             print("--- main(): Performing 8-letter practice specific init... ---")
             if racks and len(racks) > 0 and racks[0] is not None and GADDAG_STRUCTURE:
                 practice_target_moves = generate_all_moves_gaddag(racks[0], tiles, board, blanks, GADDAG_STRUCTURE.root)
-                if practice_target_moves:
-                    practice_best_move = practice_target_moves[0]; print(f"Best move found: {practice_best_move['word']} ({practice_best_move['score']} pts)"); all_moves = practice_target_moves
+                if practice_target_moves: practice_best_move = practice_target_moves[0]; print(f"Best move found: {practice_best_move['word']} ({practice_best_move['score']} pts)"); all_moves = practice_target_moves
                 else: print("Error: No valid moves found for 8-letter practice setup!"); show_message_dialog("Error: No possible moves found for this setup.", "Practice Error"); return_to_mode_selection = True; running = False
             elif not GADDAG_STRUCTURE: print("Error: Cannot generate practice moves, GADDAG not loaded."); return_to_mode_selection = True; running = False
             else: print("Error: Invalid rack state for Player 1 in 8-letter practice."); return_to_mode_selection = True; running = False
@@ -2564,7 +2542,7 @@ def main():
     # --- Main Game Loop ---
     print("--- main(): Entering main game loop (while running:)... ---")
     while running:
-        # Generate moves at start of turn (unless practice mode or paused or replay)
+        # Generate moves at start of turn
         if turn != previous_turn and not replay_mode and not game_over_state and not paused_for_power_tile and practice_mode != "eight_letter":
             if racks and len(racks) > turn-1 and racks[turn-1] is not None and GADDAG_STRUCTURE:
                 print(f"Generating moves for Player {turn}. Rack: {''.join(racks[turn-1])}")
@@ -2582,15 +2560,11 @@ def main():
             ai_result = ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open, hinting, showing_all_words, letter_checks)
             if len(ai_result) == 11:
                 turn_after_ai, first_play, pass_count, exchange_count, consecutive_zero_point_turns, returned_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile = ai_result
-                # --- ADDED: Update highlight coords after AI move ---
-                if turn_after_ai != turn and move_history: # If turn changed (AI played/exchanged/passed)
+                # Update highlight coords after AI move
+                if turn_after_ai != turn and move_history:
                      last_ai_move = move_history[-1]
-                     if last_ai_move.get('move_type') == 'place':
-                          # Use 'positions' which should contain all tiles of the primary word
-                          last_played_highlight_coords = set((pos[0], pos[1]) for pos in last_ai_move.get('positions', []))
-                     else: # Pass or exchange clears highlight
-                          last_played_highlight_coords = set()
-                # --- END ADDED ---
+                     if last_ai_move.get('move_type') == 'place': last_played_highlight_coords = set((pos[0], pos[1]) for pos in last_ai_move.get('positions', []))
+                     else: last_played_highlight_coords = set()
                 turn = turn_after_ai # Update turn variable
                 if paused_for_power_tile:
                     all_moves = returned_moves
@@ -2602,33 +2576,55 @@ def main():
             if event.type == pygame.QUIT: running = False
             # --- Practice End Dialog Handling ---
             elif showing_practice_end_dialog:
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    x, y = event.pos; # ... (practice end buttons) ...
-                    if practice_play_again_rect and practice_play_again_rect.collidepoint(x,y): running = False; return_to_mode_selection = True
-                    elif practice_main_menu_rect and practice_main_menu_rect.collidepoint(x,y): running = False; return_to_mode_selection = True
-                    elif practice_quit_rect and practice_quit_rect.collidepoint(x,y): running = False
+                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                     x, y = event.pos; # ... (practice end buttons) ...
+                     if practice_play_again_rect and practice_play_again_rect.collidepoint(x,y): running = False; return_to_mode_selection = True
+                     elif practice_main_menu_rect and practice_main_menu_rect.collidepoint(x,y): running = False; return_to_mode_selection = True
+                     elif practice_quit_rect and practice_quit_rect.collidepoint(x,y): running = False
             # --- Game Over Event Handling ---
             elif game_over_state:
                 # Define save action nested function ... (Using corrected save logic)
+                                # Define save action nested function (uses local variables like final_scores)
                 def perform_save_action():
                     if final_scores:
                         now = datetime.datetime.now(); date_str = now.strftime("%d%b%y").upper(); time_str = now.strftime("%H%M"); seq_num = 1; max_existing_num = 0
                         try:
+                            # List files in the current directory to find existing sequence numbers
                             for filename in os.listdir('.'):
                                 if filename.startswith(date_str + "-") and filename.endswith(".gcg"):
                                     parts = filename[:-4].split('-');
                                     if len(parts) == 3:
+                                        # ---- CORRECTED Inner Try/Except Indentation ----
                                         try:
-                                            num = int(parts[2])
-                                            if num > max_existing_num: max_existing_num = num
-                                        except ValueError: continue # Correctly indented except
-                            seq_num = max_existing_num + 1
-                        except OSError as e: print(f"Error listing directory for sequence number: {e}")
-                        save_filename = f"{date_str}-{time_str}-{seq_num}.gcg"; gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
+                                            num = int(parts[2]) # Try converting the sequence part to int
+                                            # This check only happens if int() succeeds
+                                            if num > max_existing_num:
+                                                max_existing_num = num
+                                        except ValueError:
+                                            # If int() fails, ignore this file and continue loop
+                                            continue
+                                        # ---------------------------------------------
+                            seq_num = max_existing_num + 1 # Set the next sequence number
+                        except OSError as e:
+                            # Handle potential errors listing the directory
+                            print(f"Error listing directory for sequence number: {e}")
+
+                        # Construct filename and save
+                        save_filename = f"{date_str}-{time_str}-{seq_num}.gcg";
+                        gcg_content = save_game_to_gcg(player_names, move_history, initial_racks, final_scores)
                         try:
-                            with open(save_filename, "w") as f: f.write(gcg_content); print(f"Game saved to {save_filename}"); show_message_dialog(f"Game saved as {save_filename}", "Save Successful")
-                        except IOError as e: print(f"Error saving game to {save_filename}: {e}"); show_message_dialog(f"Error saving game: {e}", "Save Error")
-                    else: print("Cannot save game: Final scores not calculated."); show_message_dialog("Cannot save game - final scores missing.", "Save Error")
+                            with open(save_filename, "w") as f: f.write(gcg_content);
+                            print(f"Game saved to {save_filename}");
+                            show_message_dialog(f"Game saved as {save_filename}", "Save Successful")
+                        except IOError as e:
+                            print(f"Error saving game to {save_filename}: {e}");
+                            show_message_dialog(f"Error saving game: {e}", "Save Error")
+                    else:
+                        # Cannot save if final scores aren't calculated
+                        print("Cannot save game: Final scores not calculated.");
+                        show_message_dialog("Cannot save game - final scores missing.", "Save Error")
+                # End of perform_save_action definition
+
 
                 # Handle events in game over state ...
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -2675,7 +2671,9 @@ def main():
                                 clicked_in_dialog = True; move_rack = racks[turn-1][:]; tiles_to_exchange = [racks[turn-1][i] for i in sorted(selected_tiles, reverse=True)]
                                 temp_rack = [tile for i, tile in enumerate(racks[turn-1]) if i not in selected_tiles]; drawn_tiles = [bag.pop() for _ in range(len(tiles_to_exchange)) if bag]
                                 temp_rack.extend(drawn_tiles); racks[turn-1] = temp_rack
-                                # NOTE: No automatic sort here
+                                # --- ADDED SORT ---
+                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
+                                # ------------------
                                 bag.extend(tiles_to_exchange); random.shuffle(bag); consecutive_zero_point_turns += 1; print(f"Player {turn} exchanged {len(tiles_to_exchange)} tiles")
                                 exchanging = False; selected_tiles.clear(); human_played = True; exchange_count += 1; pass_count = 0; paused_for_power_tile = False
                                 move_history.append({'player': turn, 'move_type': 'exchange', 'rack': move_rack, 'exchanged_tiles': tiles_to_exchange, 'drawn': drawn_tiles, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'is_bingo': False, 'word_with_blanks': ''})
@@ -2923,25 +2921,22 @@ def main():
                             # --- Normal Play Finalization ---
                             if play_finalized_normally:
                                 scores[turn-1] += score; first_play = False; drawn_tiles = [bag.pop() for _ in range(len(word_positions)) if bag]; racks[turn-1].extend(drawn_tiles)
-                                # NOTE: No automatic sort here
-                                # if not is_ai[turn-1]: racks[turn-1].sort()
-
+                                # --- ADDED SORT ---
+                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
+                                # ------------------
                                 # Find the full word and its actual start position/direction
                                 full_word_tiles_hist, _ = find_main_word(word_positions, tiles)
                                 full_word_hist = "".join(t[2] for t in full_word_tiles_hist) if full_word_tiles_hist else "ERROR"
-
                                 # Calculate coord based on actual word start
                                 if full_word_tiles_hist:
                                     actual_start_pos = (full_word_tiles_hist[0][0], full_word_tiles_hist[0][1])
                                     actual_direction = "right" if len(set(r for r,c,l in full_word_tiles_hist)) == 1 else "down"
                                     coord_hist = get_coord(actual_start_pos, actual_direction)
                                 else: coord_hist = "???"; print("WARNING: Could not determine actual start pos for history coord.")
-
                                 # Format word_with_blanks based on full word
                                 word_with_blanks_list_hist = []; placed_pos_set_hist = set((p[0], p[1]) for p in word_positions); blanks_in_play = blanks.copy() & placed_pos_set_hist
                                 for wr, wc, w_letter in full_word_tiles_hist: is_blank_hist = (wr, wc) in blanks_in_play; word_with_blanks_list_hist.append(w_letter.lower() if is_blank_hist else w_letter.upper())
                                 word_with_blanks_hist = "".join(word_with_blanks_list_hist)
-
                                 # Append correct info to history
                                 move_history.append({
                                     'player': turn, 'move_type': 'place', 'rack': original_rack[:],
@@ -2964,7 +2959,6 @@ def main():
                                 if (r_rem, c_rem) in blanks: blanks.remove((r_rem, c_rem)); racks[turn-1].append(' ')
                                 else: racks[turn-1].append(letter_rem)
                                 current_r, current_c = r_rem, c_rem # Move cursor back
-                                # Simplified backspace cursor movement: just move to the cleared square
                             else: # Backspace when no letters typed yet
                                 typing = False; selected_square = original_selected_square; original_tiles = None; original_rack = None
                         elif event.key == pygame.K_ESCAPE: # Cancel typing ...
