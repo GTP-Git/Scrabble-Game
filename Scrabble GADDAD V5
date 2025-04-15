@@ -2228,37 +2228,37 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
 
 # --- AI Strategy Helper Functions ---
 
-# Define constants for leave evaluation heuristics (tunable)
-GOOD_LEAVE_BONUS = {' ': 25.6, 'S': 8, 'Z': 5.1, 'X': 3.3, 'E': .3, 'A': .6, 'R': 1.1, 'N': .2,'H': 1.1, 'C': .9, 'M': .6, 'D': .5}
-BAD_LEAVE_PENALTY = {'T': -.1, 'I': -2.1, 'L': -.2, 'Q': -6.8, 'J': -1.5, 'V': -5.5, 'W': -3.8, 'K': -.5, 'F': -2.2, 'Y': -.6, 'U': -5.1, 'B': -2, 'G': -2.9, 'P': -.5, 'O': -2.5}
+# Function to Modify: evaluate_leave
+# REASON: Applying a general V/C balance penalty based on deviation
+#         from an ideal range calculated for the *actual* leave size.
+#         Removed specific 7-tile penalties.
 
+# --- Static Leave Values & Constants ---
+GOOD_LEAVE_BONUS = {' ': 25.6, 'S': 8.0, 'Z': 5.1, 'X': 3.3, 'E': 0.3, 'A': 0.6, 'R': 1.1, 'N': 0.2,'H': 1.1, 'C': 0.9, 'M': 0.6, 'D': 0.5}
+BAD_LEAVE_PENALTY = {'T': -0.1, 'I': -2.1, 'L': -0.2, 'Q': -6.8, 'J': -1.5, 'V': -5.5, 'W': -3.8, 'K': -0.5, 'F': -2.2, 'Y': -0.6, 'U': -5.1, 'B': -2.0, 'G': -2.9, 'P': -0.5, 'O': -2.5}
+DUPLICATE_PENALTY = -4.2 # Applied for each duplicate beyond the first
 VOWELS = "AEIOU"
-IDEAL_VOWEL_COUNT_MIN = 2 # For a 7-tile rack, adjust if rack size varies
-IDEAL_VOWEL_COUNT_MAX = 4
-BALANCE_PENALTY_FACTOR = -3 # Penalty per vowel count away from ideal range
-DUPLICATE_PENALTY = -5    # Penalty for each tile beyond the second duplicate (except S, E)
+BALANCE_PENALTY_FACTOR = -4.0 # Penalty per vowel count away from ideal range
+# --- END Constants ---
 
-
-
-
-
-def evaluate_leave(rack, verbose=False): # Added verbose parameter
+def evaluate_leave(rack, verbose=False):
     """
-    Calculates a score adjustment based on the quality of the tiles left on the rack.
-    Higher scores are better leaves. Prints breakdown if verbose=True.
+    Calculates a score adjustment based on static tile values, duplicate penalties,
+    and V/C balance deviation for the current leave size.
+    Includes verbose debug printing. Higher scores are better leaves.
 
     Args:
         rack (list): A list of characters representing the tiles left.
         verbose (bool): If True, print detailed calculation steps.
 
     Returns:
-        int: A score adjustment (positive or negative).
+        int: A score adjustment (positive or negative), rounded from float.
     """
     if not rack:
         return 0
 
-    leave_score = 0
-    rack_str = "".join(sorted(rack)) # For consistent print output if verbose
+    leave_score = 0.0 # Use float for calculations
+    rack_str = "".join(sorted(rack))
     if verbose: print(f"--- Evaluating Leave (Verbose): '{rack_str}' ---")
 
     rack_counts = Counter(rack)
@@ -2266,67 +2266,79 @@ def evaluate_leave(rack, verbose=False): # Added verbose parameter
     has_q = 'Q' in rack_counts
     has_u = 'U' in rack_counts
 
-    # 1. Good/Bad Letter Bonuses/Penalties
-    if verbose: print("  Letter Values:")
-    current_letter_score = 0
+    # 1. Apply Static Bonuses/Penalties for each tile present
+    if verbose: print("  Static Tile Values:")
+    current_tile_value_score = 0.0
     for tile, count in rack_counts.items():
-        good_bonus = GOOD_LEAVE_BONUS.get(tile, 0) * count
-        bad_penalty = 0
-        if tile == 'Q' and not has_u:
-            q_penalty = BAD_LEAVE_PENALTY.get('Q', -10)
-            bad_penalty = q_penalty * count
-            if verbose: print(f"    - Tile '{tile}' (x{count}): Q without U penalty = {bad_penalty}")
-        elif tile != 'Q':
-             penalty = BAD_LEAVE_PENALTY.get(tile, 0)
-             bad_penalty = penalty * count
-             if verbose and penalty != 0: print(f"    - Tile '{tile}' (x{count}): Bad letter penalty = {bad_penalty}")
+        if tile in VOWELS: vowel_count += count # Count vowels
+        bonus = GOOD_LEAVE_BONUS.get(tile, 0.0)
+        penalty = BAD_LEAVE_PENALTY.get(tile, 0.0)
+        tile_value = (bonus + penalty) * count
 
-        if verbose and good_bonus != 0: print(f"    - Tile '{tile}' (x{count}): Good letter bonus = {good_bonus}")
-        current_letter_score += good_bonus + bad_penalty
-        if tile in VOWELS: vowel_count += count
-    if verbose: print(f"    Subtotal (Letters): {current_letter_score}")
-    leave_score += current_letter_score
+        if verbose:
+            if bonus != 0.0: print(f"    - Tile '{tile}' (x{count}): Bonus per tile = {bonus:.1f}, Total = {bonus*count:.1f}")
+            if penalty != 0.0: print(f"    - Tile '{tile}' (x{count}): Penalty per tile = {penalty:.1f}, Total = {penalty*count:.1f}")
+            if bonus == 0.0 and penalty == 0.0: print(f"    - Tile '{tile}' (x{count}): Neutral value = 0.0")
 
-    # 2. Duplicate Penalties
+        current_tile_value_score += tile_value
+    if verbose: print(f"    Subtotal (Tile Values): {current_tile_value_score:.1f}")
+    leave_score += current_tile_value_score
+
+    # 2. Apply Duplicate Penalties
     if verbose: print("  Duplicate Penalties:")
-    current_duplicate_penalty = 0
+    current_duplicate_penalty = 0.0
     for tile, count in rack_counts.items():
-        penalty = 0
-        if count > 2 and tile not in ('S', 'E', ' '):
-            penalty = DUPLICATE_PENALTY * (count - 2)
-            if verbose: print(f"    - Tile '{tile}' (x{count}): Penalty for >2 duplicates = {penalty}")
-        elif count > 3 and tile in ('S', 'E'):
-             penalty = DUPLICATE_PENALTY * (count - 3)
-             if verbose: print(f"    - Tile '{tile}' (x{count}): Penalty for >3 S/E = {penalty}")
-        current_duplicate_penalty += penalty
-    if verbose: print(f"    Subtotal (Duplicates): {current_duplicate_penalty}")
+        if count > 1:
+            penalty_applied = DUPLICATE_PENALTY * (count - 1)
+            if verbose: print(f"    - Tile '{tile}' (x{count}): Penalty for {count-1} duplicate(s) = {penalty_applied:.1f}")
+            current_duplicate_penalty += penalty_applied
+    if verbose:
+        if current_duplicate_penalty == 0.0: print("    None")
+        print(f"    Subtotal (Duplicates): {current_duplicate_penalty:.1f}")
     leave_score += current_duplicate_penalty
 
-    # 3. Vowel/Consonant Balance Penalty
-    if verbose: print("  V/C Balance:")
-    current_balance_penalty = 0
+    # --- MODIFIED: Apply General V/C Balance Deviation Penalty ---
+    # 3. Calculate and apply penalty based on deviation from ideal V/C ratio
+    if verbose: print("  V/C Balance Deviation Penalty:")
     num_tiles = len(rack)
-    ideal_min = IDEAL_VOWEL_COUNT_MIN + (num_tiles - 7) // 2
-    ideal_max = IDEAL_VOWEL_COUNT_MAX + (num_tiles - 7) // 2
-    ideal_min = max(1, ideal_min); ideal_max = max(ideal_min, ideal_max)
+    consonant_count = num_tiles - vowel_count
+    current_balance_penalty = 0.0
 
-    if verbose: print(f"    Tiles: {num_tiles}, Vowels: {vowel_count}, Ideal Range: [{ideal_min}-{ideal_max}]")
-    if not (ideal_min <= vowel_count <= ideal_max):
+    if num_tiles > 0: # Only apply if tiles remain
+        # Calculate ideal range for *this* number of tiles (e.g., ~1/3 to ~1/2 vowels)
+        # Using math.floor and math.ceil for range boundaries
+        ideal_min = max(1, math.floor(num_tiles / 3)) # At least 1 vowel ideally, up to 1/3rd
+        ideal_max = max(ideal_min, math.floor(num_tiles * 0.45)) # Allow up to ~45% vowels, ensure max >= min
+
+
+        if verbose: print(f"    Tiles: {num_tiles}, Vowels: {vowel_count}, Consonants: {consonant_count}, Ideal Vowel Range: [{ideal_min}-{ideal_max}]")
+
         deviation = 0
         if vowel_count < ideal_min:
             deviation = ideal_min - vowel_count
-            if verbose: print(f"    Too few vowels (deviation {deviation})")
-        else: # vowel_count > ideal_max
+            if verbose: print(f"    Deviation: Too few vowels (deviation {deviation})")
+        elif vowel_count > ideal_max:
             deviation = vowel_count - ideal_max
-            if verbose: print(f"    Too many vowels (deviation {deviation})")
-        current_balance_penalty = BALANCE_PENALTY_FACTOR * deviation
-        if verbose: print(f"    Penalty Applied: {current_balance_penalty}")
-    elif verbose: print("    Balance OK.")
-    if verbose: print(f"    Subtotal (Balance): {current_balance_penalty}")
-    leave_score += current_balance_penalty
+            if verbose: print(f"    Deviation: Too many vowels (deviation {deviation})")
+        # else: # Balance is within ideal range
+        #    if verbose: print("    Balance OK.")
 
-    if verbose: print(f"--- Final Leave Adjustment for '{rack_str}': {int(leave_score)} ---")
-    return int(leave_score)
+        if deviation > 0:
+            current_balance_penalty = BALANCE_PENALTY_FACTOR * deviation
+            if verbose: print(f"    Penalty Applied: {current_balance_penalty:.1f}")
+        elif verbose:
+             print("    Balance OK (No deviation penalty).") # Explicitly state when OK
+
+    elif verbose: # Case where rack is empty (shouldn't happen due to initial check, but safe)
+        print("    (Leave is empty, no V/C penalty)")
+
+    if verbose: print(f"    Subtotal (Balance): {current_balance_penalty:.1f}")
+    leave_score += current_balance_penalty
+    # --- END MODIFIED ---
+
+    final_adjustment = int(round(leave_score)) # Round float score to nearest int
+    if verbose: print(f"--- Final Leave Adjustment for '{rack_str}': {final_adjustment} (Raw Score: {leave_score:.1f}) ---")
+    return final_adjustment
 
 
 def evaluate_single_move(move_dict, leave_evaluation_func):
