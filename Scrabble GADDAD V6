@@ -984,7 +984,8 @@ def mode_selection_screen():
         # Dropdown positioning
         if modes[current_input] == MODE_HVH and dropdown_open:
             dropdown_x = name_rect_x; dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_y = dropdown_button_y + 30
-            options = ["Power Tiles", "8-Letter Bingos", "End Game"]
+            # --- MODIFICATION: Add "Only Fives" to options ---
+            options = ["Power Tiles", "8-Letter Bingos", "Only Fives", "End Game"]
             for i, option in enumerate(options): option_rect = pygame.Rect(dropdown_x, dropdown_y + 30 * i, 200, 30); option_rects.append(option_rect)
 
 
@@ -1031,7 +1032,6 @@ def mode_selection_screen():
                     for i, rect in enumerate(number_rects):
                         if rect.collidepoint(x, y): number_checks[i] = not number_checks[i] # Update number_checks state
                     if go_rect.collidepoint(x, y):
-                        # Ensure at least one letter and one number are checked
                         if not any(letter_checks):
                             show_message_dialog("Please select at least one Power Tile (J, Q, X, Z).", "Selection Required")
                         elif not any(number_checks):
@@ -1089,11 +1089,16 @@ def mode_selection_screen():
                         if dropdown_rect.collidepoint(x, y): dropdown_open = not dropdown_open
                         elif dropdown_open:
                             clicked_option = False
+                            # Use the updated options list here
+                            current_options = ["Power Tiles", "8-Letter Bingos", "Only Fives", "End Game"]
                             for i, option_rect in enumerate(option_rects):
                                 if option_rect.collidepoint(x, y):
                                     clicked_option = True; dropdown_open = False
-                                    if i == 0: showing_power_tiles_dialog = True # Open Power Tiles dialog
-                                    elif i == 1: # 8-Letter Bingos
+                                    selected_practice_option = current_options[i]
+
+                                    if selected_practice_option == "Power Tiles":
+                                        showing_power_tiles_dialog = True
+                                    elif selected_practice_option == "8-Letter Bingos":
                                         print("--- mode_selection_screen(): 8-Letter Bingo practice selected. Calling eight_letter_practice()... ---")
                                         proceed, p_board, p_tiles, p_racks, p_blanks, p_bag = eight_letter_practice()
                                         if proceed:
@@ -1101,7 +1106,18 @@ def mode_selection_screen():
                                             practice_state = {"board": p_board, "tiles": p_tiles, "racks": p_racks, "blanks": p_blanks, "bag": p_bag, "first_play": False, "scores": [0, 0], "turn": 1}
                                             print(f"--- mode_selection_screen(): 8-Letter practice setup successful. Selected mode: {selected_mode} ---"); break
                                         else: print("--- mode_selection_screen(): 8-Letter practice setup cancelled or failed. ---")
-                                    elif i == 2: print("End Game practice selected - Not implemented yet")
+                                    # --- MODIFICATION: Handle "Only Fives" ---
+                                    elif selected_practice_option == "Only Fives":
+                                        print("--- mode_selection_screen(): Only Fives practice selected. ---")
+                                        practice_mode = "only_fives"
+                                        selected_mode = MODE_HVA # Set game mode to Human vs AI
+                                        human_player = 1 # Default to human as Player 1
+                                        player_names = ["Player 1", "AI"] # Set names accordingly
+                                        practice_state = None # Start a standard new game setup
+                                        print(f"--- mode_selection_screen(): Only Fives setup successful. Selected mode: {selected_mode} ---"); break
+                                    # --- END MODIFICATION ---
+                                    elif selected_practice_option == "End Game":
+                                        print("End Game practice selected - Not implemented yet")
                                     break # Exit options loop
                             if not clicked_option and not dropdown_rect.collidepoint(x,y): dropdown_open = False
                         elif not dropdown_rect.collidepoint(x,y): dropdown_open = False
@@ -1165,7 +1181,11 @@ def mode_selection_screen():
             dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30); hover = dropdown_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, dropdown_rect)
             text = button_font.render("Practice", True, BLACK); text_rect = text.get_rect(center=dropdown_rect.center); screen.blit(text, text_rect)
             if dropdown_open:
-                for i, option_rect in enumerate(option_rects): hover = option_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else DROPDOWN_COLOR; pygame.draw.rect(screen, color, option_rect); text = button_font.render(options[i], True, BLACK); text_rect = text.get_rect(center=option_rect.center); screen.blit(text, text_rect)
+                # Use the updated options list for drawing
+                current_options = ["Power Tiles", "8-Letter Bingos", "Only Fives", "End Game"]
+                for i, option_rect in enumerate(option_rects):
+                     hover = option_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else DROPDOWN_COLOR; pygame.draw.rect(screen, color, option_rect);
+                     text = button_font.render(current_options[i], True, BLACK); text_rect = text.get_rect(center=option_rect.center); screen.blit(text, text_rect)
         elif modes[current_input] == MODE_HVA:
             p2_label_text = "AI Name:"; p2_label = ui_font.render(p2_label_text, True, BLACK); p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT) # Define for drawing
             p2_label_x = name_rect_x - p2_label.get_width() - 10; screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
@@ -1204,7 +1224,7 @@ def mode_selection_screen():
     if selected_mode == "LOADED_GAME":
         return selected_mode, loaded_game_data
     else:
-        # --- MODIFICATION: Return number_checks as well ---
+        # Return number_checks as well
         return selected_mode, (player_names, human_player, practice_mode, letter_checks, number_checks, practice_state)
 
 
@@ -2957,7 +2977,7 @@ def find_best_exchange_option(rack, remaining_tiles_dict, bag_count):
 def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
     """
     Handles the AI's turn, selecting moves based on score and leave evaluation,
-    and incorporating the new exchange strategy.
+    and incorporating the new exchange strategy and practice mode rules.
     """
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords
 
@@ -2968,7 +2988,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     player_idx = turn - 1
     current_rack = racks[player_idx][:] # Use a copy for analysis
     bag_count = len(bag)
-    print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}") # Log sorted rack
+    print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}, Practice: {practice_mode}") # Log sorted rack
     paused_for_power_tile = False
     current_power_tile = None
     all_moves = []
@@ -2982,7 +3002,35 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         all_moves = []
 
     if all_moves is None: all_moves = []
-    print(f"AI Player {turn} generated {len(all_moves)} moves.")
+    print(f"AI Player {turn} generated {len(all_moves)} raw moves.")
+
+    # --- MODIFICATION: Filter moves for "Only Fives" practice mode ---
+    if practice_mode == "only_fives":
+        original_tiles_copy = [row[:] for row in tiles] # Copy current board
+        original_blanks_copy = blanks.copy()
+        filtered_moves = []
+        for move in all_moves:
+            # Simulate the move on a temporary board
+            temp_tiles = [row[:] for row in original_tiles_copy]
+            temp_blanks = original_blanks_copy.copy()
+            newly_placed_details = move.get('newly_placed', [])
+            if not newly_placed_details: continue # Skip moves with no placement info
+
+            for r, c, letter in newly_placed_details:
+                 if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
+                     temp_tiles[r][c] = letter
+                     if (r, c) in move.get('blanks', set()):
+                         temp_blanks.add((r, c))
+
+            # Check words formed on the temporary board
+            words_formed_details = find_all_words_formed(newly_placed_details, temp_tiles)
+            # Check if *any* formed word has length 5
+            if any(len("".join(t[2] for t in word_detail)) == 5 for word_detail in words_formed_details):
+                filtered_moves.append(move)
+        all_moves = filtered_moves # Replace all_moves with the filtered list
+        print(f"AI Player {turn} filtered moves for 'Only Fives'. Remaining: {len(all_moves)}")
+    # --- END MODIFICATION ---
+
 
     # --- Power Tile Practice Pause Check (remains the same) ---
     if practice_mode == "power_tiles" and letter_checks:
@@ -3004,7 +3052,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     best_exchange_tiles = []
     best_exchange_evaluation = -float('inf')
 
-    can_play = bool(all_moves)
+    can_play = bool(all_moves) # Check if any moves remain after potential filtering
     # Standard rule: proactive exchange considered only if bag has enough tiles
     can_exchange_proactively = bag_count >= 7
 
@@ -3015,8 +3063,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         top_raw_score_move = None # Keep track for logging
 
         for move in all_moves:
-            # Evaluate silently first to find the best
-            # Ensure evaluate_single_move uses the correct leave evaluation function
             evaluated_score = evaluate_single_move(move, evaluate_leave) # Pass the function itself
             immediate_score = move.get('score', 0)
 
@@ -3041,7 +3087,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             chosen_leave_str = ''.join(sorted(chosen_leave))
             print(f"  Best Evaluated Play: '{best_play_move.get('word','N/A')}' (Raw Score: {chosen_score})")
             print(f"    Leave Tiles: '{chosen_leave_str}'")
-            # Call again with verbose=True ONLY for the chosen move's leave
             leave_adjust = evaluate_leave(chosen_leave, verbose=True) # Call with verbose=True
             print(f"    --------------------") # Separator after verbose output
             print(f"    Final Play Eval Score: {chosen_score + leave_adjust:.2f} (Raw: {chosen_score}, Leave Adj: {leave_adjust})")
@@ -3054,8 +3099,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     # Only evaluate if mandatory (no plays) or if proactive exchange is possible
     if not can_play or can_exchange_proactively:
         print(f"AI {turn} evaluating exchange options...")
-        # Need the current state of unseen tiles
-        # Use the *actual* current rack (racks[player_idx]) and board state (tiles, blanks)
         remaining_tiles_dict = get_remaining_tiles(racks[player_idx], tiles, blanks)
         best_exchange_tiles, best_exchange_evaluation = find_best_exchange_option(
             racks[player_idx], remaining_tiles_dict, bag_count
@@ -3079,14 +3122,12 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
                 print(f"AI {turn}: DECISION -> Proactive Exchange (Low score play '{best_play_move.get('word','N/A')}' ({best_play_move.get('score',0)}) and Exchange eval {best_exchange_evaluation:.1f} > Play eval {best_play_evaluation:.1f} + {EXCHANGE_PREFERENCE_THRESHOLD})")
                 action_chosen = 'exchange'
             elif not is_low_score_play and is_exchange_significantly_better:
-                 # Also consider exchanging even if score isn't "low", if exchange is clearly better
                  print(f"AI {turn}: DECISION -> Proactive Exchange (Exchange eval {best_exchange_evaluation:.1f} > Play eval {best_play_evaluation:.1f} + {EXCHANGE_PREFERENCE_THRESHOLD})")
                  action_chosen = 'exchange'
             else:
                  print(f"AI {turn}: DECISION -> Play ('{best_play_move.get('word','N/A')}') (Exchange not sufficiently better or play score not low)")
 
     elif best_exchange_tiles: # Cannot play, but found a valid exchange option
-        # find_best_exchange_option already checked bag size for the returned option
         print(f"AI {turn}: DECISION -> Mandatory Exchange (No plays possible)")
         action_chosen = 'exchange'
     else: # Cannot play, and no valid/beneficial exchange found
@@ -3109,8 +3150,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     if action_chosen == 'play':
         if best_play_move:
             print(f"AI {turn} playing move: '{best_play_move.get('word', 'N/A')}'")
-            # Use the existing play_hint_move function to execute the move
-            # It handles placing tiles, updating score, drawing, and returns the next turn
             next_turn, drawn_tiles, newly_placed = play_hint_move(best_play_move, tiles, racks, blanks, scores, turn, bag, board)
 
             # Extract details for history
@@ -3141,7 +3180,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             exchanged_tiles_for_history = best_exchange_tiles[:] # Copy for history
             current_rack_list = racks[player_idx] # Get the actual current rack
 
-            # Create the new rack by removing exchanged tiles
             temp_rack_after_exchange = []
             exchange_counts = Counter(exchanged_tiles_for_history)
             for tile in current_rack_list:
@@ -3150,17 +3188,14 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
                 else:
                     temp_rack_after_exchange.append(tile)
 
-            # Draw new tiles
             num_to_draw = len(exchanged_tiles_for_history)
             drawn_tiles = [bag.pop() for _ in range(num_to_draw) if bag]
             temp_rack_after_exchange.extend(drawn_tiles)
             racks[player_idx] = temp_rack_after_exchange # Update the main rack
 
-            # Return exchanged tiles to bag and shuffle
             bag.extend(exchanged_tiles_for_history)
             random.shuffle(bag)
 
-            # Update game state variables
             move_type = 'exchange'
             score = 0
             consecutive_zero_point_turns += 1
@@ -3183,7 +3218,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         last_played_highlight_coords = set() # Clear highlight
 
     # --- Record Move ---
-    # Ensure all necessary details are captured based on the action taken
     move_data = {
         'player': turn,
         'move_type': move_type,
@@ -3200,7 +3234,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     if move_type == 'exchange':
         move_data['exchanged_tiles'] = exchanged_tiles_for_history
     if move_type == 'place' and best_play_move:
-         # Store the tiles actually placed in this turn if available
          move_data['newly_placed'] = best_play_move.get('newly_placed', newly_placed) # Use newly_placed from play_hint_move if available
 
     move_history.append(move_data)
@@ -3211,9 +3244,12 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
 
 
+
+'''
 def power_tile_practice():
     """Placeholder function, logic moved elsewhere."""
     print("Power tile practice setup (handled by mode selection and AI turn).")
+'''
 
 # End of Part 6
 
@@ -3309,28 +3345,6 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 
-# Function to Replace: main()
-# REASON: Adds human rack sorting after typed plays, exchanges,
-#         and cancellation of typed plays. Includes last-word highlighting.
-
-# No changes needed to draw_options_menu as the filtering happens in main's event handling
-
-# No changes needed to mode_selection_screen, is_word_length_allowed, or show_message_dialog
-
-import pygame
-import random
-import math
-import sys
-import time
-import pickle
-import os
-import datetime
-from itertools import permutations, product
-from collections import Counter
-
-# Assume all necessary imports, constants, helper functions (like draw_*, calculate_*, etc.)
-# and class definitions (GaddagNode, Gaddag, TrieNode, Dawg) are defined above this point.
-# Also assume global variables like screen, fonts, colors, etc., are initialized.
 
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
@@ -3367,7 +3381,7 @@ def main():
             base_bag = create_standard_bag(); random.shuffle(base_bag); replay_initial_shuffled_bag = base_bag[:]
             board, _, tiles = create_board(); scores = [0, 0]; blanks = set(); racks = [[], []]; bag = []
             replay_mode = True; current_replay_turn = 0; practice_mode = None; is_ai = [False, False]; human_player = 1; first_play = False
-            initial_racks = [[], []] # Cannot reliably get initial racks from GCG
+            initial_racks = [[], []]
             number_checks = [True] * 6 # Default to all lengths allowed if loading
             print(f"--- main(): Loaded Game Setup Complete. Players: {player_names}, Moves: {len(move_history)} ---")
         elif selected_mode_result is not None: # Handle New Game Modes
@@ -3380,14 +3394,19 @@ def main():
                 print("Loading state from other practice mode..."); board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]; is_ai = [False, False];
                 if game_mode == MODE_HVA: is_ai[2 - human_player] = True
                 elif game_mode == MODE_AVA or practice_mode == "power_tiles": is_ai = [True, True]; print(f"--- main(): Loaded state from other practice mode. is_ai: {is_ai} ---")
-            else: # Standard New Game Setup
+            else: # Standard New Game Setup (including Only Fives)
                 print("Performing standard game initialization..."); board, _, tiles = create_board(); bag = create_standard_bag(); random.shuffle(bag); racks = [[], []]; scores = [0, 0]; turn = 1; blanks = set(); first_play = True
                 try: racks[0] = [bag.pop() for _ in range(7)]; racks[1] = [bag.pop() for _ in range(7)]
                 except IndexError: print("Error: Not enough tiles in bag."); pygame.quit(); sys.exit()
-                for rack in racks: rack.sort() # Sort initial racks
+                # Sort racks initially, especially for human in Only Fives
+                for i, rack in enumerate(racks):
+                    # Always sort AI racks? Or only human? Let's sort both for consistency.
+                    rack.sort()
                 is_ai = [False, False]
-                if game_mode == MODE_HVA: is_ai[2 - human_player] = True
-                elif game_mode == MODE_AVA: is_ai = [True, True]; print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
+                if game_mode == MODE_HVA: # Covers Only Fives (set to HVA)
+                    is_ai[2 - human_player] = True # AI is player 2 if human is player 1
+                elif game_mode == MODE_AVA: is_ai = [True, True];
+                print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
             # Store initial racks *after* they are populated for new games
             initial_racks = [rack[:] for rack in racks]
         else: print("--- main(): Mode selection returned None. Exiting. ---"); pygame.quit(); sys.exit()
@@ -3562,7 +3581,12 @@ def main():
                             if practice_mode == "eight_letter":
                                 allowed_options = {"Give Up", "Main", "Quit"}
                                 current_options_list = ["Give Up", "Main", "Quit"]
-                            else:
+                            # --- MODIFICATION: Add Only Fives to options check ---
+                            elif practice_mode == "only_fives":
+                                allowed_options = {"Pass", "Exchange", "Main", "Quit"} # Same as standard for now
+                                current_options_list = ["Pass", "Exchange", "Main", "Quit"]
+                            # --- END MODIFICATION ---
+                            else: # Standard game
                                 allowed_options = {"Pass", "Exchange", "Main", "Quit"}
                                 current_options_list = ["Pass", "Exchange", "Main", "Quit"]
 
@@ -3827,9 +3851,9 @@ def main():
                                     score = calculate_score(word_positions, board, tiles, blanks) # Calculate score based on final board state
                                     print(f"DEBUG: Valid play typed, score: {score}")
 
-                                    # Find the primary word formed by the typed letters for length check
+                                    # Find all words formed by the typed letters
                                     all_words_details = find_all_words_formed(word_positions, temp_tiles_val)
-                                    typed_word_str = ""
+                                    typed_word_str = "" # Primary word for length check if needed
                                     typed_word_len = 0
                                     if all_words_details:
                                         start_r_type, start_c_type = typing_start
@@ -3884,10 +3908,26 @@ def main():
                                              play_finalized_normally = True # Allow normal finalization
                                              # Don't revert, play is correct
 
+                                    # --- MODIFICATION: Add "Only Fives" check ---
+                                    elif practice_mode == "only_fives":
+                                        print("DEBUG: Checking Only Fives practice logic...")
+                                        found_five_letter_word = False
+                                        if all_words_details:
+                                            found_five_letter_word = any(len("".join(t[2] for t in word_detail)) == 5 for word_detail in all_words_details)
+
+                                        if found_five_letter_word:
+                                            print("DEBUG: 5-letter word found.")
+                                            play_finalized_normally = True # Play is valid for this mode
+                                        else:
+                                            print("DEBUG: No 5-letter word found.")
+                                            message_to_show = ("Play must form at least one 5-letter word.", "Invalid Play")
+                                            revert_play = True
+                                    # --- END MODIFICATION ---
+
                                     else: # Normal game mode
                                         play_finalized_normally = True # Finalize normal play
 
-                                else: # Invalid play
+                                else: # Invalid play (based on is_valid_play)
                                     print(f"Invalid play.");
                                     message_to_show = ("Invalid play.", "Error") # Inform user
                                     revert_play = True
