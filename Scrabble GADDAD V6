@@ -2250,7 +2250,7 @@ BALANCE_PENALTY_FACTOR = -4.0 # Penalty per vowel count away from ideal range
 def evaluate_leave(rack, verbose=False):
     """
     Calculates a score adjustment based on static tile values, duplicate penalties,
-    and V/C balance deviation for the current leave size.
+    and V/C balance deviation (with special handling for 1 and 2-tile leaves).
     Includes verbose debug printing. Higher scores are better leaves.
 
     Args:
@@ -2268,9 +2268,9 @@ def evaluate_leave(rack, verbose=False):
     if verbose: print(f"--- Evaluating Leave (Verbose): '{rack_str}' ---")
 
     rack_counts = Counter(rack)
+    num_tiles = len(rack)
     vowel_count = 0
-    has_q = 'Q' in rack_counts
-    has_u = 'U' in rack_counts
+    is_two_tile_non_duplicate = False # Flag for special 2-tile case
 
     # 1. Apply Static Bonuses/Penalties for each tile present
     if verbose: print("  Static Tile Values:")
@@ -2293,8 +2293,10 @@ def evaluate_leave(rack, verbose=False):
     # 2. Apply Duplicate Penalties
     if verbose: print("  Duplicate Penalties:")
     current_duplicate_penalty = 0.0
+    has_duplicates = False
     for tile, count in rack_counts.items():
         if count > 1:
+            has_duplicates = True
             penalty_applied = DUPLICATE_PENALTY * (count - 1)
             if verbose: print(f"    - Tile '{tile}' (x{count}): Penalty for {count-1} duplicate(s) = {penalty_applied:.1f}")
             current_duplicate_penalty += penalty_applied
@@ -2303,19 +2305,29 @@ def evaluate_leave(rack, verbose=False):
         print(f"    Subtotal (Duplicates): {current_duplicate_penalty:.1f}")
     leave_score += current_duplicate_penalty
 
-    # --- MODIFIED: Apply General V/C Balance Deviation Penalty ---
-    # 3. Calculate and apply penalty based on deviation from ideal V/C ratio
+    # --- MODIFIED: Apply V/C Balance Deviation Penalty (with 1/2 tile exceptions) ---
     if verbose: print("  V/C Balance Deviation Penalty:")
-    num_tiles = len(rack)
-    consonant_count = num_tiles - vowel_count
     current_balance_penalty = 0.0
 
-    if num_tiles > 0: # Only apply if tiles remain
+    # Check for 1 or 2 tile exceptions BEFORE calculating balance penalty
+    skip_balance_check = False
+    if num_tiles == 1:
+        if verbose: print("    (Leave has 1 tile, skipping V/C balance check)")
+        skip_balance_check = True
+    elif num_tiles == 2 and not has_duplicates:
+        if verbose: print("    (Leave has 2 non-duplicate tiles, skipping V/C balance check)")
+        skip_balance_check = True
+    elif num_tiles == 0: # Should be caught by initial check, but safe
+        skip_balance_check = True
+
+    if not skip_balance_check:
+        # Proceed with balance calculation only if not skipped
+        consonant_count = num_tiles - vowel_count
+
         # Calculate ideal range for *this* number of tiles (e.g., ~1/3 to ~1/2 vowels)
         # Using math.floor and math.ceil for range boundaries
         ideal_min = max(1, math.floor(num_tiles / 3)) # At least 1 vowel ideally, up to 1/3rd
         ideal_max = max(ideal_min, math.floor(num_tiles * 0.45)) # Allow up to ~45% vowels, ensure max >= min
-
 
         if verbose: print(f"    Tiles: {num_tiles}, Vowels: {vowel_count}, Consonants: {consonant_count}, Ideal Vowel Range: [{ideal_min}-{ideal_max}]")
 
@@ -2326,8 +2338,6 @@ def evaluate_leave(rack, verbose=False):
         elif vowel_count > ideal_max:
             deviation = vowel_count - ideal_max
             if verbose: print(f"    Deviation: Too many vowels (deviation {deviation})")
-        # else: # Balance is within ideal range
-        #    if verbose: print("    Balance OK.")
 
         if deviation > 0:
             current_balance_penalty = BALANCE_PENALTY_FACTOR * deviation
@@ -2335,8 +2345,8 @@ def evaluate_leave(rack, verbose=False):
         elif verbose:
              print("    Balance OK (No deviation penalty).") # Explicitly state when OK
 
-    elif verbose: # Case where rack is empty (shouldn't happen due to initial check, but safe)
-        print("    (Leave is empty, no V/C penalty)")
+    elif verbose and num_tiles > 0: # Print reason if skipped and rack wasn't empty
+        pass # Message already printed above when setting skip_balance_check
 
     if verbose: print(f"    Subtotal (Balance): {current_balance_penalty:.1f}")
     leave_score += current_balance_penalty
