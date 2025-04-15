@@ -1593,23 +1593,117 @@ def show_message_dialog(message, title="Message"):
         pygame.display.flip()
         pygame.time.Clock().tick(30) # Limit frame rate in dialog loop
 
+
 def draw_practice_end_dialog(message):
-    """Draw the dialog shown at the end of a practice puzzle."""
-    dialog_width, dialog_height = 400, 180; dialog_x = (WINDOW_WIDTH - dialog_width) // 2; dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
-    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height)); pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
-    words = message.split(' '); lines = []; current_line = ''; max_line_width = dialog_width - 20
-    for word in words: test_line = current_line + word + ' ';
-    if ui_font.size(test_line)[0] < max_line_width: current_line = test_line
-    else: lines.append(current_line.strip()); current_line = word + ' '
-    if current_line: lines.append(current_line.strip())
-    y_offset = 15
-    for line in lines: text_surf = ui_font.render(line, True, BLACK); screen.blit(text_surf, (dialog_x + 10, dialog_y + y_offset)); y_offset += ui_font.get_linesize()
-    button_y = dialog_y + dialog_height - BUTTON_HEIGHT - 15; total_button_width = 3 * BUTTON_WIDTH + 2 * BUTTON_GAP; button_start_x = dialog_x + (dialog_width - total_button_width) // 2
-    play_again_rect = pygame.Rect(button_start_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT); main_menu_rect = pygame.Rect(button_start_x + BUTTON_WIDTH + BUTTON_GAP, button_y, BUTTON_WIDTH, BUTTON_HEIGHT); quit_rect = pygame.Rect(button_start_x + 2 * (BUTTON_WIDTH + BUTTON_GAP), button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-    pygame.draw.rect(screen, BUTTON_COLOR, play_again_rect); pygame.draw.rect(screen, BUTTON_COLOR, main_menu_rect); pygame.draw.rect(screen, BUTTON_COLOR, quit_rect)
-    play_again_text = button_font.render("Play Again", True, BLACK); main_menu_text = button_font.render("Main Menu", True, BLACK); quit_text = button_font.render("Quit", True, BLACK)
-    screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center)); screen.blit(main_menu_text, main_menu_text.get_rect(center=main_menu_rect.center)); screen.blit(quit_text, quit_text.get_rect(center=quit_rect.center))
+    """
+    Draw the dialog shown at the end of a practice puzzle,
+    dynamically adjusting height based on the message content.
+    """
+    # --- MODIFICATION START: Dynamic Height Calculation ---
+    base_dialog_width = 400
+    min_dialog_height = 180 # Keep original minimum height
+    padding = 15 # Padding around elements
+    line_spacing = 5 # Extra space between lines
+    button_area_height = BUTTON_HEIGHT + padding * 2 # Space for buttons + padding
+
+    # 1. Wrap text first to determine needed lines
+    words = message.split(' ')
+    lines = []
+    current_line = ''
+    # Use a slightly reduced width for text wrapping calculation
+    max_line_width = base_dialog_width - padding * 2 - 10
+
+    for word in words:
+        # Handle newline characters explicitly
+        if '\n' in word:
+            parts = word.split('\n')
+            for i, part in enumerate(parts):
+                if not part:
+                    if current_line: lines.append(current_line.strip())
+                    lines.append("")
+                    current_line = ""
+                    continue
+                test_line = current_line + part + ' '
+                if ui_font.size(test_line)[0] < max_line_width:
+                    current_line = test_line
+                else:
+                    if current_line: lines.append(current_line.strip())
+                    if ui_font.size(part + ' ')[0] < max_line_width:
+                         current_line = part + ' '
+                    else:
+                         lines.append(part)
+                         current_line = ""
+                if i < len(parts) - 1:
+                     if current_line: lines.append(current_line.strip())
+                     lines.append("")
+                     current_line = ""
+        else: # Word does not contain newline
+            test_line = current_line + word + ' '
+            if ui_font.size(test_line)[0] < max_line_width:
+                current_line = test_line
+            else:
+                if current_line: lines.append(current_line.strip())
+                if ui_font.size(word + ' ')[0] < max_line_width:
+                     current_line = word + ' '
+                else:
+                     lines.append(word)
+                     current_line = ""
+    if current_line: # Add the last line
+        lines.append(current_line.strip())
+
+    # 2. Calculate required height
+    # No explicit title, start text height calculation directly
+    text_height = len(lines) * ui_font.get_linesize() + max(0, len(lines) - 1) * line_spacing
+    required_height = text_height + button_area_height + padding * 2 # Text + Button Area + Top/Bottom Padding
+
+    dialog_height = max(min_dialog_height, required_height)
+    dialog_width = base_dialog_width # Keep width fixed
+
+    # 3. Calculate dialog position
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+    # --- MODIFICATION END ---
+
+    # Drawing uses calculated dimensions
+    pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+    pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+    # Draw the wrapped text lines starting near the top
+    y_offset = dialog_y + padding
+    for line in lines:
+        text_surf = ui_font.render(line, True, BLACK)
+        # Center text horizontally within the padded area
+        text_rect = text_surf.get_rect(centerx=dialog_x + dialog_width // 2)
+        text_rect.top = y_offset # Align top
+        screen.blit(text_surf, text_rect)
+        # screen.blit(text_surf, (dialog_x + padding, y_offset)) # Original left-align
+        y_offset += ui_font.get_linesize() + line_spacing
+
+    # Buttons positioned relative to the new dynamic bottom
+    button_y = dialog_y + dialog_height - BUTTON_HEIGHT - padding
+    total_button_width = 3 * BUTTON_WIDTH + 2 * BUTTON_GAP
+    button_start_x = dialog_x + (dialog_width - total_button_width) // 2
+
+    play_again_rect = pygame.Rect(button_start_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    main_menu_rect = pygame.Rect(button_start_x + BUTTON_WIDTH + BUTTON_GAP, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    quit_rect = pygame.Rect(button_start_x + 2 * (BUTTON_WIDTH + BUTTON_GAP), button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    # Draw buttons
+    pygame.draw.rect(screen, BUTTON_COLOR, play_again_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, main_menu_rect)
+    pygame.draw.rect(screen, BUTTON_COLOR, quit_rect)
+
+    play_again_text = button_font.render("Play Again", True, BLACK)
+    main_menu_text = button_font.render("Main Menu", True, BLACK)
+    quit_text = button_font.render("Quit", True, BLACK)
+
+    screen.blit(play_again_text, play_again_text.get_rect(center=play_again_rect.center))
+    screen.blit(main_menu_text, main_menu_text.get_rect(center=main_menu_rect.center))
+    screen.blit(quit_text, quit_text.get_rect(center=quit_rect.center))
+
     return play_again_rect, main_menu_rect, quit_rect
+
+
 
 # End of Part 3
 
