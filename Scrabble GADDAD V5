@@ -2229,9 +2229,6 @@ def play_hint_move(move, tiles, racks, blanks, scores, turn, bag, board):
 # --- AI Strategy Helper Functions ---
 
 # Define constants for leave evaluation heuristics (tunable)
-#GOOD_LEAVE_BONUS = {' ': 25, 'S': 8, 'Z': -8,'E': 1, 'A': 1, 'R': 2, 'T': 1, 'I': 1, 'N': 2, 'L': 2} # Bonus points for keeping these
-#BAD_LEAVE_PENALTY = {'Q': -10, 'J': -8, 'X': -8, 'V': -5, 'W': -5, 'K': -4, 'F': -3, 'H': -3, 'Y': -3, 'C': -4, 'U': -3, 'B':-4, 'G':-4, 'M':-4, 'P':-4, 'D':-3} # Penalty points for keeping these
-
 GOOD_LEAVE_BONUS = {' ': 25.6, 'S': 8, 'Z': 5.1, 'X': 3.3, 'E': .3, 'A': .6, 'R': 1.1, 'N': .2,'H': 1.1, 'C': .9, 'M': .6, 'D': .5}
 BAD_LEAVE_PENALTY = {'T': -.1, 'I': -2.1, 'L': -.2, 'Q': -6.8, 'J': -1.5, 'V': -5.5, 'W': -3.8, 'K': -.5, 'F': -2.2, 'Y': -.6, 'U': -5.1, 'B': -2, 'G': -2.9, 'P': -.5, 'O': -2.5}
 
@@ -2241,64 +2238,95 @@ IDEAL_VOWEL_COUNT_MAX = 4
 BALANCE_PENALTY_FACTOR = -3 # Penalty per vowel count away from ideal range
 DUPLICATE_PENALTY = -5    # Penalty for each tile beyond the second duplicate (except S, E)
 
-def evaluate_leave(rack):
+
+
+
+
+def evaluate_leave(rack, verbose=False): # Added verbose parameter
     """
     Calculates a score adjustment based on the quality of the tiles left on the rack.
-    Higher scores are better leaves.
+    Higher scores are better leaves. Prints breakdown if verbose=True.
 
     Args:
         rack (list): A list of characters representing the tiles left.
+        verbose (bool): If True, print detailed calculation steps.
 
     Returns:
         int: A score adjustment (positive or negative).
     """
     if not rack:
-        return 0 # No tiles left is good, but no bonus/penalty here
+        return 0
 
     leave_score = 0
+    rack_str = "".join(sorted(rack)) # For consistent print output if verbose
+    if verbose: print(f"--- Evaluating Leave (Verbose): '{rack_str}' ---")
+
     rack_counts = Counter(rack)
     vowel_count = 0
-
     has_q = 'Q' in rack_counts
     has_u = 'U' in rack_counts
 
+    # 1. Good/Bad Letter Bonuses/Penalties
+    if verbose: print("  Letter Values:")
+    current_letter_score = 0
     for tile, count in rack_counts.items():
-        # Count vowels
-        if tile in VOWELS:
-            vowel_count += count
-
-        # Apply good/bad letter bonuses/penalties
-        leave_score += GOOD_LEAVE_BONUS.get(tile, 0) * count
-        # Special penalty for Q without U
+        good_bonus = GOOD_LEAVE_BONUS.get(tile, 0) * count
+        bad_penalty = 0
         if tile == 'Q' and not has_u:
-            leave_score += BAD_LEAVE_PENALTY.get('Q', -10) * count # Heavy penalty
-        elif tile != 'Q': # Apply normal penalty if not Q
-             leave_score += BAD_LEAVE_PENALTY.get(tile, 0) * count
+            q_penalty = BAD_LEAVE_PENALTY.get('Q', -10)
+            bad_penalty = q_penalty * count
+            if verbose: print(f"    - Tile '{tile}' (x{count}): Q without U penalty = {bad_penalty}")
+        elif tile != 'Q':
+             penalty = BAD_LEAVE_PENALTY.get(tile, 0)
+             bad_penalty = penalty * count
+             if verbose and penalty != 0: print(f"    - Tile '{tile}' (x{count}): Bad letter penalty = {bad_penalty}")
 
-        # Apply duplicate penalty (more than 2 of the same letter, except maybe S, E)
-        if count > 2 and tile not in ('S', 'E', ' '): # Allow multiple S, E, Blanks
-            leave_score += DUPLICATE_PENALTY * (count - 2)
-        elif count > 3 and tile in ('S', 'E'): # Penalize even S, E if excessive
-             leave_score += DUPLICATE_PENALTY * (count - 3)
+        if verbose and good_bonus != 0: print(f"    - Tile '{tile}' (x{count}): Good letter bonus = {good_bonus}")
+        current_letter_score += good_bonus + bad_penalty
+        if tile in VOWELS: vowel_count += count
+    if verbose: print(f"    Subtotal (Letters): {current_letter_score}")
+    leave_score += current_letter_score
 
+    # 2. Duplicate Penalties
+    if verbose: print("  Duplicate Penalties:")
+    current_duplicate_penalty = 0
+    for tile, count in rack_counts.items():
+        penalty = 0
+        if count > 2 and tile not in ('S', 'E', ' '):
+            penalty = DUPLICATE_PENALTY * (count - 2)
+            if verbose: print(f"    - Tile '{tile}' (x{count}): Penalty for >2 duplicates = {penalty}")
+        elif count > 3 and tile in ('S', 'E'):
+             penalty = DUPLICATE_PENALTY * (count - 3)
+             if verbose: print(f"    - Tile '{tile}' (x{count}): Penalty for >3 S/E = {penalty}")
+        current_duplicate_penalty += penalty
+    if verbose: print(f"    Subtotal (Duplicates): {current_duplicate_penalty}")
+    leave_score += current_duplicate_penalty
 
-    # Apply vowel/consonant balance penalty
+    # 3. Vowel/Consonant Balance Penalty
+    if verbose: print("  V/C Balance:")
+    current_balance_penalty = 0
     num_tiles = len(rack)
-    # Adjust ideal counts slightly based on rack size (simple heuristic)
     ideal_min = IDEAL_VOWEL_COUNT_MIN + (num_tiles - 7) // 2
     ideal_max = IDEAL_VOWEL_COUNT_MAX + (num_tiles - 7) // 2
-    ideal_min = max(1, ideal_min) # Ensure at least 1 is okay
-    ideal_max = max(1, ideal_max) # Ensure max is at least 1
+    ideal_min = max(1, ideal_min); ideal_max = max(ideal_min, ideal_max)
 
+    if verbose: print(f"    Tiles: {num_tiles}, Vowels: {vowel_count}, Ideal Range: [{ideal_min}-{ideal_max}]")
     if not (ideal_min <= vowel_count <= ideal_max):
         deviation = 0
         if vowel_count < ideal_min:
             deviation = ideal_min - vowel_count
+            if verbose: print(f"    Too few vowels (deviation {deviation})")
         else: # vowel_count > ideal_max
             deviation = vowel_count - ideal_max
-        leave_score += BALANCE_PENALTY_FACTOR * deviation
+            if verbose: print(f"    Too many vowels (deviation {deviation})")
+        current_balance_penalty = BALANCE_PENALTY_FACTOR * deviation
+        if verbose: print(f"    Penalty Applied: {current_balance_penalty}")
+    elif verbose: print("    Balance OK.")
+    if verbose: print(f"    Subtotal (Balance): {current_balance_penalty}")
+    leave_score += current_balance_penalty
 
-    return int(leave_score) # Return integer score adjustment
+    if verbose: print(f"--- Final Leave Adjustment for '{rack_str}': {int(leave_score)} ---")
+    return int(leave_score)
 
 
 def evaluate_single_move(move_dict, leave_evaluation_func):
@@ -2332,10 +2360,9 @@ def evaluate_single_move(move_dict, leave_evaluation_func):
 
 
 
-
 def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
     """Handles the AI's turn, selecting moves based on score and leave evaluation."""
-    global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords # Added last_played_highlight_coords to global
+    global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords
 
     # Skip AI turn entirely in 8-letter practice mode
     if practice_mode == "eight_letter":
@@ -2371,27 +2398,24 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     exchanged_tiles_for_history = []
     best_move_chosen = None
     best_evaluated_score = -float('inf')
-    top_raw_score_move = None # Track move with highest immediate score
+    top_raw_score_move = None
 
     if all_moves:
         print(f"AI {turn} evaluating {len(all_moves)} moves...")
-        # Evaluate each move based on score + leave
         current_top_raw_score = -float('inf')
         for move in all_moves:
-            evaluated_score = evaluate_single_move(move, evaluate_leave)
+            # Evaluate silently first to find the best
+            evaluated_score = evaluate_single_move(move, evaluate_leave) # Default verbose=False
             immediate_score = move.get('score', 0)
 
-            # Track best evaluated move
             if evaluated_score > best_evaluated_score:
                 best_evaluated_score = evaluated_score
                 best_move_chosen = move
-
-            # Track best raw score move
             if immediate_score > current_top_raw_score:
                  current_top_raw_score = immediate_score
                  top_raw_score_move = move
 
-        # --- ADDED: Debug Prints ---
+        # --- Debug Prints (Modified) ---
         print("-" * 20)
         print(f"AI {turn} Evaluation Complete:")
         if top_raw_score_move:
@@ -2401,17 +2425,18 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
         if best_move_chosen:
             chosen_score = best_move_chosen.get('score', 0)
-            chosen_leave_str = ''.join(sorted(best_move_chosen.get('leave', [])))
-            leave_adjust = evaluate_leave(best_move_chosen.get('leave', [])) # Recalculate for clarity
-            print(f"  Chosen Evaluated Move: '{best_move_chosen.get('word','N/A')}'")
-            print(f"    Raw Score: {chosen_score}")
-            print(f"    Leave Adj: {leave_adjust}")
-            print(f"    Total Eval: {best_evaluated_score:.2f}") # Use the stored best eval score
+            chosen_leave = best_move_chosen.get('leave', [])
+            chosen_leave_str = ''.join(sorted(chosen_leave))
+            # Call again with verbose=True ONLY for the chosen move's leave
+            print(f"  Chosen Evaluated Move: '{best_move_chosen.get('word','N/A')}' (Raw Score: {chosen_score})")
             print(f"    Leave Tiles: '{chosen_leave_str}'")
+            leave_adjust = evaluate_leave(chosen_leave, verbose=True) # Call with verbose=True
+            print(f"    --------------------") # Separator after verbose output
+            print(f"    Final Eval Score: {chosen_score + leave_adjust:.2f} (Raw: {chosen_score}, Leave Adj: {leave_adjust})")
         else:
             print("  Chosen Evaluated Move: None Found")
         print("-" * 20)
-        # --- END ADDED ---
+        # --- END Debug Prints ---
 
     # --- Decide Action ---
     if not racks[turn-1] and not bag: # Out of tiles - must pass
@@ -2448,6 +2473,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     # Return updated state
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
+
 
 
 def power_tile_practice():
