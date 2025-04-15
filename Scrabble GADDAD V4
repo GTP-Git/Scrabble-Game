@@ -187,25 +187,7 @@ def save_game_to_gcg(player_names, move_history, initial_racks, final_scores):
 
     return '\n'.join(gcg_lines)
 
-# Function to Modify: load_game_from_gcg
-# REASON: Added specific try...except blocks around parsing steps
-#         to provide more detailed error messages if loading fails.
 
-# Function to Modify: load_game_from_gcg
-# REASON: Changed line.split() method and adjusted part indices
-#         to correctly parse standard GCG move lines.
-
-# Function to Modify: load_game_from_gcg
-# REASON: Implement more robust parsing to handle player names with spaces
-#         and correctly identify score/cumulative score from the end.
-
-# Function to Modify: load_game_from_gcg
-# REASON: Implement more robust parsing to handle player names with spaces
-#         and correctly identify score/cumulative score from the end.
-
-# Function to Modify: load_game_from_gcg
-# REASON: Implement more robust parsing by identifying components
-#         from the end of the line first, handling player names with spaces.
 
 def load_game_from_gcg(filename):
     """Load a game from a GCG file, returning data to enter replay mode."""
@@ -855,33 +837,9 @@ def eight_letter_practice():
 
 
 
-# Function to Modify: mode_selection_screen
-# REASON: Added "Load Game" button, file dialog logic using tkinter,
-#         and modified return values to signal successful load.
 
-# Function to Modify: mode_selection_screen
-# REASON: Replaced tkinter file dialog with an in-Pygame text input
-#         field to avoid toolkit conflicts and crashes.
 
-# --- Need Imports for this function ---
-import pygame
-import sys
-# import tkinter as tk             # REMOVED for file dialog
-# from tkinter import filedialog   # REMOVED for file dialog
 
-# (Make sure other necessary imports like MODE_ constants are available)
-
-# Function to Modify: mode_selection_screen
-# REASON: Moved calculation of load input rects before event handling
-#         to ensure they are defined before being potentially used.
-
-# --- Need Imports for this function ---
-import pygame
-import sys
-# import tkinter as tk             # REMOVED for file dialog
-# from tkinter import filedialog   # REMOVED for file dialog
-
-# (Make sure other necessary imports like MODE_ constants are available)
 
 def mode_selection_screen():
     """Display and handle the game mode selection screen, including Load Game via text input."""
@@ -900,12 +858,8 @@ def mode_selection_screen():
     loaded_game_data = None
 
     # State for Load Game Text Input
-    showing_load_input = False
-    load_filename_input = ""
-    load_input_active = False
-    load_confirm_button_rect = None
-    load_input_rect = None
-    load_cancel_button_rect = None
+    showing_load_input = False; load_filename_input = ""; load_input_active = False
+    load_confirm_button_rect = None; load_input_rect = None; load_cancel_button_rect = None
 
     print("--- mode_selection_screen(): Entering main loop (while selected_mode is None:)... ---")
     loop_count = 0
@@ -920,20 +874,23 @@ def mode_selection_screen():
         name_rect_x = content_left + (content_width - 200) // 2
         p2_y_pos = 300 + 60
 
-        # Button Positions (Mode buttons drawn later)
+        # Button Positions
         play_later_rect = pygame.Rect(WINDOW_WIDTH - BUTTON_WIDTH - 10, WINDOW_HEIGHT - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
         load_game_button_rect = pygame.Rect(play_later_rect.left - BUTTON_GAP - BUTTON_WIDTH, play_later_rect.top, BUTTON_WIDTH, BUTTON_HEIGHT)
 
-        # --- MOVED RECT CALCULATION ---
-        # Calculate Load Input Field/Button Positions unconditionally,
-        # they will only be used for drawing/collision if showing_load_input is True.
-        load_input_width = 300
-        load_input_x = load_game_button_rect.left # Align with Load Game button
-        load_input_y = load_game_button_rect.top - BUTTON_GAP - BUTTON_HEIGHT # Position above Load Game button
+        # Calculate Load Input Field/Button Positions unconditionally
+        load_input_width = 300; load_input_x = load_game_button_rect.left; load_input_y = load_game_button_rect.top - BUTTON_GAP - BUTTON_HEIGHT
         load_input_rect = pygame.Rect(load_input_x, load_input_y, load_input_width, BUTTON_HEIGHT)
         load_confirm_button_rect = pygame.Rect(load_input_x + load_input_width + BUTTON_GAP, load_input_y, BUTTON_WIDTH, BUTTON_HEIGHT)
         load_cancel_button_rect = pygame.Rect(load_confirm_button_rect.right + BUTTON_GAP, load_input_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-        # --- END MOVED RECT CALCULATION ---
+
+        # --- MOVED: Calculate HVA button rects unconditionally ---
+        hva_button_row_y = p2_y_pos + BUTTON_HEIGHT + 10
+        hva_buttons_total_width = (BUTTON_WIDTH * 2 + 20)
+        hva_buttons_start_x = content_left + (content_width - hva_buttons_total_width) // 2
+        p1_rect_hva = pygame.Rect(hva_buttons_start_x, hva_button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+        p2_rect_hva = pygame.Rect(hva_buttons_start_x + BUTTON_WIDTH + 20, hva_button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+        # --- END MOVED ---
 
         # Dropdown positioning
         if modes[current_input] == MODE_HVH and dropdown_open:
@@ -950,51 +907,34 @@ def mode_selection_screen():
             if showing_load_input:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = event.pos
-                    # Activate/Deactivate load input box
-                    # Use the pre-calculated load_input_rect
-                    if load_input_rect.collidepoint(x, y):
-                        load_input_active = True
-                    else:
-                        load_input_active = False
-
-                    # Check Load Confirm Button (use pre-calculated rect)
-                    if load_confirm_button_rect.collidepoint(x, y):
+                    if load_input_rect.collidepoint(x, y): load_input_active = True
+                    else: load_input_active = False
+                    if load_confirm_button_rect.collidepoint(x, y): # Load Confirm ...
                         filepath = load_filename_input.strip()
                         if filepath:
                              print(f"--- mode_selection_screen(): Attempting to load typed file: {filepath} ---")
                              try:
                                  loaded_p_names, loaded_hist, loaded_f_scores = load_game_from_gcg(filepath)
                                  print(f"--- mode_selection_screen(): GCG loaded successfully. Moves: {len(loaded_hist)} ---")
-                                 selected_mode = "LOADED_GAME"
-                                 loaded_game_data = (loaded_p_names, loaded_hist, loaded_f_scores)
-                                 showing_load_input = False; load_input_active = False
-                                 break
-                             except FileNotFoundError:
-                                 print(f"--- mode_selection_screen(): Error: File not found '{filepath}' ---"); show_message_dialog(f"Error: File not found:\n{filepath}", "Load Error"); load_input_active = True
-                             except Exception as e:
-                                 print(f"--- mode_selection_screen(): Error loading GCG file '{filepath}': {e} ---"); show_message_dialog(f"Error loading file:\n{e}", "Load Error"); load_input_active = True
+                                 selected_mode = "LOADED_GAME"; loaded_game_data = (loaded_p_names, loaded_hist, loaded_f_scores)
+                                 showing_load_input = False; load_input_active = False; break
+                             except FileNotFoundError: print(f"--- mode_selection_screen(): Error: File not found '{filepath}' ---"); show_message_dialog(f"Error: File not found:\n{filepath}", "Load Error"); load_input_active = True
+                             except Exception as e: print(f"--- mode_selection_screen(): Error loading GCG file '{filepath}': {e} ---"); show_message_dialog(f"Error loading file:\n{e}", "Load Error"); load_input_active = True
                         else: show_message_dialog("Please enter a filename.", "Load Error"); load_input_active = True
-
-                    # Check Load Cancel Button (use pre-calculated rect)
-                    elif load_cancel_button_rect.collidepoint(x,y):
+                    elif load_cancel_button_rect.collidepoint(x,y): # Load Cancel ...
                          showing_load_input = False; load_input_active = False; load_filename_input = ""
-
-                    # Deactivate name input if clicking elsewhere while load input showing
-                    if not load_input_rect.collidepoint(x,y): input_active = [False, False]
-
-                elif event.type == pygame.KEYDOWN and load_input_active:
+                    if not load_input_rect.collidepoint(x,y): input_active = [False, False] # Deactivate name input too
+                elif event.type == pygame.KEYDOWN and load_input_active: # Load Input Typing ...
                     if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                          if load_confirm_button_rect: pygame.event.post(pygame.event.Event(pygame.MOUSEBUTTONDOWN, {'pos': load_confirm_button_rect.center, 'button': 1}))
                     elif event.key == pygame.K_BACKSPACE: load_filename_input = load_filename_input[:-1]
                     elif event.unicode.isprintable(): load_filename_input += event.unicode
-
-                continue # Skip rest of event handling if load input was active
+                continue # Skip rest of event handling
 
             # Handle other events if load input wasn't active
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = event.pos
                 if showing_power_tiles_dialog: # Power Tiles Dialog ...
-                    # (No changes needed here)
                     dialog_x = (WINDOW_WIDTH - 300) // 2; dialog_y = (WINDOW_HEIGHT - 250) // 2; letter_rects = [pygame.Rect(dialog_x + 20, dialog_y + 40 + i*30, 20, 20) for i in range(4)]; number_rects = [pygame.Rect(dialog_x + 150, dialog_y + 40 + i*30, 20, 20) for i in range(6)]
                     go_rect = pygame.Rect(dialog_x + 50, dialog_y + 220, 100, 30); cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 220, 100, 30)
                     for i, rect in enumerate(letter_rects):
@@ -1008,16 +948,17 @@ def mode_selection_screen():
                     mode_rects = []
                     for i, mode in enumerate(modes):
                         y_pos = 100 + i * 60; rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, y_pos, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT); mode_rects.append(rect)
-                    # Now check mode buttons
+                    # Check mode buttons
                     for i, rect in enumerate(mode_rects):
                         if rect.collidepoint(x, y):
                             current_input = i; dropdown_open = False
                             if i == 0: player_names = ["Player 1", "Player 2"]; input_active = [False, False]
-                            elif i == 1: player_names = ["Player 1", "AI"] if human_player == 1 else ["AI", "Player 2"]; input_active = [True, False] if human_player == 1 else [False, True]
+                            elif i == 1: player_names = ["Player 1", "AI"] if human_player == 1 else ["AI", "Player 2"]; input_active = [True, False] if human_player == 1 else [False, True] # Set initial HVA state
                             elif i == 2: player_names = ["AI 1", "AI 2"]; input_active = [False, False]
+                            # Select mode immediately ONLY for HVH and AVA
                             if modes[current_input] in [MODE_HVH, MODE_AVA]:
                                 selected_mode = modes[current_input]; print(f"--- mode_selection_screen(): Mode selected via click: {selected_mode} ---"); break
-                    if selected_mode: break
+                    if selected_mode: break # Exit if HVH or AVA selected
 
                     # Check Load Game Button
                     if load_game_button_rect.collidepoint(x, y):
@@ -1030,19 +971,24 @@ def mode_selection_screen():
                     clicked_name_input = False
                     p1_name_rect = pygame.Rect(name_rect_x, 300, 200, BUTTON_HEIGHT)
                     p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, 200, BUTTON_HEIGHT) if modes[current_input] == MODE_HVH else None
-                    if modes[current_input] == MODE_HVH:
+                    if modes[current_input] == MODE_HVH: # HVH Name Input ...
                         if p1_name_rect.collidepoint(x, y): input_active = [True, False]; clicked_name_input = True
                         elif p2_name_rect and p2_name_rect.collidepoint(x, y): input_active = [False, True]; clicked_name_input = True
-                    elif modes[current_input] == MODE_HVA:
+                    elif modes[current_input] == MODE_HVA: # HVA Name Input / Play As ...
+                        # Check name input click
                         if human_player == 1 and p1_name_rect.collidepoint(x, y): input_active = [True, False]; clicked_name_input = True
                         elif human_player == 2:
                             p2_name_rect_hva = pygame.Rect(name_rect_x, p2_y_pos, 200, BUTTON_HEIGHT)
                             if p2_name_rect_hva.collidepoint(x,y): input_active = [False, True]; clicked_name_input = True
-                    if modes[current_input] == MODE_HVA: # HVA Play As buttons
-                        button_row_y = p2_y_pos + BUTTON_HEIGHT + 10; p1_rect_hva = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT); p2_rect_hva = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2 + BUTTON_WIDTH + 20, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-                        if p1_rect_hva.collidepoint(x, y): human_player = 1; player_names = ["Player 1", "AI"]; input_active = [True, False]; selected_mode = MODE_HVA; print(f"--- mode_selection_screen(): Mode selected via click: {selected_mode} (Play as P1) ---"); break
-                        elif p2_rect_hva.collidepoint(x, y): human_player = 2; player_names = ["AI", "Player 2"]; input_active = [False, True]; selected_mode = MODE_HVA; print(f"--- mode_selection_screen(): Mode selected via click: {selected_mode} (Play as P2) ---"); break
-                    if modes[current_input] == MODE_HVH: # Practice Dropdown
+                        # --- Check HVA Play As buttons using pre-calculated rects ---
+                        if p1_rect_hva.collidepoint(x, y):
+                            human_player = 1; player_names = ["Player 1", "AI"]; input_active = [True, False]
+                            selected_mode = MODE_HVA; print(f"--- mode_selection_screen(): Mode selected via click: {selected_mode} (Play as P1) ---"); break
+                        elif p2_rect_hva.collidepoint(x, y):
+                            human_player = 2; player_names = ["AI", "Player 2"]; input_active = [False, True]
+                            selected_mode = MODE_HVA; print(f"--- mode_selection_screen(): Mode selected via click: {selected_mode} (Play as P2) ---"); break
+                        # --- End Check ---
+                    if modes[current_input] == MODE_HVH: # Practice Dropdown ...
                         dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30)
                         if dropdown_rect.collidepoint(x, y): dropdown_open = not dropdown_open
                         elif dropdown_open:
@@ -1064,6 +1010,7 @@ def mode_selection_screen():
                             if not clicked_option and not dropdown_rect.collidepoint(x,y): dropdown_open = False
                         elif not dropdown_rect.collidepoint(x,y): dropdown_open = False
                     if selected_mode: break
+                    # Deactivate name input if clicking elsewhere
                     dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_rect_check = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30) if modes[current_input] == MODE_HVH else None
                     if not clicked_name_input and not (dropdown_open and any(r.collidepoint(x,y) for r in option_rects)) and not p1_name_rect.collidepoint(x,y) and not (p2_name_rect and p2_name_rect.collidepoint(x,y)) and not (dropdown_rect_check and dropdown_rect_check.collidepoint(x,y)): input_active = [False, False]
 
@@ -1100,26 +1047,17 @@ def mode_selection_screen():
 
         # Draw Load Game Input Field (if active)
         if showing_load_input:
-             # Use the pre-calculated rects
-             pygame.draw.rect(screen, WHITE, load_input_rect)
-             pygame.draw.rect(screen, BLACK, load_input_rect, 1 if not load_input_active else 2)
-             input_surf = ui_font.render(load_filename_input, True, BLACK)
-             screen.blit(input_surf, (load_input_rect.x + 5, load_input_rect.y + 5))
+             pygame.draw.rect(screen, WHITE, load_input_rect); pygame.draw.rect(screen, BLACK, load_input_rect, 1 if not load_input_active else 2)
+             input_surf = ui_font.render(load_filename_input, True, BLACK); screen.blit(input_surf, (load_input_rect.x + 5, load_input_rect.y + 5))
              if load_input_active and int(time.time() * 2) % 2 == 0: # Blinking cursor
-                  cursor_x = load_input_rect.x + 5 + input_surf.get_width()
-                  cursor_y1 = load_input_rect.y + 5; cursor_y2 = load_input_rect.y + load_input_rect.height - 5
+                  cursor_x = load_input_rect.x + 5 + input_surf.get_width(); cursor_y1 = load_input_rect.y + 5; cursor_y2 = load_input_rect.y + load_input_rect.height - 5
                   pygame.draw.line(screen, BLACK, (cursor_x, cursor_y1), (cursor_x, cursor_y2), 1)
-             # Confirm Button
-             hover = load_confirm_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR
-             pygame.draw.rect(screen, color, load_confirm_button_rect)
-             text = button_font.render("Load File", True, BLACK); text_rect = text.get_rect(center=load_confirm_button_rect.center); screen.blit(text, text_rect)
-             # Cancel Button
-             hover = load_cancel_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR
-             pygame.draw.rect(screen, color, load_cancel_button_rect)
-             text = button_font.render("Cancel", True, BLACK); text_rect = text.get_rect(center=load_cancel_button_rect.center); screen.blit(text, text_rect)
+             hover = load_confirm_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR # Confirm Button
+             pygame.draw.rect(screen, color, load_confirm_button_rect); text = button_font.render("Load File", True, BLACK); text_rect = text.get_rect(center=load_confirm_button_rect.center); screen.blit(text, text_rect)
+             hover = load_cancel_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR # Cancel Button
+             pygame.draw.rect(screen, color, load_cancel_button_rect); text = button_font.render("Cancel", True, BLACK); text_rect = text.get_rect(center=load_cancel_button_rect.center); screen.blit(text, text_rect)
 
         # Name Input / Practice Dropdown / HVA Selection Drawing ...
-        # (No changes needed here)
         name_y_start = 300; name_rect_width = 200; p1_y_pos = name_y_start; p1_label_text = "Player 1 Name:"; p1_label = ui_font.render(p1_label_text, True, BLACK);
         p1_name_rect = pygame.Rect(name_rect_x, p1_y_pos, name_rect_width, BUTTON_HEIGHT) # Define for drawing
         p1_label_x = name_rect_x - p1_label.get_width() - 10; screen.blit(p1_label, (p1_label_x, p1_y_pos + 5)); p1_bg_color = LIGHT_BLUE if input_active[0] else (GRAY if modes[current_input] == MODE_AVA else WHITE); pygame.draw.rect(screen, p1_bg_color, p1_name_rect); pygame.draw.rect(screen, BLACK, p1_name_rect, 1)
@@ -1136,12 +1074,12 @@ def mode_selection_screen():
             p2_label_text = "AI Name:"; p2_label = ui_font.render(p2_label_text, True, BLACK); p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT) # Define for drawing
             p2_label_x = name_rect_x - p2_label.get_width() - 10; screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
             pygame.draw.rect(screen, GRAY, p2_name_rect); pygame.draw.rect(screen, BLACK, p2_name_rect, 1); p2_name_text = ui_font.render(player_names[1], True, BLACK); screen.blit(p2_name_text, (p2_name_rect.x + 5, p2_name_rect.y + 5))
-            button_row_y = p2_y_pos + BUTTON_HEIGHT + 10; p1_rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT); p2_rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2 + BUTTON_WIDTH + 20, button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-            p1_hover = p1_rect.collidepoint(pygame.mouse.get_pos()); p2_hover = p2_rect.collidepoint(pygame.mouse.get_pos()); pygame.draw.rect(screen, BUTTON_HOVER if p1_hover else BUTTON_COLOR, p1_rect);
-            if human_player == 1: pygame.draw.rect(screen, BLACK, p1_rect, 2)
-            pygame.draw.rect(screen, BUTTON_HOVER if p2_hover else BUTTON_COLOR, p2_rect);
-            if human_player == 2: pygame.draw.rect(screen, BLACK, p2_rect, 2)
-            p1_text = button_font.render("Play as P1", True, BLACK); p2_text = button_font.render("Play as P2", True, BLACK); p1_text_rect = p1_text.get_rect(center=p1_rect.center); p2_text_rect = p2_text.get_rect(center=p2_rect.center); screen.blit(p1_text, p1_text_rect); screen.blit(p2_text, p2_text_rect)
+            # Draw HVA Play As buttons using pre-calculated rects
+            p1_hover = p1_rect_hva.collidepoint(pygame.mouse.get_pos()); p2_hover = p2_rect_hva.collidepoint(pygame.mouse.get_pos()); pygame.draw.rect(screen, BUTTON_HOVER if p1_hover else BUTTON_COLOR, p1_rect_hva);
+            if human_player == 1: pygame.draw.rect(screen, BLACK, p1_rect_hva, 2)
+            pygame.draw.rect(screen, BUTTON_HOVER if p2_hover else BUTTON_COLOR, p2_rect_hva);
+            if human_player == 2: pygame.draw.rect(screen, BLACK, p2_rect_hva, 2)
+            p1_text = button_font.render("Play as P1", True, BLACK); p2_text = button_font.render("Play as P2", True, BLACK); p1_text_rect = p1_text.get_rect(center=p1_rect_hva.center); p2_text_rect = p2_text.get_rect(center=p2_rect_hva.center); screen.blit(p1_text, p1_text_rect); screen.blit(p2_text, p2_text_rect)
         elif modes[current_input] == MODE_AVA:
             p2_label_text = "AI 2 Name:"; p2_label = ui_font.render(p2_label_text, True, BLACK); p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT) # Define for drawing
             p2_label_x = name_rect_x - p2_label.get_width() - 10; screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
@@ -2449,13 +2387,13 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 
+
 # Function to Replace: main()
-# REASON: Re-adds human rack sorting after typed plays and exchanges.
-#         Also includes last-word highlighting.
+# REASON: Adds Score Preview checkbox and live score display during typing.
 
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
-    global is_loaded_game, replay_initial_shuffled_bag # For loaded game replay state
+    global is_loaded_game, replay_initial_shuffled_bag
 
     print("--- main() function entered ---")
 
@@ -2502,7 +2440,8 @@ def main():
                 print("Performing standard game initialization..."); board, _, tiles = create_board(); bag = create_standard_bag(); random.shuffle(bag); racks = [[], []]; scores = [0, 0]; turn = 1; blanks = set(); first_play = True
                 try: racks[0] = [bag.pop() for _ in range(7)]; racks[1] = [bag.pop() for _ in range(7)]
                 except IndexError: print("Error: Not enough tiles in bag."); pygame.quit(); sys.exit()
-                for rack in racks: rack.sort() # Sort initial racks
+                # NOTE: Using the version that sorts initial racks
+                for rack in racks: rack.sort()
                 is_ai = [False, False]
                 if game_mode == MODE_HVA: is_ai[2 - human_player] = True
                 elif game_mode == MODE_AVA: is_ai = [True, True]; print(f"--- main(): Performed standard game initialization. is_ai: {is_ai} ---")
@@ -2522,7 +2461,12 @@ def main():
         previous_turn = 0; game_over_state = False; showing_stats = False; dialog_x = (WINDOW_WIDTH - DIALOG_WIDTH) // 2; dialog_y = (WINDOW_HEIGHT - DIALOG_HEIGHT) // 2; dragging = False;
         if selected_mode_result != "LOADED_GAME": final_scores = None
         reason = ""; action = None; scoreboard_height = WINDOW_HEIGHT - 80; paused_for_power_tile = False; current_power_tile = None; power_tile_message_shown = False
-        last_played_highlight_coords = set() # Store coords of last play for highlighting
+        last_played_highlight_coords = set()
+        # --- ADDED: State for Score Preview ---
+        preview_score_enabled = False
+        current_preview_score = 0
+        preview_checkbox_rect = None # Will be calculated later
+        # ------------------------------------
         print("--- main(): Performed common variable resets. ---")
 
         # --- 8-Letter Practice Specific Initialization ---
@@ -2542,6 +2486,18 @@ def main():
     # --- Main Game Loop ---
     print("--- main(): Entering main game loop (while running:)... ---")
     while running:
+        # --- ADDED: Calculate Preview Score ---
+        current_preview_score = 0 # Reset each frame
+        if typing and preview_score_enabled and word_positions:
+            try:
+                # Directly calculate score based on current placement in 'tiles'/'blanks'
+                # This reflects the score if the current typed letters were the final play
+                current_preview_score = calculate_score(word_positions, board, tiles, blanks)
+            except Exception as e:
+                # print(f"DEBUG: Error during preview score calc: {e}") # Optional debug
+                current_preview_score = 0 # Show 0 on error
+        # --- END ADDED ---
+
         # Generate moves at start of turn
         if turn != previous_turn and not replay_mode and not game_over_state and not paused_for_power_tile and practice_mode != "eight_letter":
             if racks and len(racks) > turn-1 and racks[turn-1] is not None and GADDAG_STRUCTURE:
@@ -2671,9 +2627,7 @@ def main():
                                 clicked_in_dialog = True; move_rack = racks[turn-1][:]; tiles_to_exchange = [racks[turn-1][i] for i in sorted(selected_tiles, reverse=True)]
                                 temp_rack = [tile for i, tile in enumerate(racks[turn-1]) if i not in selected_tiles]; drawn_tiles = [bag.pop() for _ in range(len(tiles_to_exchange)) if bag]
                                 temp_rack.extend(drawn_tiles); racks[turn-1] = temp_rack
-                                # --- ADDED SORT ---
-                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
-                                # ------------------
+                                # NOTE: No automatic sort here
                                 bag.extend(tiles_to_exchange); random.shuffle(bag); consecutive_zero_point_turns += 1; print(f"Player {turn} exchanged {len(tiles_to_exchange)} tiles")
                                 exchanging = False; selected_tiles.clear(); human_played = True; exchange_count += 1; pass_count = 0; paused_for_power_tile = False
                                 move_history.append({'player': turn, 'move_type': 'exchange', 'rack': move_rack, 'exchanged_tiles': tiles_to_exchange, 'drawn': drawn_tiles, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'is_bingo': False, 'word_with_blanks': ''})
@@ -2761,6 +2715,10 @@ def main():
                                 hinting = True; selected_hint_index = 0 if hint_moves else None
                             if paused_for_power_tile and hint_rect and hint_rect.collidepoint(x, y): # Hint button (Paused) ...
                                  power_moves_hint = [m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[]))]; hint_moves = sorted(power_moves_hint, key=lambda m: m['score'], reverse=True)[:5]; hinting = True; selected_hint_index = 0 if hint_moves else None
+                            # --- ADDED: Handle Score Preview Checkbox Click ---
+                            if preview_checkbox_rect and preview_checkbox_rect.collidepoint(x, y):
+                                preview_score_enabled = not preview_score_enabled
+                            # --- END ADDED ---
                             current_player_idx = turn - 1 # Rack Buttons ...
                             if not is_ai[current_player_idx] or paused_for_power_tile:
                                  p1_alpha_rect, p1_rand_rect = None, None; p2_alpha_rect, p2_rand_rect = None, None
@@ -2921,22 +2879,25 @@ def main():
                             # --- Normal Play Finalization ---
                             if play_finalized_normally:
                                 scores[turn-1] += score; first_play = False; drawn_tiles = [bag.pop() for _ in range(len(word_positions)) if bag]; racks[turn-1].extend(drawn_tiles)
-                                # --- ADDED SORT ---
-                                if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
-                                # ------------------
+                                # NOTE: No automatic sort here
+                                # if not is_ai[turn-1]: racks[turn-1].sort()
+
                                 # Find the full word and its actual start position/direction
                                 full_word_tiles_hist, _ = find_main_word(word_positions, tiles)
                                 full_word_hist = "".join(t[2] for t in full_word_tiles_hist) if full_word_tiles_hist else "ERROR"
+
                                 # Calculate coord based on actual word start
                                 if full_word_tiles_hist:
                                     actual_start_pos = (full_word_tiles_hist[0][0], full_word_tiles_hist[0][1])
                                     actual_direction = "right" if len(set(r for r,c,l in full_word_tiles_hist)) == 1 else "down"
                                     coord_hist = get_coord(actual_start_pos, actual_direction)
                                 else: coord_hist = "???"; print("WARNING: Could not determine actual start pos for history coord.")
+
                                 # Format word_with_blanks based on full word
                                 word_with_blanks_list_hist = []; placed_pos_set_hist = set((p[0], p[1]) for p in word_positions); blanks_in_play = blanks.copy() & placed_pos_set_hist
                                 for wr, wc, w_letter in full_word_tiles_hist: is_blank_hist = (wr, wc) in blanks_in_play; word_with_blanks_list_hist.append(w_letter.lower() if is_blank_hist else w_letter.upper())
                                 word_with_blanks_hist = "".join(word_with_blanks_list_hist)
+
                                 # Append correct info to history
                                 move_history.append({
                                     'player': turn, 'move_type': 'place', 'rack': original_rack[:],
@@ -3064,6 +3025,16 @@ def main():
         if not replay_mode:
              suggest_rect = draw_suggest_button()
              if paused_for_power_tile and suggest_rect: hint_x = suggest_rect.x; hint_y = suggest_rect.y + suggest_rect.height + BUTTON_GAP; hint_rect = pygame.Rect(hint_x, hint_y, OPTIONS_WIDTH, OPTIONS_HEIGHT); hover = hint_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, hint_rect); hint_text = button_font.render("Hint", True, BLACK); hint_text_rect = hint_text.get_rect(center=hint_rect.center); screen.blit(hint_text, hint_text_rect)
+             # --- ADDED: Draw Score Preview Checkbox ---
+             if suggest_rect: # Ensure suggest_rect exists before positioning below it
+                 checkbox_x = suggest_rect.left
+                 checkbox_y = suggest_rect.bottom + BUTTON_GAP
+                 preview_checkbox_rect = pygame.Rect(checkbox_x, checkbox_y, 20, 20)
+                 draw_checkbox(screen, checkbox_x, checkbox_y, preview_score_enabled)
+                 label_surf = ui_font.render("Score Preview", True, BLACK)
+                 screen.blit(label_surf, (checkbox_x + 25, checkbox_y + (preview_checkbox_rect.height - label_surf.get_height()) // 2))
+             # --- END ADDED ---
+
         # Draw Scoreboard ...
         history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history; is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
         draw_scoreboard(screen, history_to_draw, scroll_offset, scores_to_display, is_ai, final_scores=final_scores, game_over_state=game_over_state or is_final_turn_in_replay)
@@ -3072,6 +3043,17 @@ def main():
         elif typing:
              if current_r is not None and current_c is not None: cursor_x = 40 + current_c * SQUARE_SIZE + SQUARE_SIZE // 2; cursor_y = 40 + current_r * SQUARE_SIZE + SQUARE_SIZE - 5;
              if int(time.time() * 2) % 2 == 0: pygame.draw.line(screen, BLACK, (cursor_x - 5, cursor_y), (cursor_x + 5, cursor_y), 2)
+             # --- ADDED: Draw Preview Score Text ---
+             if preview_score_enabled:
+                 preview_text = f"Preview: {current_preview_score}"
+                 preview_surf = ui_font.render(preview_text, True, BLACK)
+                 # Position it somewhere, e.g., above the current player's rack
+                 rack_y_preview = BOARD_SIZE + 80 if turn == 1 else BOARD_SIZE + 150
+                 preview_x = BOARD_SIZE - preview_surf.get_width() - 10 # Example: bottom right of board area
+                 preview_y = rack_y_preview - 30 # Example: Above the rack
+                 screen.blit(preview_surf, (preview_x, preview_y))
+             # --- END ADDED ---
+
         # Draw Dialogs ...
         if exchanging: tile_rects, exchange_button_rect, cancel_button_rect = draw_exchange_dialog(racks[turn-1], selected_tiles)
         elif hinting: hint_rects, play_button_rect, ok_button_rect, all_words_button_rect = draw_hint_dialog(hint_moves, selected_hint_index)
