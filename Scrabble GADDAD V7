@@ -930,6 +930,8 @@ def is_word_length_allowed(word_len, number_checks):
 
 
 
+
+# --- MODIFIED Mode Selection Screen ---
 def mode_selection_screen():
     """Display and handle the game mode selection screen, including Load Game via text input."""
     print("--- mode_selection_screen() entered ---")
@@ -944,11 +946,12 @@ def mode_selection_screen():
 
     modes = [MODE_HVH, MODE_HVA, MODE_AVA]; selected_mode = None; player_names = ["Player 1", "Player 2"]; human_player = 1; input_active = [False, False]; current_input = 0
     practice_mode = None; dropdown_open = False; showing_power_tiles_dialog = False
-    # Initialize checks with default values (e.g., all true initially)
     letter_checks = [True, True, True, True] # J, Q, X, Z
     number_checks = [True, True, True, True, True, True] # 2, 3, 4, 5, 6, 7+
     practice_state = None
     loaded_game_data = None
+    # --- MODIFICATION: Add state for endgame solver checkbox ---
+    use_endgame_solver_checked = True # Default to using the solver
 
     # State for Load Game Text Input
     showing_load_input = False; load_filename_input = ""; load_input_active = False
@@ -977,20 +980,27 @@ def mode_selection_screen():
         load_confirm_button_rect = pygame.Rect(load_input_x + load_input_width + BUTTON_GAP, load_input_y, BUTTON_WIDTH, BUTTON_HEIGHT)
         load_cancel_button_rect = pygame.Rect(load_confirm_button_rect.right + BUTTON_GAP, load_input_y, BUTTON_WIDTH, BUTTON_HEIGHT)
 
-        # --- MOVED: Calculate HVA button rects unconditionally ---
+        # Calculate HVA button rects unconditionally
         hva_button_row_y = p2_y_pos + BUTTON_HEIGHT + 10
         hva_buttons_total_width = (BUTTON_WIDTH * 2 + 20)
         hva_buttons_start_x = content_left + (content_width - hva_buttons_total_width) // 2
         p1_rect_hva = pygame.Rect(hva_buttons_start_x, hva_button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
         p2_rect_hva = pygame.Rect(hva_buttons_start_x + BUTTON_WIDTH + 20, hva_button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-        # --- END MOVED ---
 
         # Dropdown positioning
         if modes[current_input] == MODE_HVH and dropdown_open:
             dropdown_x = name_rect_x; dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_y = dropdown_button_y + 30
-            # --- MODIFICATION: Add "Only Fives" to options ---
             options = ["Power Tiles", "8-Letter Bingos", "Only Fives", "End Game"]
             for i, option in enumerate(options): option_rect = pygame.Rect(dropdown_x, dropdown_y + 30 * i, 200, 30); option_rects.append(option_rect)
+
+        # --- MODIFICATION: Calculate Endgame Solver Checkbox Position ---
+        # Position it below the mode buttons
+        last_mode_button_y = 100 + (len(modes) - 1) * 60 + BUTTON_HEIGHT
+        endgame_checkbox_x = content_left + (content_width - 250) // 2 # Approx center alignment
+        endgame_checkbox_y = last_mode_button_y + 20
+        endgame_checkbox_rect = pygame.Rect(endgame_checkbox_x, endgame_checkbox_y, 20, 20)
+        endgame_label_x = endgame_checkbox_x + 25
+        endgame_label_y = endgame_checkbox_y + 2
 
 
         # --- Event Handling ---
@@ -999,6 +1009,7 @@ def mode_selection_screen():
 
             # Handle Load Game Input FIRST if active
             if showing_load_input:
+                # [ ... Load game input handling ... ]
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = event.pos
                     if load_input_rect.collidepoint(x, y): load_input_active = True
@@ -1029,6 +1040,7 @@ def mode_selection_screen():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = event.pos
                 if showing_power_tiles_dialog: # Power Tiles Dialog ...
+                    # [ ... Power tiles dialog handling ... ]
                     dialog_x = (WINDOW_WIDTH - 300) // 2; dialog_y = (WINDOW_HEIGHT - 250) // 2; letter_rects = [pygame.Rect(dialog_x + 20, dialog_y + 40 + i*30, 20, 20) for i in range(4)]; number_rects = [pygame.Rect(dialog_x + 150, dialog_y + 40 + i*30, 20, 20) for i in range(6)]
                     go_rect = pygame.Rect(dialog_x + 50, dialog_y + 220, 100, 30); cancel_rect = pygame.Rect(dialog_x + 160, dialog_y + 220, 100, 30)
                     for i, rect in enumerate(letter_rects):
@@ -1059,6 +1071,11 @@ def mode_selection_screen():
                             if modes[current_input] in [MODE_HVH, MODE_AVA]:
                                 selected_mode = modes[current_input]; print(f"--- mode_selection_screen(): Mode selected via click: {selected_mode} ---"); break
                     if selected_mode: break # Exit if HVH or AVA selected
+
+                    # --- MODIFICATION: Handle Endgame Solver Checkbox Click ---
+                    if endgame_checkbox_rect.collidepoint(x, y):
+                        use_endgame_solver_checked = not use_endgame_solver_checked
+                    # --- END MODIFICATION ---
 
                     # Check Load Game Button
                     if load_game_button_rect.collidepoint(x, y):
@@ -1093,7 +1110,6 @@ def mode_selection_screen():
                         if dropdown_rect.collidepoint(x, y): dropdown_open = not dropdown_open
                         elif dropdown_open:
                             clicked_option = False
-                            # Use the updated options list here
                             current_options = ["Power Tiles", "8-Letter Bingos", "Only Fives", "End Game"]
                             for i, option_rect in enumerate(option_rects):
                                 if option_rect.collidepoint(x, y):
@@ -1110,7 +1126,6 @@ def mode_selection_screen():
                                             practice_state = {"board": p_board, "tiles": p_tiles, "racks": p_racks, "blanks": p_blanks, "bag": p_bag, "first_play": False, "scores": [0, 0], "turn": 1}
                                             print(f"--- mode_selection_screen(): 8-Letter practice setup successful. Selected mode: {selected_mode} ---"); break
                                         else: print("--- mode_selection_screen(): 8-Letter practice setup cancelled or failed. ---")
-                                    # --- MODIFICATION: Handle "Only Fives" ---
                                     elif selected_practice_option == "Only Fives":
                                         print("--- mode_selection_screen(): Only Fives practice selected. ---")
                                         practice_mode = "only_fives"
@@ -1119,7 +1134,6 @@ def mode_selection_screen():
                                         player_names = ["Player 1", "AI"] # Set names accordingly
                                         practice_state = None # Start a standard new game setup
                                         print(f"--- mode_selection_screen(): Only Fives setup successful. Selected mode: {selected_mode} ---"); break
-                                    # --- END MODIFICATION ---
                                     elif selected_practice_option == "End Game":
                                         print("End Game practice selected - Not implemented yet")
                                     break # Exit options loop
@@ -1128,7 +1142,9 @@ def mode_selection_screen():
                     if selected_mode: break
                     # Deactivate name input if clicking elsewhere
                     dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_rect_check = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30) if modes[current_input] == MODE_HVH else None
-                    if not clicked_name_input and not (dropdown_open and any(r.collidepoint(x,y) for r in option_rects)) and not p1_name_rect.collidepoint(x,y) and not (p2_name_rect and p2_name_rect.collidepoint(x,y)) and not (dropdown_rect_check and dropdown_rect_check.collidepoint(x,y)): input_active = [False, False]
+                    # --- MODIFICATION: Also check endgame checkbox click ---
+                    if not clicked_name_input and not (dropdown_open and any(r.collidepoint(x,y) for r in option_rects)) and not p1_name_rect.collidepoint(x,y) and not (p2_name_rect and p2_name_rect.collidepoint(x,y)) and not (dropdown_rect_check and dropdown_rect_check.collidepoint(x,y)) and not endgame_checkbox_rect.collidepoint(x, y):
+                        input_active = [False, False]
 
             elif event.type == pygame.KEYDOWN: # Keyboard Input (Names only now)
                 if not showing_load_input: # Only handle name input if load input isn't showing
@@ -1152,6 +1168,12 @@ def mode_selection_screen():
             color = BUTTON_HOVER if i == current_input or hover else BUTTON_COLOR; pygame.draw.rect(screen, color, rect)
             if i == current_input: pygame.draw.rect(screen, BLACK, rect, 2)
             text = button_font.render(mode, True, BLACK); text_rect = text.get_rect(center=rect.center); screen.blit(text, text_rect); mode_rects.append(rect)
+
+        # --- MODIFICATION: Draw Endgame Solver Checkbox ---
+        draw_checkbox(screen, endgame_checkbox_rect.x, endgame_checkbox_rect.y, use_endgame_solver_checked)
+        endgame_label_surf = ui_font.render("Use AI Endgame Solver", True, BLACK)
+        screen.blit(endgame_label_surf, (endgame_label_x, endgame_label_y))
+        # --- END MODIFICATION ---
 
         # Draw Play Later Button ...
         hover = play_later_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, play_later_rect)
@@ -1185,7 +1207,6 @@ def mode_selection_screen():
             dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10; dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30); hover = dropdown_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, dropdown_rect)
             text = button_font.render("Practice", True, BLACK); text_rect = text.get_rect(center=dropdown_rect.center); screen.blit(text, text_rect)
             if dropdown_open:
-                # Use the updated options list for drawing
                 current_options = ["Power Tiles", "8-Letter Bingos", "Only Fives", "End Game"]
                 for i, option_rect in enumerate(option_rects):
                      hover = option_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else DROPDOWN_COLOR; pygame.draw.rect(screen, color, option_rect);
@@ -1228,8 +1249,8 @@ def mode_selection_screen():
     if selected_mode == "LOADED_GAME":
         return selected_mode, loaded_game_data
     else:
-        # Return number_checks as well
-        return selected_mode, (player_names, human_player, practice_mode, letter_checks, number_checks, practice_state)
+        # --- MODIFICATION: Return use_endgame_solver_checked ---
+        return selected_mode, (player_names, human_player, practice_mode, letter_checks, number_checks, use_endgame_solver_checked, practice_state)
 
 
 
@@ -3001,45 +3022,75 @@ def format_move_for_debug(move, rack_before):
     else:
         return "[INVALID MOVE]"
 
+
+
+
+# --- NEW Heuristic Evaluation Function ---
+def evaluate_endgame_heuristic(rack_player, rack_opponent, current_score_diff):
+    """
+    Estimates the final score difference at a search depth limit.
+    A simple heuristic: assumes the game ends now and calculates score diff.
+    More complex heuristics could consider tile values left, etc.
+    """
+    # For now, use the same logic as the terminal calculation.
+    # This assumes the player whose turn it is *might* go out or deductions happen.
+    # It's not perfect but provides a baseline evaluation.
+    return calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
+
+
+
+# --- MODIFIED Endgame Solver Function (with Depth Limit & Heuristic) ---
 def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
                     current_score_diff, alpha, beta, depth, pass_count,
-                    max_depth=14): # Max depth based on max tiles
+                    max_depth, search_depth_limit): # Added search_depth_limit
     """
-    Negamax solver for the endgame (empty bag).
+    Negamax solver for the endgame (empty bag) with depth limit.
     Returns (best_score_diff_for_player, best_move_sequence).
     Score difference is from the perspective of the player whose turn it is.
     """
-    # --- Base Cases: Game Over ---
-    if not rack_player or not rack_opponent or pass_count >= 6 or depth >= max_depth:
+    # --- Debug Print: Function Entry ---
+    if depth < 4: # Limit debug print depth
+        print(f"{'  ' * depth}DEBUG Depth {depth}: Enter Negamax. PlayerRack={''.join(sorted(rack_player))}, OppRack={''.join(sorted(rack_opponent))}, ScoreDiff={current_score_diff:.1f}, Alpha={alpha:.1f}, Beta={beta:.1f}, PassCount={pass_count}")
+
+    # --- Base Cases: Game Over OR Depth Limit Reached ---
+    # MODIFICATION: Check depth limit first
+    if depth >= search_depth_limit:
+        heuristic_score = evaluate_endgame_heuristic(rack_player, rack_opponent, current_score_diff)
+        if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Depth Limit Reached. HeuristicScore={heuristic_score:.1f}")
+        return heuristic_score, [] # Return heuristic score and empty sequence
+
+    if not rack_player or not rack_opponent or pass_count >= 6:
         final_diff = calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
-        return final_diff, [] # Return score diff and empty move sequence
+        if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Terminal Node. FinalDiff={final_diff:.1f}")
+        return final_diff, []
 
     # --- Generate Moves ---
     possible_moves = generate_all_moves_gaddag(rack_player, tiles, board, blanks, GADDAG_STRUCTURE.root)
     if possible_moves is None: possible_moves = []
 
     # --- Include Pass as an option ---
-    can_pass = True # Assume pass is possible initially
+    can_pass = True
 
     # --- Evaluate Moves ---
     best_value = -float('inf')
     best_sequence = None
 
-    # Heuristic: Evaluate playout moves first if they exist
+    # Heuristic move ordering
     playout_moves = [m for m in possible_moves if len(m.get('leave', rack_player)) == 0]
     other_moves = [m for m in possible_moves if len(m.get('leave', rack_player)) > 0]
-    other_moves.sort(key=lambda m: m.get('score', 0), reverse=True) # Simple score sort
+    other_moves.sort(key=lambda m: m.get('score', 0), reverse=True)
 
     ordered_moves = playout_moves + other_moves
     if can_pass:
-        ordered_moves.append("PASS") # Add PASS marker
+        ordered_moves.append("PASS")
 
     if not ordered_moves: # No plays and cannot pass
         final_diff = calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
+        if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: No moves possible. Terminal. FinalDiff={final_diff:.1f}")
         return final_diff, []
 
     # --- Iterate Through Moves ---
-    for move in ordered_moves:
+    for move_index, move in enumerate(ordered_moves):
         # Create copies for simulation
         sim_tiles = copy.deepcopy(tiles)
         sim_blanks = blanks.copy()
@@ -3047,65 +3098,87 @@ def negamax_endgame(rack_player, rack_opponent, tiles, blanks, board,
         sim_rack_opponent = rack_opponent[:]
         sim_score_diff = current_score_diff
         sim_pass_count = pass_count
-        move_details_for_debug = move # Store original dict or "PASS"
+        current_move_details = move
+
+        # --- Debug Print: Trying a Move ---
+        if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Trying move {move_index+1}/{len(ordered_moves)}: {format_move_for_debug(move, rack_player)}")
 
         if move == "PASS":
             sim_pass_count += 1
+            # Recursive call for opponent's turn, passing depth limit
             value, subsequent_sequence = negamax_endgame(
                 sim_rack_opponent, sim_rack_player, sim_tiles, sim_blanks, board,
-                -sim_score_diff, -beta, -alpha, depth + 1, sim_pass_count, max_depth
+                -sim_score_diff, -beta, -alpha, depth + 1, sim_pass_count, max_depth, search_depth_limit
             )
             value = -value # Flip score back
         else: # It's a play move (dictionary)
-            sim_pass_count = 0 # Reset pass count
+            sim_pass_count = 0
             newly_placed_details = move.get('newly_placed', [])
             move_blanks = move.get('blanks', set())
             move_score = move.get('score', 0)
 
             # Simulate placing tiles and updating rack
             temp_rack = sim_rack_player[:]
+            valid_placement = True
             for r, c, letter in newly_placed_details:
                 if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
                     sim_tiles[r][c] = letter
                     if (r, c) in move_blanks:
                         sim_blanks.add((r, c))
                         if ' ' in temp_rack: temp_rack.remove(' ')
+                        else: valid_placement = False; break
                     else:
                         if letter in temp_rack: temp_rack.remove(letter)
-            sim_rack_player = temp_rack # Update player rack after placement
-            sim_score_diff += move_score # Update score diff for current player
+                        else: valid_placement = False; break
+                else: valid_placement = False; break
 
-            # Recursive call for opponent
+            if not valid_placement:
+                 if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Skipping move due to simulation error.")
+                 continue # Skip if simulation failed
+
+            sim_rack_player = temp_rack
+            sim_score_diff += move_score
+
+            # Recursive call for opponent, passing depth limit
             value, subsequent_sequence = negamax_endgame(
                 sim_rack_opponent, sim_rack_player, sim_tiles, sim_blanks, board,
-                -sim_score_diff, -beta, -alpha, depth + 1, sim_pass_count, max_depth
+                -sim_score_diff, -beta, -alpha, depth + 1, sim_pass_count, max_depth, search_depth_limit
             )
             value = -value # Flip score back
 
+        # --- Debug Print: Value Returned from Recursion ---
+        if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Move {format_move_for_debug(move, rack_player)} resulted in value {value:.1f}")
+
         # --- Update Best Sequence ---
         if value > best_value:
+            if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: New best value! {value:.1f} > {best_value:.1f}")
             best_value = value
-            best_sequence = [move_details_for_debug] + subsequent_sequence
-            # REMOVED intermediate debug print here
+            best_sequence = [current_move_details] + subsequent_sequence
 
         # --- Alpha-Beta Pruning ---
         alpha = max(alpha, value)
         if alpha >= beta:
+            if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Pruning (alpha={alpha:.1f} >= beta={beta:.1f})")
             break # Prune
 
     # If no moves were possible at all
     if best_sequence is None:
          final_diff = calculate_endgame_score_diff(rack_player, rack_opponent, current_score_diff)
+         if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: No valid sequence found from this node. Returning terminal diff {final_diff:.1f}")
          return final_diff, []
+
+    # --- Debug Print: Returning from Function ---
+    if depth < 4: print(f"{'  ' * depth}DEBUG Depth {depth}: Returning Best Value={best_value:.1f}, Seq Start={format_move_for_debug(best_sequence[0], rack_player) if best_sequence else 'None'}")
 
     return best_value, best_sequence
 
 
-# --- MODIFIED Endgame Solver Function (Prints only final chosen sequence) ---
+# --- MODIFIED Top-Level Solver Function (Passes Depth Limit) ---
 def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_score_diff):
     """
-    Top-level function to initiate the endgame solver.
-    Prints only the final chosen sequence.
+    Top-level function to initiate the endgame solver with a depth limit.
+    Calls negamax once and prints the single best sequence found.
+    Returns the best first move to make.
     """
     global is_solving_endgame, endgame_start_time
     print("--- Starting Endgame Solver ---")
@@ -3118,24 +3191,39 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
     rack_player_copy = rack_player[:]
     rack_opponent_copy = rack_opponent[:]
 
-    # Initial call to negamax
-    max_depth_search = len(rack_player_copy) + len(rack_opponent_copy)
+    # --- MODIFICATION: Define and pass search depth limit ---
+    # Adjust this value based on performance vs. strength trade-off
+    # 6 or 8 is often a reasonable starting point for endgames
+    search_depth_limit = 6
+    max_possible_depth = len(rack_player_copy) + len(rack_opponent_copy)
+    actual_search_depth = min(search_depth_limit, max_possible_depth) # Don't search deeper than possible
+    print(f"--- Endgame Search Depth Limit: {actual_search_depth} ---")
+    # --- END MODIFICATION ---
+
+
+    # Initial call to negamax, passing the depth limit
     best_score_diff, best_move_sequence = negamax_endgame(
         rack_player_copy, rack_opponent_copy, tiles_copy, blanks_copy, board,
-        current_score_diff, -float('inf'), float('inf'), 0, 0, max_depth_search
+        current_score_diff, -float('inf'), float('inf'), 0, 0,
+        max_possible_depth, actual_search_depth # Pass both max possible and actual limit
     )
+
 
     solve_duration = time.time() - endgame_start_time
     print(f"--- Endgame Solver Finished ({solve_duration:.2f}s) ---")
-    is_solving_endgame = False # Set flag back immediately after solving
+    is_solving_endgame = False # Reset flag
 
+    # Print the single best sequence found
     if best_move_sequence:
-        # --- MODIFICATION: Only print the final chosen sequence ---
-        print(f"Optimal Endgame Sequence Found (Final Score Diff: {best_score_diff:.0f}):")
+        # Use the score returned by the limited search (might be heuristic)
+        print(f"Best Endgame Sequence Found (Score: {best_score_diff:.0f} at depth {actual_search_depth}):")
         current_player_idx = 0 # 0 for initial player, 1 for opponent
         turn_num = 1
         temp_rack_p = rack_player[:] # Use copies for printing debug sequence
         temp_rack_o = rack_opponent[:]
+        # Only print the sequence up to the search depth limit if desired,
+        # or the full sequence returned (which might end with heuristic moves)
+        # For simplicity, print the whole sequence returned.
         for i, move in enumerate(best_move_sequence):
             player_indicator = "P1►" if current_player_idx == 0 else "P2►"
             rack_to_use = temp_rack_p if current_player_idx == 0 else temp_rack_o
@@ -3143,24 +3231,23 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
 
             # Simulate rack change for next debug line (approximate)
             if move != "PASS":
-                 leave = move.get('leave', [])
-                 if current_player_idx == 0: temp_rack_p = leave
-                 else: temp_rack_o = leave
+                 if isinstance(move, dict):
+                     # Estimate leave based on newly_placed count
+                     newly_placed_count = len(move.get('newly_placed', []))
+                     if current_player_idx == 0:
+                         temp_rack_p = temp_rack_p[newly_placed_count:]
+                     else:
+                         temp_rack_o = temp_rack_o[newly_placed_count:]
+                 else: # Pass move doesn't change rack
+                     pass
 
             current_player_idx = 1 - current_player_idx # Switch player
             if current_player_idx == 0: turn_num += 1 # Increment turn number after P2 moves
-        # --- END MODIFICATION ---
 
         return best_move_sequence[0] # Return only the first move to make
     else:
         print("Endgame Solver: No optimal sequence found (e.g., immediate game end).")
-        return None # Indicate no move found/needed
-
-
-
-
-
-# --- End AI Strategy Helper Functions ---
+        return "PASS" # Default to passing if no sequence found
 
 
 
@@ -3168,14 +3255,16 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
 
 
 
+# --- MODIFIED AI Turn Logic (Checks USE_ENDGAME_SOLVER flag) ---
 def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
     """
     Handles the AI's turn, selecting moves based on score and leave evaluation,
     incorporating the new exchange strategy, practice mode rules, and endgame solver.
-    Includes screen update before long endgame calculation.
+    Includes screen update before long endgame calculation and checks USE_ENDGAME_SOLVER.
     """
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords
     global is_solving_endgame # Access the global flag
+    global USE_ENDGAME_SOLVER # Access the setting
 
     player_idx = turn - 1
     opponent_idx = 1 - player_idx
@@ -3183,24 +3272,21 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     bag_count = len(bag)
     print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}, Practice: {practice_mode}") # Log sorted rack
 
-    # --- Endgame Solver Check ---
-    if bag_count == 0 and practice_mode != "eight_letter" and not is_solving_endgame:
-        print("AI: Bag empty, entering endgame solver...")
+    # --- MODIFICATION: Endgame Solver Check (with USE_ENDGAME_SOLVER flag) ---
+    if USE_ENDGAME_SOLVER and bag_count == 0 and practice_mode != "eight_letter" and not is_solving_endgame:
+        print("AI: Bag empty and solver enabled, entering endgame solver...")
         opponent_rack = racks[opponent_idx][:]
         current_score_diff = scores[player_idx] - scores[opponent_idx]
 
-        # --- MODIFICATION: Update screen to show indicator BEFORE solving ---
+        # --- Update screen to show indicator BEFORE solving ---
         is_solving_endgame = True # Set flag
         # Force redraw of the current screen state including the indicator
-        # (This assumes drawing functions can access necessary globals or are passed parameters)
         screen.fill(WHITE) # Clear screen
-        # Redraw necessary elements (board, racks, scoreboard, indicator)
         # Simplified redraw - adapt based on actual drawing dependencies
         for r in range(GRID_SIZE): # Draw board and tiles
             for c in range(GRID_SIZE):
                 pygame.draw.rect(screen, board[r][c], (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)); pygame.draw.rect(screen, BLACK, (40 + c * SQUARE_SIZE, 40 + r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
                 if tiles[r][c]:
-                    # Simplified tile drawing - copy relevant parts from main loop if needed
                     tile_char = tiles[r][c]; is_blank_on_board = (r, c) in blanks;
                     tile_bg_color = GREEN
                     if is_blank_on_board: center = (40 + c * SQUARE_SIZE + SQUARE_SIZE // 2, 40 + r * SQUARE_SIZE + SQUARE_SIZE // 2); radius = SQUARE_SIZE // 2 - 3; pygame.draw.circle(screen, BLACK, center, radius); text_surf = font.render(tile_char, True, WHITE); text_rect = text_surf.get_rect(center=center); screen.blit(text_surf, text_rect)
@@ -3208,17 +3294,10 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         draw_rack(1, racks[0], scores, turn, player_names) # Draw racks
         if practice_mode != "eight_letter": draw_rack(2, racks[1], scores, turn, player_names)
         draw_scoreboard(screen, move_history, 0, scores, is_ai, player_names) # Draw scoreboard (scroll 0)
-        # Draw the indicator itself
-        solve_text = "AI Solving Endgame..."
-        solve_surf = dialog_font.render(solve_text, True, RED)
-        solve_rect = solve_surf.get_rect(centerx=WINDOW_WIDTH // 2, top=10)
-        bg_rect = solve_rect.inflate(20, 10)
-        bg_surf = pygame.Surface(bg_rect.size, pygame.SRCALPHA)
-        bg_surf.fill((200, 200, 200, 180)) # Grayish background
-        screen.blit(bg_surf, bg_rect)
-        screen.blit(solve_surf, solve_rect)
+        # Draw the indicator itself using the dedicated function
+        draw_endgame_solving_indicator() # Use the helper
         pygame.display.flip() # Update the display NOW
-        # --- END MODIFICATION ---
+        # --- End screen update ---
 
         # Call the endgame solver (this might take time)
         best_first_move = solve_endgame(current_rack, opponent_rack, tiles, blanks, board, current_score_diff)
@@ -3288,8 +3367,10 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         # Return state after executing the solver's first move
         return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, False, None # Reset paused state
 
-    # --- Normal Turn Logic (if not in endgame solver) ---
+    # --- Normal Turn Logic (if not in endgame solver OR solver disabled) ---
     # [ ... Rest of the ai_turn function remains the same ... ]
+    # It will proceed with normal move generation and evaluation if the
+    # endgame solver condition above was not met.
     paused_for_power_tile = False
     current_power_tile = None
     all_moves = []
@@ -3459,11 +3540,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     # --- Return updated state ---
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile
 
-'''
-def power_tile_practice():
-    """Placeholder function, logic moved elsewhere."""
-    print("Power tile practice setup (handled by mode selection and AI turn).")
-'''
 
 # End of Part 6
 
@@ -3560,11 +3636,14 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 
+# --- MODIFIED Main Function ---
 def main():
     global bag, last_word, last_score, last_start, last_direction, move_history, replay_mode, current_replay_turn, game_mode, is_ai, practice_mode, board, tiles, racks, blanks, main_called, scores, GADDAG_STRUCTURE
     global is_loaded_game, replay_initial_shuffled_bag, initial_racks
     global number_checks # Make it accessible within main
     global is_solving_endgame # Access global flag
+    # --- MODIFICATION: Add global for endgame solver setting ---
+    global USE_ENDGAME_SOLVER
 
     print("--- main() function entered ---")
 
@@ -3598,11 +3677,17 @@ def main():
             replay_mode = True; current_replay_turn = 0; practice_mode = None; is_ai = [False, False]; human_player = 1; first_play = False
             initial_racks = [[], []]
             number_checks = [True] * 6 # Default to all lengths allowed if loading
+            # --- MODIFICATION: Set default USE_ENDGAME_SOLVER for loaded games ---
+            USE_ENDGAME_SOLVER = True # Default to True for loaded games
             print(f"--- main(): Loaded Game Setup Complete. Players: {player_names}, Moves: {len(move_history)} ---")
         elif selected_mode_result is not None: # Handle New Game Modes
             print(f"--- main(): Handling New Game Setup ({selected_mode_result}) ---")
             game_mode = selected_mode_result; is_loaded_game = False; replay_initial_shuffled_bag = None
-            player_names, human_player, practice_mode, letter_checks, number_checks, practice_state = return_data # Unpack number_checks
+            # --- MODIFICATION: Unpack use_endgame_solver_checked ---
+            player_names, human_player, practice_mode, letter_checks, number_checks, use_endgame_solver_checked, practice_state = return_data
+            USE_ENDGAME_SOLVER = use_endgame_solver_checked # Set global based on selection
+            print(f"--- main(): Use Endgame Solver set to: {USE_ENDGAME_SOLVER} ---")
+            # --- END MODIFICATION ---
             if practice_state and practice_mode == "eight_letter": # 8-Letter Practice Setup
                 print("Loading state from 8-letter practice..."); board, tiles, racks, blanks, bag, scores, turn, first_play = practice_state["board"], practice_state["tiles"], practice_state["racks"], practice_state["blanks"], practice_state["bag"], practice_state["scores"], practice_state["turn"], practice_state["first_play"]; is_ai = [False, False]; print("--- main(): Loaded state from 8-letter practice. ---")
             elif practice_state: # Other Practice Modes (like Power Tiles)
@@ -3614,17 +3699,14 @@ def main():
                 try: racks[0] = [bag.pop() for _ in range(7)]; racks[1] = [bag.pop() for _ in range(7)]
                 except IndexError: print("Error: Not enough tiles in bag."); pygame.quit(); sys.exit()
 
-                # --- MODIFICATION: Initialize is_ai *before* the sorting loop ---
                 is_ai = [False, False]
                 if game_mode == MODE_HVA: # Covers Only Fives (set to HVA)
                     is_ai[2 - human_player] = True # AI is player 2 if human is player 1
                 elif game_mode == MODE_AVA: is_ai = [True, True];
                 print(f"--- main(): Initialized is_ai: {is_ai} ---")
-                # --- END MODIFICATION ---
 
                 # Sort racks initially, especially for human in Only Fives
                 for i, rack in enumerate(racks):
-                    # Now is_ai is guaranteed to be a list
                     if 0 <= i < len(is_ai) and not is_ai[i]:
                          rack.sort()
                     # Optionally sort AI racks too: rack.sort()
@@ -3706,6 +3788,8 @@ def main():
             else: print(f"Error: AI turn returned unexpected number of values: {len(ai_result)}")
 
         # --- Event Handling ---
+        # [ ... Event handling code ... ]
+        # (No changes needed inside the event loop for this feature)
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
             # --- Practice End Dialog Handling ---
@@ -4359,14 +4443,7 @@ def main():
 
         # Draw Endgame Solving Indicator
         if is_solving_endgame:
-            solve_text = "AI Solving Endgame..."
-            solve_surf = dialog_font.render(solve_text, True, RED)
-            solve_rect = solve_surf.get_rect(centerx=WINDOW_WIDTH // 2, top=10)
-            bg_rect = solve_rect.inflate(20, 10)
-            bg_surf = pygame.Surface(bg_rect.size, pygame.SRCALPHA)
-            bg_surf.fill((200, 200, 200, 180)) # Grayish background
-            screen.blit(bg_surf, bg_rect)
-            screen.blit(solve_surf, solve_rect)
+            draw_endgame_solving_indicator() # Use the helper function
 
         # Draw Dialogs ...
         if exchanging: tile_rects, exchange_button_rect, cancel_button_rect = draw_exchange_dialog(racks[turn-1], selected_tiles)
