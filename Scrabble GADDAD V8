@@ -2920,6 +2920,12 @@ def collect_game_stats(game_num, player_names, final_scores, move_history):
     return stats
 
 
+import os
+import datetime
+# Assume other necessary imports like Counter, etc. are present
+
+# --- MODIFIED Batch Statistics Saving Function ---
+
 def save_batch_statistics(batch_results, player_names):
     """Calculates aggregate stats and saves batch results to a file."""
     if not batch_results:
@@ -2931,10 +2937,18 @@ def save_batch_statistics(batch_results, player_names):
     p2_wins = sum(1 for game in batch_results if game['winner'] == player_names[1])
     draws = num_games - p1_wins - p2_wins
 
-    # Calculate aggregate averages
+    # --- MODIFICATION: Calculate Average Game Score ---
+    p1_total_score = sum(g['player1_score'] for g in batch_results)
+    p2_total_score = sum(g['player2_score'] for g in batch_results)
+    p1_avg_game_score = p1_total_score / num_games if num_games > 0 else 0.0
+    p2_avg_game_score = p2_total_score / num_games if num_games > 0 else 0.0
+    # --- END MODIFICATION ---
+
+
+    # Calculate other aggregate averages
     agg_stats = {
-        'p1_avg_score': sum(g['player1_avg_score'] * g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) / sum(g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) if sum(g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) > 0 else 0,
-        'p2_avg_score': sum(g['player2_avg_score'] * g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) / sum(g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) if sum(g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) > 0 else 0,
+        'p1_avg_score_turn': sum(g['player1_avg_score'] * g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) / sum(g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) if sum(g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) > 0 else 0,
+        'p2_avg_score_turn': sum(g['player2_avg_score'] * g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) / sum(g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) if sum(g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) > 0 else 0,
         'p1_avg_tiles': sum(g['player1_avg_tiles'] * g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) / sum(g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) if sum(g['player1_moves'] for g in batch_results if g['player1_moves'] > 0) > 0 else 0,
         'p2_avg_tiles': sum(g['player2_avg_tiles'] * g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) / sum(g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) if sum(g['player2_moves'] for g in batch_results if g['player2_moves'] > 0) > 0 else 0,
         'p1_avg_bingo_score': sum(g['player1_bingo_avg'] * g['player1_bingos'] for g in batch_results if g['player1_bingos'] > 0) / sum(g['player1_bingos'] for g in batch_results if g['player1_bingos'] > 0) if sum(g['player1_bingos'] for g in batch_results if g['player1_bingos'] > 0) > 0 else 0,
@@ -2979,10 +2993,14 @@ def save_batch_statistics(batch_results, player_names):
             f.write(f"  {player_names[0]} Wins: {p1_wins} ({p1_wins/num_games:.1%})\n")
             f.write(f"  {player_names[1]} Wins: {p2_wins} ({p2_wins/num_games:.1%})\n")
             f.write(f"  Draws: {draws} ({draws/num_games:.1%})\n")
+            # --- MODIFICATION: Add Average Game Score to Summary ---
+            f.write(f"  Avg Game Score {player_names[0]}: {p1_avg_game_score:.2f}\n")
+            f.write(f"  Avg Game Score {player_names[1]}: {p2_avg_game_score:.2f}\n")
+            # --- END MODIFICATION ---
             f.write("-" * 25 + "\n")
-            f.write("Aggregate Statistics:\n")
+            f.write("Aggregate Statistics (Per Turn Averages):\n") # Clarified header
             f.write(f"                     {player_names[0]:>12} {player_names[1]:>12}\n")
-            f.write(f"Avg Score/Turn:    {agg_stats['p1_avg_score']:>12.2f} {agg_stats['p2_avg_score']:>12.2f}\n")
+            f.write(f"Avg Score/Turn:    {agg_stats['p1_avg_score_turn']:>12.2f} {agg_stats['p2_avg_score_turn']:>12.2f}\n")
             f.write(f"Avg Tiles/Turn:    {agg_stats['p1_avg_tiles']:>12.2f} {agg_stats['p2_avg_tiles']:>12.2f}\n")
             f.write(f"Total Bingos:      {agg_stats['total_p1_bingos']:>12} {agg_stats['total_p2_bingos']:>12}\n")
             f.write(f"Avg Bingo Score:   {agg_stats['p1_avg_bingo_score']:>12.2f} {agg_stats['p2_avg_bingo_score']:>12.2f}\n")
