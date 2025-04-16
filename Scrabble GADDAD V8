@@ -3361,6 +3361,22 @@ def format_move_for_debug(move, rack_before):
     else:
         return "[INVALID MOVE]"
 
+# --- NEW Helper Function for Drawing Indicator ---
+def draw_endgame_solving_indicator():
+    """Draws the 'AI Solving Endgame...' text."""
+    # Ensure necessary globals like screen, dialog_font, RED, WINDOW_WIDTH are accessible
+    # Or pass them as arguments if preferred
+    solve_text = "AI Solving Endgame..."
+    solve_surf = dialog_font.render(solve_text, True, RED)
+    # Position it somewhere noticeable, e.g., top center
+    solve_rect = solve_surf.get_rect(centerx=WINDOW_WIDTH // 2, top=10)
+    # Optional: Add a semi-transparent background
+    bg_rect = solve_rect.inflate(20, 10)
+    bg_surf = pygame.Surface(bg_rect.size, pygame.SRCALPHA)
+    bg_surf.fill((200, 200, 200, 180)) # Grayish background
+    screen.blit(bg_surf, bg_rect)
+    screen.blit(solve_surf, solve_rect)
+
 
 
 
@@ -3976,7 +3992,7 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 def main():
-
+    # --- MODIFICATION: Declare key modified globals ---
     global turn, previous_turn, game_over_state, final_scores, running_inner, batch_stop_requested
     global return_to_mode_selection, human_played, pass_count, exchange_count, consecutive_zero_point_turns
     global dropdown_open, exchanging, hinting, showing_all_words, selected_tiles, typing, selected_square
@@ -3991,6 +4007,8 @@ def main():
     global is_solving_endgame # Access global flag
     global USE_ENDGAME_SOLVER
     global is_batch_running, total_batch_games, current_batch_game_num, batch_results, initial_game_config
+    # --- END MODIFICATION ---
+
 
     print("--- main() function entered ---")
 
@@ -4220,7 +4238,7 @@ def main():
                     # --- Active Game / Replay Event Handling ---
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         x, y = event.pos; current_time = pygame.time.get_ticks()
-                        # --- MODIFICATION: Check event.button == 1 *here* ---
+                        # --- Check event.button == 1 *here* ---
                         if event.button == 1: # Left Click ...
                             # --- Options Button Handling (Allow in Batch) ---
                             options_rect_base, dropdown_rects_base = draw_options_menu(turn, dropdown_open, len(bag)) # Use current turn
@@ -4418,6 +4436,7 @@ def main():
                                    if dialog_rect_all.collidepoint(x,y) and not clicked_in_dialog: pass # Click inside dialog but not on element
 
                         # --- MODIFICATION: Correctly indent Right Click check ---
+                        # This elif should be at the same level as `if event.button == 1:`
                         elif event.button == 3 and not is_batch_running: # Right Click -> Cancel typing/arrow (Disable in batch)
                             selected_square = None
                             if typing: # Revert typing
@@ -4789,7 +4808,16 @@ def main():
             # Draw Scoreboard ...
             history_to_draw = move_history[:current_replay_turn] if replay_mode else move_history
             is_final_turn_in_replay = replay_mode and current_replay_turn == len(move_history)
-            # Pass player_names to draw_scoreboard
+            # Calculate scoreboard position for indicator placement
+            sb_x = BOARD_SIZE + 275
+            sb_y = 40
+            sb_w = max(200, WINDOW_WIDTH - sb_x - 20)
+            if sb_x + sb_w > WINDOW_WIDTH - 10:
+                sb_w = WINDOW_WIDTH - sb_x - 10
+            if sb_w < 150:
+                sb_x = WINDOW_WIDTH - 160
+                sb_w = 150
+            # Call the drawing function
             draw_scoreboard(screen, history_to_draw, scroll_offset, scores_to_display, is_ai, player_names, final_scores=final_scores, game_over_state=game_over_state or is_final_turn_in_replay)
 
             # Draw Typing Arrow / Cursor ...
@@ -4810,14 +4838,16 @@ def main():
             if is_solving_endgame:
                 draw_endgame_solving_indicator() # Use the helper function
 
-            # Draw Batch Progress Indicator
+            # Draw Batch Progress Indicator (if running)
             if is_batch_running:
                 batch_text = f"Running Game: {current_batch_game_num} / {total_batch_games}"
                 batch_surf = ui_font.render(batch_text, True, BLUE)
-                # Position near top, maybe below endgame solver if active
-                top_pos = 40 if is_solving_endgame else 10
-                batch_rect = batch_surf.get_rect(centerx=WINDOW_WIDTH // 2, top=top_pos)
+                # --- MODIFICATION: Position above scoreboard ---
+                indicator_center_x = sb_x + sb_w // 2
+                indicator_top_y = sb_y - batch_surf.get_height() - 5 # 5 pixels above scoreboard top
+                batch_rect = batch_surf.get_rect(centerx=indicator_center_x, top=max(5, indicator_top_y)) # Ensure not off top edge
                 screen.blit(batch_surf, batch_rect)
+                # --- END MODIFICATION ---
 
 
             # Draw Dialogs ...
@@ -4865,7 +4895,9 @@ def main():
     # --- Save batch stats after loop finishes ---
     if is_batch_running and batch_results:
         save_batch_statistics(batch_results, player_names)
-    # --- END MODIFICATION ---
+        # --- MODIFICATION: After saving batch, go back to mode selection ---
+        return_to_mode_selection = True
+        # --- END MODIFICATION ---
 
     print("--- main(): Exited main game loop(s). ---")
     if return_to_mode_selection:
