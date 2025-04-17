@@ -1,6 +1,6 @@
 To-Do List
 
-1) MCST (Monte Carlo Search Tree
+1) MCST (Monte Carlo Search Tree). Or, at least a 2-ply look-ahead simulation.
 
 2) Get Save/Load working
 
@@ -17,5 +17,7 @@ To-Do List
 
 6) Ability to specify a rack, like in Quackle, useful for study and repeatability
 
-7) 
+7) Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
+
+8) Racks should be alphabetized automatically, this was working but broke
 
