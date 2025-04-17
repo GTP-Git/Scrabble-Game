@@ -12,5 +12,10 @@ To-Do List
   Offense/Defense
   Leading/Trailing
   Hot Spots
-  
+
+5) Bingo, Bango, Bongo bingo finding practice
+
+6) Ability to specify a rack, like in Quackle, useful for study and repeatability
+
+7) 
 
