@@ -2773,12 +2773,42 @@ def draw_all_words_dialog(moves, selected_index, current_scroll_offset): # Chang
     screen.blit(play_text, play_text.get_rect(center=play_button_rect.center)); screen.blit(ok_text, ok_text.get_rect(center=ok_button_rect.center))
     return all_words_rects, play_button_rect, ok_button_rect
 
+
+
 def get_insertion_index(x, rack_start_x, rack_len):
     """Determine the insertion index (0 to rack_len) based on mouse x-position."""
-    if x < rack_start_x + TILE_WIDTH // 2: return 0
-    for i in range(rack_len): tile_left = rack_start_x + i * (TILE_WIDTH + TILE_GAP); gap_center = tile_left + TILE_WIDTH + TILE_GAP // 2;
-    if x < gap_center: return i + 1
+    # --- DEBUG PRINT: Function Entry ---
+    print(f"--- get_insertion_index(x={x}, rack_start_x={rack_start_x}, rack_len={rack_len}) ---")
+
+    # Boundary before the first tile (index 0)
+    # Consider the midpoint of the first tile's visual space
+    boundary_before_first = rack_start_x + TILE_WIDTH // 2
+    # --- DEBUG PRINT: Index 0 Check ---
+    print(f"  Checking index 0 boundary: Is x ({x}) < boundary_before_first ({boundary_before_first})?")
+    if x < boundary_before_first:
+        print(f"  -> Returning index 0") # DEBUG
+        return 0
+
+    # Iterate through the potential insertion points *between* tiles (indices 1 to rack_len)
+    # The loop goes from i=0 to rack_len-1 (representing the tile *before* the gap)
+    for i in range(rack_len):
+        # Calculate the midpoint of the gap *after* tile i
+        tile_i_right_edge = rack_start_x + i * (TILE_WIDTH + TILE_GAP) + TILE_WIDTH
+        gap_mid_x = tile_i_right_edge + TILE_GAP // 2
+        # --- DEBUG PRINT: Gap Check ---
+        print(f"  Checking index {i+1} boundary: Is x ({x}) < gap_mid_x ({gap_mid_x}) after tile {i}?")
+        if x < gap_mid_x:
+            # If x is less than the midpoint of the gap after tile i, insert at index i+1
+            print(f"  -> Returning index {i+1}") # DEBUG
+            return i + 1
+
+    # If the loop completes, it means x was to the right of the midpoint of the gap after the last tile.
+    # Insert at the very end (index rack_len).
+    # --- DEBUG PRINT: End of Rack ---
+    print(f"  Loop finished. Returning index {rack_len} (end of rack)")
     return rack_len
+
+
 
 def count_consecutive_existing(row, col, direction, tiles):
     """Count consecutive existing tiles in a direction (unused currently)."""
@@ -4622,7 +4652,38 @@ def main():
                             # --- Game Over Event Handling ---
                             if game_over_state:
                                 # print("DEBUG: Game over state, checking buttons...") # Removed Debug
-                                # ... (rest of game over mouse button handling as before) ...
+                                if save_rect and save_rect.collidepoint(x, y):
+                                    # ... (Save GCG logic) ...
+                                    pass
+                                elif quit_rect and quit_rect.collidepoint(x, y):
+                                    running_inner = False; running = False; batch_stop_requested = True
+                                elif replay_rect and replay_rect.collidepoint(x, y):
+                                    # ... (Enter Replay Mode logic) ...
+                                    pass
+                                elif play_again_rect and play_again_rect.collidepoint(x, y):
+                                    running_inner = False; return_to_mode_selection = True; batch_stop_requested = True
+                                elif stats_rect and stats_rect.collidepoint(x, y):
+                                    # --- MODIFICATION: Initialize stats dialog position ---
+                                    showing_stats = True
+                                    stats_dialog_x = (WINDOW_WIDTH - 480) // 2 # Center horizontally
+                                    stats_dialog_y = (WINDOW_HEIGHT - 600) // 2 # Center vertically
+                                    stats_scroll_offset = 0 # Reset scroll
+                                    stats_dialog_dragging = False
+                                    # --- END MODIFICATION ---
+                                elif showing_stats and stats_ok_button_rect and stats_ok_button_rect.collidepoint(x, y):
+                                    showing_stats = False
+                                elif showing_stats: # Check for drag start on stats dialog title bar
+                                    title_bar_height = 40 # Approximate height of the title area
+                                    stats_title_rect = pygame.Rect(stats_dialog_x, stats_dialog_y, 480, title_bar_height)
+                                    if stats_title_rect.collidepoint(x, y):
+                                        stats_dialog_dragging = True
+                                        stats_dialog_drag_offset = (x - stats_dialog_x, y - stats_dialog_y)
+                                elif not showing_stats: # Click outside buttons while game over dialog is up
+                                    dialog_rect = pygame.Rect(dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT)
+                                    if dialog_rect.collidepoint(x, y): # Check if click is inside main dialog
+                                        # Start dragging game over dialog
+                                        dragging = True
+                                        drag_offset = (x - dialog_x, y - dialog_y)
                                 continue # Skip rest of MOUSEBUTTONDOWN if game over handled it
 
                             # --- Active Game / Replay Event Handling ---
@@ -4634,7 +4695,6 @@ def main():
                                 elif replay_end_rect.collidepoint(x, y): current_replay_turn = len(move_history); last_played_highlight_coords = set()
                             elif not (exchanging or hinting or showing_all_words): # Active game clicks
                                 # print("DEBUG: Active game click...") # Removed Debug
-                                # ... (Suggest, Preview Checkbox, Rack Buttons, Drag Start, Board Click logic as before) ...
                                 # Suggest Button ...
                                 suggest_rect_base = draw_suggest_button()
                                 if suggest_rect_base and suggest_rect_base.collidepoint(x, y) and (not is_ai[turn-1] or paused_for_power_tile):
@@ -4668,7 +4728,13 @@ def main():
                                     rack_len = len(racks[current_player_idx]); tile_idx = get_tile_under_mouse(x, y, rack_start_x_calc, rack_y, rack_len)
                                     if tile_idx is not None and not dragged_tile and (not is_ai[current_player_idx] or paused_for_power_tile):
                                         # print(f"DEBUG: Starting drag of tile {tile_idx} from rack {turn}") # Removed Debug
-                                        dragged_tile = (turn, tile_idx); drag_pos = (x, y); tile_abs_x = rack_start_x_calc + tile_idx * (TILE_WIDTH + TILE_GAP); drag_offset = (x - (tile_abs_x + TILE_WIDTH // 2), y - (rack_y + TILE_HEIGHT // 2))
+                                        dragged_tile = (turn, tile_idx); drag_pos = (x, y);
+                                        # --- MODIFICATION: Calculate drag offset relative to tile center ---
+                                        tile_abs_x = rack_start_x_calc + tile_idx * (TILE_WIDTH + TILE_GAP)
+                                        tile_center_x = tile_abs_x + TILE_WIDTH // 2
+                                        tile_center_y = rack_y + TILE_HEIGHT // 2
+                                        drag_offset = (x - tile_center_x, y - tile_center_y)
+                                        # --- END MODIFICATION ---
                                 # Board Click (Typing Start / Arrow) ...
                                 if not dragged_tile and (0 <= turn-1 < len(is_ai) and (not is_ai[turn-1] or paused_for_power_tile)):
                                     col = (x - 40) // SQUARE_SIZE; row = (y - 40) // SQUARE_SIZE
@@ -4847,8 +4913,7 @@ def main():
                         if game_over_state and dragging: dragging = False
                         if showing_stats and stats_dialog_dragging: stats_dialog_dragging = False
                         elif dragged_tile and (0 <= dragged_tile[0]-1 < len(is_ai) and (not is_ai[dragged_tile[0]-1] or paused_for_power_tile)) and not replay_mode:
-                            # ... (Tile drop logic as before) ...
-                            # print(f"DEBUG: Finishing drag of tile {dragged_tile} at ({x},{y})") # Removed Debug
+                            # --- MODIFICATION: Tile Drop Logic with DEBUG PRINTS ---
                             player_idx = dragged_tile[0] - 1
                             rack_y = BOARD_SIZE + 80 if dragged_tile[0] == 1 else BOARD_SIZE + 150
                             rack_width_calc = 7 * (TILE_WIDTH + TILE_GAP) - TILE_GAP
@@ -4857,52 +4922,56 @@ def main():
                             rack_start_x_calc = max(min_rack_start_x, (BOARD_SIZE - rack_width_calc) // 2)
                             rack_area_rect = pygame.Rect(rack_start_x_calc, rack_y, rack_width_calc, TILE_HEIGHT)
 
-                            if rack_area_rect.collidepoint(x, y): # Dropped back on the rack area
-                                # print("DEBUG: Dropped tile back on rack") # Removed Debug
+                            if rack_area_rect.collidepoint(x, y): # Dropped ON the rack area
+                                print("--- RACK DROP START ---") # DEBUG
                                 if 0 <= player_idx < len(racks):
-                                    rack_len = len(racks[player_idx])
-                                    insert_idx = get_insertion_index(x, rack_start_x_calc, rack_len)
+                                    player_rack = racks[player_idx]
+                                    rack_len = len(player_rack)
+                                    # Call get_insertion_index which now has debug prints
+                                    insert_idx_raw = get_insertion_index(x, rack_start_x_calc, rack_len)
                                     original_tile_idx = dragged_tile[1]
-                                    # print(f"DEBUG: Rack drop: insert_idx={insert_idx}, original_idx={original_tile_idx}, rack_len={rack_len}") # Removed Debug
+
+                                    print(f"  Initial Rack: {''.join(player_rack)}") # DEBUG
+                                    print(f"  Dragging tile index: {original_tile_idx}") # DEBUG
+                                    print(f"  Calculated raw insert index: {insert_idx_raw}") # DEBUG
+
                                     if 0 <= original_tile_idx < rack_len:
-                                        player_rack = racks[player_idx]
+                                        # Pop the tile
                                         tile_to_move = player_rack.pop(original_tile_idx)
-                                        if original_tile_idx < insert_idx: insert_idx -= 1
-                                        insert_idx = max(0, min(insert_idx, len(player_rack)))
-                                        player_rack.insert(insert_idx, tile_to_move)
-                                        # print(f"DEBUG: Moved tile '{tile_to_move}' from {original_tile_idx} to {insert_idx}. New rack: {''.join(player_rack)}") # Removed Debug
-                                    # else: print(f"DEBUG: Invalid original tile index {original_tile_idx} for rack len {rack_len}") # Removed Debug
-                                # else: print(f"DEBUG: Invalid player index {player_idx} for racks") # Removed Debug
-                            else: # Dropped somewhere else (assume board)
-                                # print("DEBUG: Dropped tile off rack, attempting board placement") # Removed Debug
-                                col = (x - 40) // SQUARE_SIZE; row = (y - 40) // SQUARE_SIZE
-                                # print(f"DEBUG: Calculated board drop coords: ({row},{col})") # Removed Debug
-                                if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE and not tiles[row][col]:
-                                    # print(f"DEBUG: Square ({row},{col}) is valid and empty") # Removed Debug
-                                    tile_idx = dragged_tile[1]
-                                    if 0 <= player_idx < len(racks) and 0 <= tile_idx < len(racks[player_idx]):
-                                        tile_to_place = racks[player_idx][tile_idx]
-                                        # print(f"DEBUG: Tile to place: '{tile_to_place}'") # Removed Debug
-                                        if tile_to_place == ' ':
-                                            print("DEBUG: Dropped blank tile. Cancelling drop.") # Keep this one maybe
+                                        print(f"  Tile popped: '{tile_to_move}'") # DEBUG
+                                        print(f"  Rack after pop: {''.join(player_rack)}") # DEBUG
+
+                                        # Adjust insert index if needed
+                                        insert_idx_adjusted = insert_idx_raw
+                                        if original_tile_idx < insert_idx_raw:
+                                            insert_idx_adjusted -= 1
+                                            print(f"  Adjusted insert index (was < raw): {insert_idx_adjusted}") # DEBUG
                                         else:
-                                            # print(f"DEBUG: Placing tile '{tile_to_place}' and starting typing.") # Removed Debug
-                                            typing = True; original_tiles = [r[:] for r in tiles]; original_rack = racks[player_idx][:]
-                                            typing_start = (row, col); typing_direction = "right"; selected_square = None; word_positions = []
-                                            current_r, current_c = row, col
-                                            letter = tile_to_place; tiles[current_r][current_c] = letter; racks[player_idx].pop(tile_idx)
-                                            word_positions.append((current_r, current_c, letter))
-                                            if typing_direction == "right":
-                                                current_c += 1
-                                                while current_c < GRID_SIZE and tiles[current_r][current_c]: current_c += 1
-                                            elif typing_direction == "down":
-                                                current_r += 1
-                                                while current_r < GRID_SIZE and tiles[current_r][current_c]: current_r += 1
-                                            current_r = min(current_r, GRID_SIZE - 1); current_c = min(current_c, GRID_SIZE - 1)
-                                            # print(f"DEBUG: Placed tile {letter} at ({row},{col}). Started typing. Next cursor at ({current_r},{current_c})") # Removed Debug
-                                    # else: print(f"DEBUG: Invalid player/tile index for drop: player={player_idx}, tile={tile_idx}") # Removed Debug
-                                # else: print(f"DEBUG: Invalid drop location ({row},{col}) or square occupied.") # Removed Debug
-                            dragged_tile = None; drag_pos = None; # print("DEBUG: Drag ended.") # Removed Debug
+                                            print(f"  Insert index not adjusted (was >= raw)") # DEBUG
+
+
+                                        # Clamp the index to the valid range for the rack *after* popping
+                                        # The valid range is 0 to len(player_rack) inclusive
+                                        insert_idx_final = max(0, min(insert_idx_adjusted, len(player_rack)))
+                                        print(f"  Final clamped insert index: {insert_idx_final}") # DEBUG
+
+                                        # Insert the tile
+                                        player_rack.insert(insert_idx_final, tile_to_move)
+                                        print(f"  Final Rack after insert: {''.join(player_rack)}") # DEBUG
+                                    else:
+                                        print(f"  ERROR: Invalid original tile index {original_tile_idx} for rack len {rack_len}") # DEBUG
+                                else:
+                                    print(f"  ERROR: Invalid player index {player_idx} for racks") # DEBUG
+                                print("--- RACK DROP END ---") # DEBUG
+                            else: # Dropped OFF the rack area
+                                print("DEBUG: Dropped tile off rack. Cancelling drag.") # Removed Debug
+                                # No action needed - tile snaps back implicitly as rack wasn't changed
+                                pass
+
+                            # Always clear drag state after drop attempt
+                            dragged_tile = None; drag_pos = None;
+                            # print("DEBUG: Drag ended.") # Removed Debug
+                            # --- END MODIFICATION ---
 
                 # --- MOUSEWHEEL Handling (Only if NOT in batch) ---
                 elif event.type == pygame.MOUSEWHEEL and not is_batch_running:
