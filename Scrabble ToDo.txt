@@ -6,3 +6,11 @@ To-Do List
 
 3) Get Endgame Solver working
 
+4) Add more strategy heuristics
+
+  Board dynamics
+  Offense/Defense
+  Leading/Trailing
+  Hot Spots
+  
+
