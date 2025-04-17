@@ -1,3 +1,8 @@
 To-Do List
 
 1) MCST (Monte Carlo Search Tree
+
+2) Get Save/Load working
+
+3) Get Endgame Solver working
+
