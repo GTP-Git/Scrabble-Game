@@ -21,3 +21,13 @@ To-Do List
 
 8) Racks should be alphabetized automatically, this was working but broke
 
+9) Make Endgame Solver checkbox unchecked by default
+
+10) Make length in Power Tiles mode 2-5 checked by default.
+
+11) On Batch statistics printout, within each individual game provide a working link that goes to the game in question.
+
+12) Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
+
+
+
