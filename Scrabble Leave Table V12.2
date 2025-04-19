@@ -2,7 +2,7 @@
 
 
 #python
-#Scrabble Leave Table V12.2 
+#Scrabble Leave Table V12.2
 #Stable 18APR24
 
 # Part 1
@@ -4028,12 +4028,11 @@ def solve_endgame(rack_player, rack_opponent, tiles, blanks, board, current_scor
 
 
 
-# Needs to accept bag_count now
-def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gaddag_root, is_first_play, bag_count):
+def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gaddag_root, is_first_play):
     """
     Performs a 2-ply simulation to find the best AI move.
-    Applies blank penalty *before* selecting top 10 moves for simulation.
-    Evaluates the top 10 results using the LEAVE_LOOKUP_TABLE.
+    Simulates top 10 AI moves, estimates opponent's best response 50 times for each,
+    then evaluates the top 10 results using the LEAVE_LOOKUP_TABLE (float values).
 
     Args:
         ai_rack (list): The AI's current rack.
@@ -4044,63 +4043,44 @@ def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gad
         bag (list): Current tile bag.
         gaddag_root (GaddagNode): The root of the GADDAG structure.
         is_first_play (bool): Whether it's the first play of the game.
-        bag_count (int): Number of tiles remaining in the bag.
 
     Returns:
         dict or str: The best move dictionary found, or "PASS" if no moves or simulation fails.
     """
-    import time
+    import time # Ensure time module is available
     print("--- Running AI 2-Ply Simulation ---")
-    start_time = time.time()
+    # start_time = time.time() # No longer need to record start time here for duration print
 
     all_ai_moves = generate_all_moves_gaddag(ai_rack, tiles, board, blanks, gaddag_root)
     if not all_ai_moves:
-        sim_duration = time.time() - start_time
-        print(f"  Simulation: No initial AI moves found. (Duration: {sim_duration:.2f}s)")
+        # sim_duration = time.time() - start_time # Removed duration calculation/print
+        print(f"  Simulation: No initial AI moves found.")
         return "PASS"
 
-    # --- Apply Blank Penalty Before Selection ---
-    print(f"  Applying pre-simulation blank penalty (Bag: {bag_count})...")
-    moves_with_adjusted_score = []
-    for move in all_ai_moves:
-        raw_score = move.get('score', 0)
-        blank_penalty = 0.0
-        # Apply penalty if blank used and not a bingo
-        if move.get('blanks') and not move.get('is_bingo', False):
-            if bag_count > 30: blank_penalty = 20.0
-            elif bag_count > 15: blank_penalty = 12.0
-            elif bag_count > 5: blank_penalty = 5.0
-            # else: penalty remains 0
-        adjusted_score = raw_score - blank_penalty
-        moves_with_adjusted_score.append((adjusted_score, move))
+    # 1. Select Top 10 AI moves based on raw score
+    all_ai_moves.sort(key=lambda m: m.get('score', 0), reverse=True)
+    top_10_ai_moves = all_ai_moves[:10]
+    print(f"  Simulating top {len(top_10_ai_moves)} AI moves...")
 
-    # Sort by the adjusted score (higher adjusted score is better)
-    moves_with_adjusted_score.sort(key=lambda item: item[0], reverse=True)
-
-    # Select Top 10 based on adjusted score for simulation
-    top_10_for_simulation = [item[1] for item in moves_with_adjusted_score[:10]] # Extract the move dicts
-    print(f"  Simulating top {len(top_10_for_simulation)} AI moves (after blank penalty adjustment)...")
-    # --- End Pre-Selection Penalty ---
-
-
-    simulation_results = []
+    simulation_results = [] # Store tuples: (ai_move, avg_opponent_score)
     num_simulations_per_move = 50
+
+    # --- Pre-calculate unseen tiles for opponent rack simulation ---
     remaining_dict = get_remaining_tiles(ai_rack, tiles, blanks)
     unseen_tiles_pool = []
     for tile, count in remaining_dict.items():
         unseen_tiles_pool.extend([tile] * count)
 
-    # Simulate using the selected top 10 moves
-    for i, ai_move in enumerate(top_10_for_simulation): # Use the filtered list
-        if (i + 1) % 5 == 0 or i == 0 or i == len(top_10_for_simulation) - 1:
-             print(f"  Simulating AI move {i+1}/{len(top_10_for_simulation)}...")
+    for i, ai_move in enumerate(top_10_ai_moves):
+        # Minimal console output during simulation loop
+        if (i + 1) % 5 == 0 or i == 0 or i == len(top_10_ai_moves) - 1:
+             print(f"  Simulating AI move {i+1}/{len(top_10_ai_moves)}...")
 
         total_opponent_score_for_this_move = 0
-        ai_score = ai_move.get('score', 0) # Use original raw score here
+        ai_score = ai_move.get('score', 0)
         newly_placed_count = len(ai_move.get('newly_placed', []))
 
-        # (Simulation of AI move and opponent response remains the same)
-        # --- Simulate the AI move once ---
+        # --- Simulate the AI move once to get the state *after* the move ---
         sim_tiles_after_ai = copy.deepcopy(tiles)
         sim_blanks_after_ai = blanks.copy()
         sim_rack_after_ai = ai_rack[:]
@@ -4152,15 +4132,13 @@ def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gad
         simulation_results.append({'ai_move': ai_move, 'avg_opp_score': average_opponent_score})
 
     if not simulation_results:
-         sim_duration = time.time() - start_time
-         print(f"  Simulation: No results generated. Falling back. (Duration: {sim_duration:.2f}s)")
-         # Fallback uses the penalized list's top move if sim results empty
-         return top_10_for_simulation[0] if top_10_for_simulation else "PASS"
+         # sim_duration = time.time() - start_time # Removed duration calculation/print
+         print(f"  Simulation: No results generated. Falling back.")
+         return top_10_ai_moves[0] if top_10_ai_moves else "PASS"
 
     # 2. Select Top 10 based on (AI Score - Avg Opponent Score)
-    #    This step now sorts the results from the potentially penalized input list
     simulation_results.sort(key=lambda r: r['ai_move'].get('score', 0) - r['avg_opp_score'], reverse=True)
-    top_10_sim_results = simulation_results[:10] # Still take top 10 of results
+    top_10_sim_results = simulation_results[:10]
 
     # 3. Apply Leave Evaluation (Lookup) to Top 10
     print("--- Evaluating Top 10 Simulation Results with Leave Lookup ---")
@@ -4168,14 +4146,16 @@ def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gad
     for result in top_10_sim_results:
         ai_move = result['ai_move']
         avg_opp_score = result['avg_opp_score']
-        ai_raw_score = ai_move.get('score', 0) # Use original raw score
+        ai_raw_score = ai_move.get('score', 0)
         leave = ai_move.get('leave', [])
+        # --- Use the new evaluate_leave (lookup, returns float) ---
         leave_value = evaluate_leave(leave) # Returns float
-        leave_str_eval = "".join(sorted(['?' if tile == ' ' else tile for tile in leave]))
+        # --- MODIFICATION: Update console output format ---
+        leave_str_eval = "".join(sorted(['?' if tile == ' ' else tile for tile in leave])) # Use '?' for display
         word_eval = ai_move.get('word_with_blanks', ai_move.get('word', '?'))
-        # Using .2f based on penultimate code version
-        print(f"  Evaluating: {word_eval} ({ai_raw_score} pts), Leave: '{leave_str_eval}', Lookup Value: {leave_value:.2f}")
-        final_eval_score = float(ai_raw_score) + leave_value - float(avg_opp_score)
+        print(f"  Evaluating: {word_eval} ({ai_raw_score} pts), Leave: '{leave_str_eval}', Lookup Value: {leave_value:.2f}") # Format as float
+        # --- End Modification ---
+        final_eval_score = float(ai_raw_score) + leave_value - float(avg_opp_score) # Ensure float arithmetic
         final_evaluated_moves.append({'move': ai_move, 'final_score': final_eval_score})
     print("-" * 20)
 
@@ -4193,19 +4173,20 @@ def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gad
         leave_list = move.get('leave', [])
         leave_str = "".join(sorted(l if l != ' ' else '?' for l in leave_list))
         avg_opp = next((r['avg_opp_score'] for r in simulation_results if r['ai_move'] == move), 0.0)
+        # Get leave value again for printing (it was calculated above)
         leave_val = evaluate_leave(leave_list) # Returns float
-        # Using .2f based on penultimate code version
-        print(f"  {i+1}. {word} at {coord} ({raw_score}) L:'{leave_str}' ({leave_val:.2f}) OppAvg:{avg_opp:.1f} -> Final:{final_score:.2f}")
+        # --- MODIFICATION: Update print format ---
+        print(f"  {i+1}. {word} at {coord} ({raw_score}) L:'{leave_str}' ({leave_val:.2f}) OppAvg:{avg_opp:.1f} -> Final:{final_score:.1f}") # Format leave_val and final_score
+        # --- End Modification ---
     print("-" * 20)
     # --- End Print Top 5 ---
 
-    sim_duration = time.time() - start_time
-    print(f"--- AI Simulation Complete (Duration: {sim_duration:.2f}s) ---")
+    # sim_duration = time.time() - start_time # Calculate duration # Removed duration calculation/print
+    print(f"--- AI Simulation Complete ---") # Removed duration print
 
     if not final_evaluated_moves:
         print("  Simulation: No final moves after evaluation. Falling back.")
-        # Fallback uses the penalized list's top move
-        return top_10_for_simulation[0] if top_10_for_simulation else "PASS"
+        return top_10_ai_moves[0] if top_10_ai_moves else "PASS"
 
     best_move = final_evaluated_moves[0]['move']
     return best_move
@@ -4216,26 +4197,30 @@ def run_ai_simulation(ai_rack, opponent_rack_len, tiles, blanks, board, bag, gad
 
 
 
-# Need to update ai_turn slightly to pass bag_count to run_ai_simulation
-
 def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_count, exchange_count, consecutive_zero_point_turns, player_names, dropdown_open=False, hinting=False, showing_all_words=False, letter_checks=None):
     """
     Handles the AI's turn, selecting moves based on score and leave evaluation,
     incorporating the new exchange strategy, practice mode rules, endgame solver,
-    and 2-ply simulation (with pre-simulation blank penalty).
-    Allows comparison between simulation result and exchange.
+    and 2-ply simulation. Allows comparison between simulation result and exchange.
+    Includes screen update before long endgame calculation and checks USE_ENDGAME_SOLVER.
+    Checks for playable bingos in BBB mode. Uses updated get_coord for history.
+    (Uses lookup table for leave eval, returns int, prints .2f)
     """
     global last_word, last_score, last_start, last_direction, move_history, current_replay_turn, practice_mode, GADDAG_STRUCTURE, last_played_highlight_coords
-    global is_solving_endgame
+    global is_solving_endgame # Access the global flag
     global USE_ENDGAME_SOLVER
-    global USE_AI_SIMULATION
-    global paused_for_bingo_practice
+    global USE_AI_SIMULATION # Access the simulation flag
+    global paused_for_bingo_practice # Access BBB flag
+
+    # --- ADDED: Record start time ---
+    start_turn_time = time.time()
+    # --- END ADDED ---
 
     player_idx = turn - 1
     opponent_idx = 1 - player_idx
-    current_rack = racks[player_idx][:]
-    bag_count = len(bag) # Get bag_count here
-    print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}, Practice: {practice_mode}, Sim: {USE_AI_SIMULATION}")
+    current_rack = racks[player_idx][:] # Use a copy for analysis
+    bag_count = len(bag)
+    print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}, Practice: {practice_mode}, Sim: {USE_AI_SIMULATION}") # Log sorted rack
 
     # --- Endgame Solver Check ---
     if USE_ENDGAME_SOLVER and bag_count == 0 and practice_mode != "eight_letter" and not is_solving_endgame:
@@ -4273,68 +4258,64 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         move_data = { 'player': turn, 'move_type': move_type, 'rack': move_rack_before, 'score': score, 'word': word, 'positions': positions, 'blanks': blanks_used, 'drawn': drawn_tiles, 'coord': coord, 'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo }
         if move_type == 'place' and best_play_move: move_data['newly_placed'] = best_play_move.get('newly_placed', newly_placed)
         move_history.append(move_data); current_replay_turn = len(move_history)
+        # --- ADDED: Calculate and print turn duration ---
+        end_turn_time = time.time()
+        print(f"AI turn took {end_turn_time - start_turn_time:.2f} seconds.")
+        # --- END ADDED ---
         return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, False, None, False
 
     # --- Normal Turn Logic ---
     paused_for_power_tile = False
     paused_for_bingo_practice = False
     current_power_tile = None
-    all_moves = [] # Keep this initialization
+    all_moves = []
     best_play_move = None
     action_chosen = 'pass' # Default action
 
-    # Generate moves (only needed if not simulating or sim fails)
-    # We generate inside simulation now, so this can be removed or conditional
-    # if not (USE_AI_SIMULATION and game_mode in [MODE_HVA, MODE_AVA] and practice_mode is None):
-    #     if GADDAG_STRUCTURE: all_moves = generate_all_moves_gaddag(racks[player_idx], tiles, board, blanks, GADDAG_STRUCTURE.root)
-    #     else: print("ERROR: AI cannot generate moves, GADDAG not loaded."); all_moves = []
-    #     if all_moves is None: all_moves = []
-    #     print(f"AI Player {turn} generated {len(all_moves)} raw moves (standard path).")
+    # Generate moves
+    if GADDAG_STRUCTURE: all_moves = generate_all_moves_gaddag(racks[player_idx], tiles, board, blanks, GADDAG_STRUCTURE.root)
+    else: print("ERROR: AI cannot generate moves, GADDAG not loaded."); all_moves = []
+    if all_moves is None: all_moves = []
+    print(f"AI Player {turn} generated {len(all_moves)} raw moves.")
 
-    # Filter moves for "Only Fives" - Needs all_moves first
-    # This filtering should happen *after* potential simulation if sim fails,
-    # or be incorporated into the simulation logic if needed there.
-    # Let's keep it simple for now and assume sim handles its own filtering if needed.
-    # If sim fails, we need to generate moves here.
-    moves_generated_for_standard = False
-    if not (USE_AI_SIMULATION and game_mode in [MODE_HVA, MODE_AVA] and practice_mode is None):
-        if GADDAG_STRUCTURE: all_moves = generate_all_moves_gaddag(racks[player_idx], tiles, board, blanks, GADDAG_STRUCTURE.root)
-        else: print("ERROR: AI cannot generate moves, GADDAG not loaded."); all_moves = []
-        if all_moves is None: all_moves = []
-        moves_generated_for_standard = True
-        print(f"AI Player {turn} generated {len(all_moves)} raw moves (standard path).")
-
-        if practice_mode == "only_fives":
-            # (Filtering logic remains unchanged)
-            original_tiles_copy = [row[:] for row in tiles]; original_blanks_copy = blanks.copy(); filtered_moves = []
-            for move in all_moves:
-                temp_tiles = [row[:] for row in original_tiles_copy]; temp_blanks = original_blanks_copy.copy(); newly_placed_details = move.get('newly_placed', [])
-                if not newly_placed_details: continue
-                for r, c, letter in newly_placed_details:
-                     if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
-                         temp_tiles[r][c] = letter
-                         if (r, c) in move.get('blanks', set()): temp_blanks.add((r, c))
-                words_formed_details = find_all_words_formed(newly_placed_details, temp_tiles)
-                if any(len("".join(t[2] for t in word_detail)) == 5 for word_detail in words_formed_details): filtered_moves.append(move)
-            all_moves = filtered_moves; print(f"AI Player {turn} filtered moves for 'Only Fives'. Remaining: {len(all_moves)}")
-
+    # Filter moves for "Only Fives"
+    if practice_mode == "only_fives":
+        # (Filtering logic remains unchanged)
+        original_tiles_copy = [row[:] for row in tiles]; original_blanks_copy = blanks.copy(); filtered_moves = []
+        for move in all_moves:
+            temp_tiles = [row[:] for row in original_tiles_copy]; temp_blanks = original_blanks_copy.copy(); newly_placed_details = move.get('newly_placed', [])
+            if not newly_placed_details: continue
+            for r, c, letter in newly_placed_details:
+                 if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
+                     temp_tiles[r][c] = letter
+                     if (r, c) in move.get('blanks', set()): temp_blanks.add((r, c))
+            words_formed_details = find_all_words_formed(newly_placed_details, temp_tiles)
+            if any(len("".join(t[2] for t in word_detail)) == 5 for word_detail in words_formed_details): filtered_moves.append(move)
+        all_moves = filtered_moves; print(f"AI Player {turn} filtered moves for 'Only Fives'. Remaining: {len(all_moves)}")
 
     # --- Practice Mode Pause Checks ---
-    # Need all_moves generated first if not simulating
-    if moves_generated_for_standard:
-        if practice_mode == "power_tiles" and letter_checks:
-            checked_power_tiles = {letter for i, letter in enumerate(['J', 'Q', 'X', 'Z']) if letter_checks[i]}
-            power_tiles_on_rack = sorted([tile for tile in current_rack if tile in checked_power_tiles])
-            if power_tiles_on_rack:
-                current_power_tile = power_tiles_on_rack[0]; paused_for_power_tile = True
-                print(f"AI turn paused for power tile practice. Target: {current_power_tile}")
-                return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile, False
-        elif practice_mode == "bingo_bango_bongo":
-            found_bingo = any(move.get('is_bingo', False) for move in all_moves)
-            if found_bingo:
-                paused_for_bingo_practice = True
-                print(f"AI turn paused for Bingo, Bango, Bongo practice. Bingo found.")
-                return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, False, None, paused_for_bingo_practice
+    # (Practice mode pause logic remains unchanged)
+    if practice_mode == "power_tiles" and letter_checks:
+        checked_power_tiles = {letter for i, letter in enumerate(['J', 'Q', 'X', 'Z']) if letter_checks[i]}
+        power_tiles_on_rack = sorted([tile for tile in current_rack if tile in checked_power_tiles])
+        if power_tiles_on_rack:
+            current_power_tile = power_tiles_on_rack[0]; paused_for_power_tile = True
+            print(f"AI turn paused for power tile practice. Target: {current_power_tile}")
+            # --- ADDED: Calculate and print turn duration ---
+            end_turn_time = time.time()
+            print(f"AI turn took {end_turn_time - start_turn_time:.2f} seconds (paused).")
+            # --- END ADDED ---
+            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile, False
+    elif practice_mode == "bingo_bango_bongo":
+        found_bingo = any(move.get('is_bingo', False) for move in all_moves)
+        if found_bingo:
+            paused_for_bingo_practice = True
+            print(f"AI turn paused for Bingo, Bango, Bongo practice. Bingo found.")
+            # --- ADDED: Calculate and print turn duration ---
+            end_turn_time = time.time()
+            print(f"AI turn took {end_turn_time - start_turn_time:.2f} seconds (paused).")
+            # --- END ADDED ---
+            return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, False, None, paused_for_bingo_practice
 
     # --- AI Action Decision Logic ---
     move_rack_before = racks[player_idx][:]
@@ -4343,54 +4324,31 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     best_exchange_tiles = []
     best_exchange_evaluation = -float('inf')
 
-    # Determine if simulation should run (might need to generate moves first if sim fails)
+    can_play = bool(all_moves)
+    can_exchange_proactively = bag_count >= 7
+
+    # --- Determine Best Play Candidate (Simulation or Standard) ---
     run_simulation = (USE_AI_SIMULATION and
                       game_mode in [MODE_HVA, MODE_AVA] and
-                      practice_mode is None) # Check if sim is enabled for this mode
+                      practice_mode is None and
+                      can_play)
 
     if run_simulation:
         opponent_rack_len_sim = len(racks[opponent_idx]) if opponent_idx < len(racks) else 7
-        # --- MODIFICATION: Pass bag_count ---
         simulated_best_move = run_ai_simulation(
-            current_rack, opponent_rack_len_sim, tiles, blanks, board, bag, GADDAG_STRUCTURE.root, first_play, bag_count
+            current_rack, opponent_rack_len_sim, tiles, blanks, board, bag, GADDAG_STRUCTURE.root, first_play
         )
-        # --- END MODIFICATION ---
-
         if isinstance(simulated_best_move, dict):
             best_play_move = simulated_best_move # Use sim result as the candidate
-            best_play_evaluation = evaluate_single_move(best_play_move, evaluate_leave) # Get its standard eval score
-            print(f"  (Simulation provided play candidate: '{best_play_move.get('word','N/A')}', Eval Score: {best_play_evaluation:.1f})")
-        else: # Simulation failed or returned PASS
-            print("  Simulation returned no valid play or failed. Falling back to standard evaluation.")
+            # Calculate its standard evaluation score for comparison later
+            best_play_evaluation = evaluate_single_move(best_play_move, evaluate_leave)
+            print(f"  (Simulation provided play candidate: '{best_play_move.get('word','N/A')}', Eval Score: {best_play_evaluation:.1f})") # Using .1f based on penultimate code
+        else:
+            print("  Simulation returned no valid play. Falling back to standard evaluation.")
             run_simulation = False # Ensure standard evaluation runs
-            best_play_move = None
-            # Generate moves now if they weren't generated earlier
-            if not moves_generated_for_standard:
-                if GADDAG_STRUCTURE: all_moves = generate_all_moves_gaddag(racks[player_idx], tiles, board, blanks, GADDAG_STRUCTURE.root)
-                else: print("ERROR: AI cannot generate moves, GADDAG not loaded."); all_moves = []
-                if all_moves is None: all_moves = []
-                moves_generated_for_standard = True # Mark as generated
-                print(f"AI Player {turn} generated {len(all_moves)} raw moves (sim fallback).")
-                # Re-apply filtering if needed (e.g., Only Fives)
-                if practice_mode == "only_fives":
-                     # (Filtering logic - duplicate from above, consider refactoring)
-                     original_tiles_copy = [row[:] for row in tiles]; original_blanks_copy = blanks.copy(); filtered_moves = []
-                     for move in all_moves:
-                         temp_tiles = [row[:] for row in original_tiles_copy]; temp_blanks = original_blanks_copy.copy(); newly_placed_details = move.get('newly_placed', [])
-                         if not newly_placed_details: continue
-                         for r, c, letter in newly_placed_details:
-                              if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
-                                  temp_tiles[r][c] = letter
-                                  if (r, c) in move.get('blanks', set()): temp_blanks.add((r, c))
-                         words_formed_details = find_all_words_formed(newly_placed_details, temp_tiles)
-                         if any(len("".join(t[2] for t in word_detail)) == 5 for word_detail in words_formed_details): filtered_moves.append(move)
-                     all_moves = filtered_moves; print(f"AI Player {turn} filtered moves for 'Only Fives'. Remaining: {len(all_moves)}")
+            best_play_move = None # Reset candidate
 
-
-    # --- Standard AI Evaluation (if simulation didn't run or failed, or just for comparison) ---
-    # Check if there are moves to evaluate (either from standard gen or sim fallback)
-    can_play = bool(all_moves)
-    if not run_simulation and can_play:
+    if not run_simulation and can_play: # Standard evaluation if sim didn't run or failed
         print(f"AI {turn} evaluating {len(all_moves)} plays (Standard Eval)...")
         current_top_raw_score = -float('inf')
         top_raw_score_move = None
@@ -4411,13 +4369,12 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         if best_play_move:
             chosen_score = best_play_move.get('score', 0); chosen_leave = best_play_move.get('leave', []); chosen_leave_str = ''.join(sorted(chosen_leave))
             print(f"  Best Evaluated Play: '{best_play_move.get('word','N/A')}' (Raw Score: {chosen_score})"); print(f"    Leave Tiles: '{chosen_leave_str}'")
-            leave_adjust = evaluate_leave(chosen_leave, verbose=False);
-            print(f"    --------------------"); print(f"    Final Play Eval Score: {float(chosen_score + leave_adjust):.2f} (Raw: {chosen_score}, Leave Adj: {leave_adjust})")
+            leave_adjust = evaluate_leave(chosen_leave, verbose=False); # Returns int based on penultimate code
+            print(f"    --------------------"); print(f"    Final Play Eval Score: {float(chosen_score + leave_adjust):.2f} (Raw: {chosen_score}, Leave Adj: {leave_adjust})") # Format as float .2f
         else: print("  Best Evaluated Play: None Found")
         print("-" * 20)
 
-    # --- Evaluate Exchange Option (Always run if possible and needed) ---
-    can_exchange_proactively = bag_count >= 7 # Recalculate here
+    # --- Evaluate Exchange Option (Always run if possible) ---
     if not can_play or can_exchange_proactively:
         print(f"AI {turn} evaluating exchange options...")
         remaining_tiles_dict = get_remaining_tiles(racks[player_idx], tiles, blanks)
@@ -4426,12 +4383,11 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         else: print("  No beneficial exchange option found.")
 
     # --- Final Decision: Compare Best Play Candidate vs. Best Exchange ---
-    # Reset default action before final decision
-    action_chosen = 'pass'
-    if best_play_move: # Check if a valid play candidate exists (from sim or standard)
+    if can_play and best_play_move: # Check if a valid play candidate exists
         action_chosen = 'play' # Tentatively choose play
         if can_exchange_proactively and best_exchange_tiles:
-            current_play_eval = best_play_evaluation # Use the eval score of the chosen candidate
+            # Use the evaluation score of the chosen play candidate (sim or standard)
+            current_play_eval = best_play_evaluation
             is_low_score_play = best_play_move.get('score', 0) < LOW_SCORE_THRESHOLD
             is_exchange_significantly_better = best_exchange_evaluation > current_play_eval + EXCHANGE_PREFERENCE_THRESHOLD
 
@@ -4442,6 +4398,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
                  print(f"AI {turn}: DECISION -> Proactive Exchange (Exchange eval {best_exchange_evaluation:.1f} > Play eval {current_play_eval:.1f} + {EXCHANGE_PREFERENCE_THRESHOLD})")
                  action_chosen = 'exchange'
             else:
+                 # Keep action_chosen = 'play'
                  print(f"AI {turn}: DECISION -> Play ('{best_play_move.get('word','N/A')}') (Exchange not sufficiently better or play score not low)")
     elif best_exchange_tiles: # No valid play candidate, but exchange is possible
         print(f"AI {turn}: DECISION -> Mandatory Exchange (No plays possible)")
@@ -4450,21 +4407,24 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         print(f"AI {turn}: DECISION -> Pass (No plays, no viable exchange)")
         action_chosen = 'pass'
 
-
     # --- Execute Action ---
-    # (Execution logic remains the same)
     next_turn = turn; drawn_tiles = []; newly_placed = []; move_type = ''; score = 0; word = ''; positions = []; blanks_used = set(); coord = ''; word_with_blanks = ''; is_bingo = False
     if action_chosen == 'play':
         if best_play_move:
+            # --- Extract details needed for the print statement FIRST ---
             word_to_print = best_play_move.get('word', 'N/A')
             start_pos_print = best_play_move.get('start', (0,0))
             direction_print = best_play_move.get('direction', 'right')
             coord_print = get_coord(start_pos_print, direction_print)
+            # --- MODIFICATION: Add coordinate to print statement ---
             print(f"AI {turn} playing move: '{word_to_print}' at {coord_print}")
+            # --- END MODIFICATION ---
+            # Now execute the move
             next_turn, drawn_tiles, newly_placed = play_hint_move(best_play_move, tiles, racks, blanks, scores, turn, bag, board)
+            # Assign details for history (coord is already calculated as coord_print)
             move_type = 'place'; score = best_play_move.get('score', 0); word = word_to_print; positions = best_play_move.get('positions', []); blanks_used = best_play_move.get('blanks', set()); coord = coord_print; word_with_blanks = best_play_move.get('word_with_blanks', ''); is_bingo = best_play_move.get('is_bingo', False)
             first_play = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; last_played_highlight_coords = set((pos[0], pos[1]) for pos in positions)
-        else: print(f"AI {turn} Error: Action was 'play' but best_play_move is None. Passing."); action_chosen = 'pass' # Fallback added
+        else: print(f"AI {turn} Error: Action was 'play' but best_play_move is None. Passing."); action_chosen = 'pass'
     if action_chosen == 'exchange':
         if best_exchange_tiles:
             print(f"AI {turn} exchanging {len(best_exchange_tiles)} tiles: {''.join(sorted(best_exchange_tiles))}")
@@ -4475,8 +4435,7 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
             num_to_draw = len(exchanged_tiles_for_history); drawn_tiles = [bag.pop() for _ in range(num_to_draw) if bag]; temp_rack_after_exchange.extend(drawn_tiles); racks[player_idx] = temp_rack_after_exchange
             bag.extend(exchanged_tiles_for_history); random.shuffle(bag)
             move_type = 'exchange'; score = 0; consecutive_zero_point_turns += 1; exchange_count += 1; pass_count = 0; next_turn = 3 - turn; last_played_highlight_coords = set()
-        else: print(f"AI {turn} Error: Action was 'exchange' but best_exchange_tiles is empty. Passing."); action_chosen = 'pass' # Fallback added
-    # Ensure pass is handled if fallbacks occurred
+        else: print(f"AI {turn} Error: Action was 'exchange' but best_exchange_tiles is empty. Passing."); action_chosen = 'pass'
     if action_chosen == 'pass':
         print(f"AI {turn} passing.")
         move_type = 'pass'; score = 0; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; next_turn = 3 - turn; last_played_highlight_coords = set()
@@ -4487,6 +4446,11 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     if move_type == 'place' and best_play_move: move_data['newly_placed'] = best_play_move.get('newly_placed', newly_placed)
     move_history.append(move_data)
     current_replay_turn = len(move_history)
+
+    # --- ADDED: Calculate and print turn duration ---
+    end_turn_time = time.time()
+    print(f"AI turn took {end_turn_time - start_turn_time:.2f} seconds.")
+    # --- END ADDED ---
 
     # --- Return updated state ---
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile, paused_for_bingo_practice
