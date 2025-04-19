@@ -2,7 +2,7 @@ To-Do List
 
 1) MCST (Monte Carlo Search Tree). Or, at least a 2-ply look-ahead simulation.
 
-2) Get Save/Load working
+2) Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
 
 3) Get Endgame Solver working
 
@@ -13,7 +13,6 @@ To-Do List
   Leading/Trailing
   Hot Spots
 
-5) Bingo, Bango, Bongo bingo finding practice
 
 6) Ability to specify a rack, like in Quackle, useful for study and repeatability
 
@@ -21,13 +20,21 @@ To-Do List
 
 8) Racks should be alphabetized automatically, this was working but broke
 
-9) Make Endgame Solver checkbox unchecked by default
 
-10) Make length in Power Tiles mode 2-5 checked by default.
 
 11) On Batch statistics printout, within each individual game provide a working link that goes to the game in question.
 
 12) Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
 
+13) In Suggest and All Words, if bingo, show probablilty.
 
+
+
+__________________    DONE    __________________
+
+10) Make length in Power Tiles mode 2-5 checked by default.
+
+9) Make Endgame Solver checkbox unchecked by default
+
+5) Bingo, Bango, Bongo bingo finding practice
 
