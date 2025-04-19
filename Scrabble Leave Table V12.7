@@ -2,7 +2,7 @@
 
 
 #python
-#Scrabble Leave Table V12.7
+#Scrabble Leave Table V12.8
 #Stable 19APR24
 
 # Part 1
@@ -1698,7 +1698,7 @@ def get_word_index(word, word_list):
 
 
 def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles, scroll_offset):
-    """Draw the complete statistics dialog with scrolling, including quadrant counts."""
+    """Draw the complete statistics dialog with scrolling, including quadrant counts and luck factor."""
     # --- Fixed Dialog Dimensions ---
     stats_dialog_width = 480
     stats_dialog_height = 600 # Fixed height, content will scroll if needed
@@ -1738,6 +1738,18 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles, scr
     # --- Calculate Quadrant Counts ---
     quad_counts = calculate_quadrant_counts(move_history) # Uses new logic
 
+    # --- Calculate Luck Factor (by summing stored values) ---
+    luck_p1 = 0.0
+    luck_p2 = 0.0
+    for move in move_history:
+        player = move.get('player')
+        luck = move.get('luck_factor', 0.0) # Get stored luck
+        if player == 1:
+            luck_p1 += luck
+        elif player == 2:
+            luck_p2 += luck
+    # --- End Luck Calculation ---
+
     # --- Calculate Content Dimensions ---
     padding = 10
     title_height = 30 # Approx height for title
@@ -1747,7 +1759,7 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles, scr
     bingo_font = pygame.font.SysFont("Arial", 18) # Font for bingo lines
 
     # Calculate total height needed for ALL content
-    fixed_stats_rows = 7 # Score, Moves, Avg Score, Tiles/Turn, Bingos Count, Bingo Avg, Blanks, Avg Leave
+    fixed_stats_rows = 9 # Score, Moves, Avg Score, Tiles/Turn, Bingos Count, Bingo Avg, Blanks, Avg Leave, Luck Factor
     quadrant_rows = 3 # Header + 2 rows for Q2/Q1 and Q3/Q4
     p1_bingo_lines = len(p1_bingos_data)
     p2_bingo_lines = len(p2_bingos_data)
@@ -1786,14 +1798,26 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles, scr
     content_surface.blit(p2_name_text, (p2_x_offset_on_surf, y_on_surface))
     y_on_surface += header_height # Approx height for this header row
 
-    # Helper to draw stat rows onto the surface
-    def draw_row_on_surface(label_text, val1_text, val2_text, y_pos):
+    # Helper to draw stat rows onto the surface (accepts format_spec)
+    def draw_row_on_surface(label_text, val1_text, val2_text, y_pos, format_spec="{:.2f}"):
         label_surf = ui_font.render(label_text, True, BLACK)
-        val1_surf = ui_font.render(str(val1_text), True, BLACK)
-        val2_surf = ui_font.render(str(val2_text), True, BLACK)
+        # Apply formatting only if it's likely a number (simple check)
+        try:
+            # Attempt to format val1 and val2 using the specifier
+            val1_str = format_spec.format(float(val1_text)) if isinstance(val1_text, (int, float)) else str(val1_text)
+            val2_str = format_spec.format(float(val2_text)) if isinstance(val2_text, (int, float)) else str(val2_text)
+        except (ValueError, TypeError):
+            # Fallback to string conversion if formatting fails
+            val1_str = str(val1_text)
+            val2_str = str(val2_text)
+
+        val1_surf = ui_font.render(val1_str, True, BLACK)
+        val2_surf = ui_font.render(val2_str, True, BLACK)
+
         content_surface.blit(label_surf, (padding, y_pos))
         content_surface.blit(val1_surf, (p1_x_offset_on_surf, y_pos))
         content_surface.blit(val2_surf, (p2_x_offset_on_surf, y_pos))
+
 
     # Helper to draw quadrant rows onto the surface
     def draw_quad_row(label1, val1, label2, val2, y_pos):
@@ -1818,16 +1842,19 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles, scr
     tiles_per_turn_p1, tiles_per_turn_p2 = calculate_tiles_per_turn(move_history)
     avg_leave_p1, avg_leave_p2 = calculate_avg_leave(move_history)
 
-    draw_row_on_surface("Score:", final_scores[0], final_scores[1], y_on_surface); y_on_surface += line_height
-    draw_row_on_surface("Moves:", moves_p1, moves_p2, y_on_surface); y_on_surface += line_height
-    draw_row_on_surface("Avg Score:", f"{avg_p1:.2f}", f"{avg_p2:.2f}", y_on_surface); y_on_surface += line_height
-    draw_row_on_surface("Tiles Per Turn:", f"{tiles_per_turn_p1:.2f}", f"{tiles_per_turn_p2:.2f}", y_on_surface); y_on_surface += line_height
-    draw_row_on_surface("Bingos:", bingos_p1_count, bingos_p2_count, y_on_surface); y_on_surface += line_height
+    draw_row_on_surface("Score:", final_scores[0], final_scores[1], y_on_surface, format_spec="{}"); y_on_surface += line_height # No decimals for score
+    draw_row_on_surface("Moves:", moves_p1, moves_p2, y_on_surface, format_spec="{}"); y_on_surface += line_height # No decimals for moves
+    draw_row_on_surface("Avg Score:", avg_p1, avg_p2, y_on_surface); y_on_surface += line_height
+    draw_row_on_surface("Tiles Per Turn:", tiles_per_turn_p1, tiles_per_turn_p2, y_on_surface); y_on_surface += line_height
+    draw_row_on_surface("Bingos:", bingos_p1_count, bingos_p2_count, y_on_surface, format_spec="{}"); y_on_surface += line_height # No decimals for count
     p1_bingo_avg_str = "N/A" if bingos_p1_count == 0 else f"{bingo_avg_p1:.2f}"
     p2_bingo_avg_str = "N/A" if bingos_p2_count == 0 else f"{bingo_avg_p2:.2f}"
-    draw_row_on_surface("Bingo Avg:", p1_bingo_avg_str, p2_bingo_avg_str, y_on_surface); y_on_surface += line_height
-    draw_row_on_surface("Blanks:", blanks_p1, blanks_p2, y_on_surface); y_on_surface += line_height
-    draw_row_on_surface("Avg Leave:", f"{avg_leave_p1:.2f}", f"{avg_leave_p2:.2f}", y_on_surface); y_on_surface += line_height
+    draw_row_on_surface("Bingo Avg:", p1_bingo_avg_str, p2_bingo_avg_str, y_on_surface, format_spec="{}"); y_on_surface += line_height # Already formatted
+    draw_row_on_surface("Blanks:", blanks_p1, blanks_p2, y_on_surface, format_spec="{}"); y_on_surface += line_height # No decimals for count
+    draw_row_on_surface("Avg Leave:", avg_leave_p1, avg_leave_p2, y_on_surface); y_on_surface += line_height
+    # --- Draw Luck Factor Row using the helper ---
+    draw_row_on_surface("Luck Factor:", luck_p1, luck_p2, y_on_surface, format_spec="{:+.2f}"); y_on_surface += line_height # Use sign formatting
+    # --- END Draw Luck Factor Row ---
 
     # --- Draw Quadrant Counts ---
     quad_header_surf = ui_font.render("Quadrant Tile Counts:", True, BLACK)
@@ -1892,6 +1919,8 @@ def draw_stats_dialog(dialog_x, dialog_y, player_names, final_scores, tiles, scr
 
     # Return the OK button rect and the total content height for scroll calculation
     return ok_button_rect, total_content_height
+
+
 
 
 def calculate_quadrant_counts(move_history):
@@ -3245,8 +3274,8 @@ def format_duration(total_seconds):
 
 def collect_game_stats(game_num, player_names, final_scores, move_history, gcg_filename):
     """
-    Calculates and returns stats for a single completed game, including move history,
-    quadrant counts, the filename of the saved GCG file, and total game duration.
+    Calculates and returns stats for a single completed game by summing stored values,
+    including move history, quadrant counts, GCG filename, game duration, and luck factor.
     """
     stats = {'game_number': game_num}
     stats['player1_name'] = player_names[0]
@@ -3292,13 +3321,23 @@ def collect_game_stats(game_num, player_names, final_scores, move_history, gcg_f
     stats['move_history'] = copy.deepcopy(move_history)
     stats['gcg_filename'] = gcg_filename
 
-    # --- ADDED: Calculate total game duration ---
+    # --- Sum stored game duration and luck factor ---
     total_duration_seconds = 0.0
+    player1_total_luck = 0.0
+    player2_total_luck = 0.0
     for move in move_history:
-        # Sum durations recorded (primarily AI turns in batch mode)
         total_duration_seconds += move.get('turn_duration', 0.0)
+        player = move.get('player')
+        luck = move.get('luck_factor', 0.0) # Get stored luck
+        if player == 1:
+            player1_total_luck += luck
+        elif player == 2:
+            player2_total_luck += luck
+
     stats['game_duration_seconds'] = total_duration_seconds
-    # --- END ADDED ---
+    stats['player1_total_luck'] = player1_total_luck
+    stats['player2_total_luck'] = player2_total_luck
+    # --- END Summation ---
 
     return stats
 
@@ -3308,8 +3347,8 @@ def collect_game_stats(game_num, player_names, final_scores, move_history, gcg_f
 def save_batch_statistics(batch_results, player_names, batch_summary_filename):
     """
     Calculates aggregate stats and saves batch results to a specified summary file,
-    including detailed bingo info, quadrant counts, GCG filename, and game duration for each game.
-    Also includes total batch duration.
+    including detailed bingo info, quadrant counts, GCG filename, game duration,
+    and luck factor for each game. Also includes total batch duration and luck.
     """
     if not batch_results:
         print("No batch results to save.")
@@ -3354,11 +3393,20 @@ def save_batch_statistics(batch_results, player_names, batch_summary_filename):
         'total_p2_bingos': sum(g['player2_bingos'] for g in batch_results),
         'total_p1_blanks': sum(g['player1_blanks'] for g in batch_results),
         'total_p2_blanks': sum(g['player2_blanks'] for g in batch_results),
+        # --- ADDED: Aggregate Luck Calculation ---
+        'total_p1_luck': sum(g.get('player1_total_luck', 0.0) for g in batch_results),
+        'total_p2_luck': sum(g.get('player2_total_luck', 0.0) for g in batch_results),
+        # --- END ADDED ---
     }
 
     # --- Average Bingos per Game ---
     p1_avg_bingos_per_game = agg_stats['total_p1_bingos'] / num_games if num_games > 0 else 0.0
     p2_avg_bingos_per_game = agg_stats['total_p2_bingos'] / num_games if num_games > 0 else 0.0
+
+    # --- ADDED: Average Luck per Game ---
+    p1_avg_luck_per_game = agg_stats['total_p1_luck'] / num_games if num_games > 0 else 0.0
+    p2_avg_luck_per_game = agg_stats['total_p2_luck'] / num_games if num_games > 0 else 0.0
+    # --- END ADDED ---
 
     # --- Aggregate Average Bingo Index ---
     total_bingo_index_sum = 0
@@ -3451,6 +3499,10 @@ def save_batch_statistics(batch_results, player_names, batch_summary_filename):
             f.write(f"Avg Bingo Score:   {agg_stats['p1_avg_bingo_score']:>12.2f} {agg_stats['p2_avg_bingo_score']:>12.2f}\n")
             f.write(f"Total Blanks Used: {agg_stats['total_p1_blanks']:>12} {agg_stats['total_p2_blanks']:>12}\n")
             f.write(f"Avg Leave Value:   {agg_stats['p1_avg_leave']:>12.2f} {agg_stats['p2_avg_leave']:>12.2f}\n")
+            # --- ADDED: Write Aggregate Luck ---
+            f.write(f"Total Luck Factor: {agg_stats['total_p1_luck']:>+12.2f} {agg_stats['total_p2_luck']:>+12.2f}\n")
+            f.write(f"Avg Luck / Game:   {p1_avg_luck_per_game:>+12.2f} {p2_avg_luck_per_game:>+12.2f}\n")
+            # --- END ADDED ---
             f.write("-" * 25 + "\n")
             f.write("Aggregate Bingo Index (7/8 Letter Words):\n")
             f.write(f"  Avg Index (Combined): {aggregate_avg_bingo_index:>6.1f}  (Based on {bingos_with_index_count} bingos)\n")
@@ -3480,6 +3532,12 @@ def save_batch_statistics(batch_results, player_names, batch_summary_filename):
                 # --- ADDED: Write Individual Game Duration ---
                 game_duration_str = format_duration(game.get('game_duration_seconds', 0.0))
                 f.write(f"  Duration: {game_duration_str}\n")
+                # --- END ADDED ---
+
+                # --- ADDED: Write Individual Game Luck ---
+                p1_luck = game.get('player1_total_luck', 0.0)
+                p2_luck = game.get('player2_total_luck', 0.0)
+                f.write(f"  Luck Factor: P1={p1_luck:+.2f}, P2={p2_luck:+.2f}\n")
                 # --- END ADDED ---
 
                 # Write Quadrant Counts for this game
@@ -4280,16 +4338,11 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
     bag_count = len(bag)
     print(f"AI Player {turn} turn started. Rack: {''.join(sorted(current_rack))}, Bag: {bag_count}, Practice: {practice_mode}, Sim: {USE_AI_SIMULATION}") # Log sorted rack
 
-    # --- ADDED: Calculate and print current pool quality ---
-    # Note: This includes opponent's rack tiles if known, otherwise just bag
-    # For AI vs AI or batch, this is effectively bag + opponent rack.
-    # For Human vs AI, this is bag + human rack (which AI shouldn't technically know perfectly).
-    # We'll use the available information from get_remaining_tiles.
+    # --- Calculate current pool quality ---
     remaining_tiles_dict_for_eval = get_remaining_tiles(racks[player_idx], tiles, blanks)
     pool_analysis_for_eval = analyze_unseen_pool(remaining_tiles_dict_for_eval)
-    pool_quality_score = pool_analysis_for_eval.get('quality_score', 0.0)
+    pool_quality_score = pool_analysis_for_eval.get('quality_score', 0.0) # Store for luck calc and history
     print(f"  Current Unseen Pool Quality Score: {pool_quality_score:.2f}")
-    # --- END ADDED ---
 
 
     # --- Endgame Solver Check ---
@@ -4326,17 +4379,17 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         elif action_chosen == 'pass':
             move_type = 'pass'; score = 0; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; next_turn = 3 - turn; last_played_highlight_coords = set()
 
-        # --- ADDED: Calculate turn duration ---
+        # --- Calculate turn duration ---
         end_turn_time = time.time()
         turn_duration = end_turn_time - start_turn_time
         print(f"AI turn took {turn_duration:.2f} seconds.")
-        # --- END ADDED ---
+        # --- END Calculate turn duration ---
 
-        move_data = { 'player': turn, 'move_type': move_type, 'rack': move_rack_before, 'score': score, 'word': word, 'positions': positions, 'blanks': blanks_used, 'drawn': drawn_tiles, 'coord': coord, 'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo, 'turn_duration': turn_duration } # Added turn_duration
+        # --- Store Move Data (No luck factor in endgame as no draw) ---
+        move_data = { 'player': turn, 'move_type': move_type, 'rack': move_rack_before, 'score': score, 'word': word, 'positions': positions, 'blanks': blanks_used, 'drawn': drawn_tiles, 'coord': coord, 'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo, 'turn_duration': turn_duration, 'pool_quality_before_draw': pool_quality_score, 'luck_factor': 0.0 } # Added pool quality & luck=0
         if move_type == 'place' and best_play_move: move_data['newly_placed'] = best_play_move.get('newly_placed', newly_placed)
         move_history.append(move_data); current_replay_turn = len(move_history)
 
-        # No tiles drawn in endgame, so no luck calculation needed here
         return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, False, None, False
 
     # --- Normal Turn Logic ---
@@ -4376,11 +4429,11 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         if power_tiles_on_rack:
             current_power_tile = power_tiles_on_rack[0]; paused_for_power_tile = True
             print(f"AI turn paused for power tile practice. Target: {current_power_tile}")
-            # --- ADDED: Calculate and print turn duration ---
+            # --- Calculate and print turn duration ---
             end_turn_time = time.time()
             turn_duration = end_turn_time - start_turn_time # Calculate duration even if paused
             print(f"AI turn took {turn_duration:.2f} seconds (paused).")
-            # --- END ADDED ---
+            # --- END Calculate turn duration ---
             # Note: Duration is not added to move_history here as no move is made yet
             return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile, False
     elif practice_mode == "bingo_bango_bongo":
@@ -4388,11 +4441,11 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         if found_bingo:
             paused_for_bingo_practice = True
             print(f"AI turn paused for Bingo, Bango, Bongo practice. Bingo found.")
-            # --- ADDED: Calculate and print turn duration ---
+            # --- Calculate and print turn duration ---
             end_turn_time = time.time()
             turn_duration = end_turn_time - start_turn_time # Calculate duration even if paused
             print(f"AI turn took {turn_duration:.2f} seconds (paused).")
-            # --- END ADDED ---
+            # --- END Calculate turn duration ---
             # Note: Duration is not added to move_history here as no move is made yet
             return turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, all_moves, dropdown_open, hinting, showing_all_words, False, None, paused_for_bingo_practice
 
@@ -4487,6 +4540,8 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     # --- Execute Action ---
     next_turn = turn; drawn_tiles = []; newly_placed = []; move_type = ''; score = 0; word = ''; positions = []; blanks_used = set(); coord = ''; word_with_blanks = ''; is_bingo = False
+    luck_factor = 0.0 # Initialize luck factor for this turn
+
     if action_chosen == 'play':
         if best_play_move:
             # --- Extract details needed for the print statement FIRST ---
@@ -4518,24 +4573,32 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
         print(f"AI {turn} passing.")
         move_type = 'pass'; score = 0; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; next_turn = 3 - turn; last_played_highlight_coords = set()
 
-    # --- ADDED: Calculate and print drawn tile value and luck ---
+    # --- Calculate and print drawn tile value and luck ---
     if drawn_tiles:
         drawn_leave_value = evaluate_leave(drawn_tiles)
         # Use the pool quality score calculated at the start of the turn
         expected_draw_value_simple = pool_quality_score * len(drawn_tiles)
-        luck_factor = drawn_leave_value - expected_draw_value_simple
+        luck_factor = drawn_leave_value - expected_draw_value_simple # Calculate luck
         drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-        print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-    # --- END ADDED ---
+        print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+    # --- END Luck Calculation ---
 
-    # --- ADDED: Calculate turn duration ---
+    # --- Calculate turn duration ---
     end_turn_time = time.time()
     turn_duration = end_turn_time - start_turn_time
     print(f"AI turn took {turn_duration:.2f} seconds.")
-    # --- END ADDED ---
+    # --- END Calculate turn duration ---
 
     # --- Record Move ---
-    move_data = { 'player': turn, 'move_type': move_type, 'rack': move_rack_before, 'score': score, 'word': word, 'positions': positions, 'blanks': blanks_used, 'drawn': drawn_tiles, 'coord': coord, 'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo, 'turn_duration': turn_duration } # Added turn_duration
+    move_data = {
+        'player': turn, 'move_type': move_type, 'rack': move_rack_before,
+        'score': score, 'word': word, 'positions': positions,
+        'blanks': blanks_used, 'drawn': drawn_tiles, 'coord': coord,
+        'word_with_blanks': word_with_blanks, 'is_bingo': is_bingo,
+        'turn_duration': turn_duration,
+        'pool_quality_before_draw': pool_quality_score, # Store pool quality
+        'luck_factor': luck_factor # Store calculated luck
+    }
     if move_type == 'exchange': move_data['exchanged_tiles'] = exchanged_tiles_for_history
     if move_type == 'place' and best_play_move: move_data['newly_placed'] = best_play_move.get('newly_placed', newly_placed)
     move_history.append(move_data)
@@ -4543,9 +4606,6 @@ def ai_turn(turn, racks, tiles, board, blanks, scores, bag, first_play, pass_cou
 
     # --- Return updated state ---
     return next_turn, first_play, pass_count, exchange_count, consecutive_zero_point_turns, [], dropdown_open, hinting, showing_all_words, paused_for_power_tile, current_power_tile, paused_for_bingo_practice
-
-
-
 
 
 
@@ -4675,6 +4735,8 @@ def main():
     global all_words_scroll_offset
     # --- ADDED: BBB Practice Mode Flags ---
     global paused_for_bingo_practice, bingo_practice_message_shown
+    # --- ADDED: Variable to store pool quality for human turn ---
+    global current_turn_pool_quality_score # Make it global to be accessible in event handlers
     # --- END MODIFICATION ---
 
 
@@ -4937,7 +4999,7 @@ def main():
                         # Calculate pool quality regardless of AI/Human
                         temp_remaining_tiles = get_remaining_tiles(racks[turn-1], tiles, blanks)
                         temp_pool_analysis = analyze_unseen_pool(temp_remaining_tiles)
-                        current_turn_pool_quality_score = temp_pool_analysis.get('quality_score', 0.0)
+                        current_turn_pool_quality_score = temp_pool_analysis.get('quality_score', 0.0) # Store for luck calc
 
                         # Generate moves if needed (not 8-letter practice, not paused)
                         if practice_mode != "eight_letter" and not paused_for_power_tile and not paused_for_bingo_practice:
@@ -5035,7 +5097,7 @@ def main():
                                         batch_stop_requested = True
                                         running_inner = False
                                     elif selected_option == "Pass":
-                                        move_rack = racks[turn-1][:]; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; print(f"Player {turn} passed"); human_played = True; paused_for_power_tile = False; paused_for_bingo_practice = False; move_history.append({'player': turn, 'move_type': 'pass', 'rack': move_rack, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'drawn': [], 'is_bingo': False, 'word_with_blanks': '', 'turn_duration': 0.0}); current_replay_turn = len(move_history); turn = 3 - turn; last_played_highlight_coords = set() # Added duration 0 for pass
+                                        move_rack = racks[turn-1][:]; consecutive_zero_point_turns += 1; pass_count += 1; exchange_count = 0; print(f"Player {turn} passed"); human_played = True; paused_for_power_tile = False; paused_for_bingo_practice = False; move_history.append({'player': turn, 'move_type': 'pass', 'rack': move_rack, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'drawn': [], 'is_bingo': False, 'word_with_blanks': '', 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': 0.0}); current_replay_turn = len(move_history); turn = 3 - turn; last_played_highlight_coords = set() # Added duration 0, pool quality & luck=0
                                     elif selected_option == "Exchange":
                                         if len(bag) >= 7:
                                             exchanging = True; selected_tiles.clear()
@@ -5232,17 +5294,18 @@ def main():
                                             if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
                                             bag.extend(tiles_to_exchange)
                                             random.shuffle(bag)
-                                            # --- ADDED: Calculate and print drawn tile value and luck ---
+                                            # --- Calculate and print drawn tile value and luck ---
+                                            luck_factor = 0.0 # Default luck
                                             if drawn_tiles:
                                                 drawn_leave_value = evaluate_leave(drawn_tiles)
                                                 # Use pool quality calculated at start of turn
                                                 expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                                 luck_factor = drawn_leave_value - expected_draw_value_simple
                                                 drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                            # --- END ADDED ---
+                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                            # --- END Luck Calculation ---
                                             # Record history
-                                            move_history.append({'player': turn, 'move_type': 'exchange', 'rack': move_rack, 'exchanged_tiles': tiles_to_exchange, 'drawn': drawn_tiles, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'is_bingo': False, 'word_with_blanks': '', 'turn_duration': 0.0}) # Added duration 0 for exchange
+                                            move_history.append({'player': turn, 'move_type': 'exchange', 'rack': move_rack, 'exchanged_tiles': tiles_to_exchange, 'drawn': drawn_tiles, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'is_bingo': False, 'word_with_blanks': '', 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                             current_replay_turn = len(move_history)
                                             # Update game state
                                             exchanging = False; selected_tiles.clear(); consecutive_zero_point_turns += 1; exchange_count += 1; pass_count = 0; human_played = True; paused_for_power_tile = False; paused_for_bingo_practice = False; turn = 3 - turn; last_played_highlight_coords = set()
@@ -5260,15 +5323,16 @@ def main():
                                         if selected_move['score'] >= max_power_score_filtered:
                                             next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                             human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                            # --- ADDED: Calculate and print drawn tile value and luck ---
+                                            # --- Calculate and print drawn tile value and luck ---
+                                            luck_factor = 0.0
                                             if drawn_tiles:
                                                 drawn_leave_value = evaluate_leave(drawn_tiles)
                                                 expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                                 luck_factor = drawn_leave_value - expected_draw_value_simple
                                                 drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                            # --- END ADDED ---
-                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                            # --- END Luck Calculation ---
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                             current_replay_turn = len(move_history)
                                             last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                             turn = next_turn
@@ -5280,15 +5344,16 @@ def main():
                                         if selected_move.get('is_bingo', False) and selected_move['score'] >= max_bingo_score:
                                             next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                             human_played = True; hinting = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                            # --- ADDED: Calculate and print drawn tile value and luck ---
+                                            # --- Calculate and print drawn tile value and luck ---
+                                            luck_factor = 0.0
                                             if drawn_tiles:
                                                 drawn_leave_value = evaluate_leave(drawn_tiles)
                                                 expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                                 luck_factor = drawn_leave_value - expected_draw_value_simple
                                                 drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                            # --- END ADDED ---
-                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                            # --- END Luck Calculation ---
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                             current_replay_turn = len(move_history)
                                             last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                             turn = next_turn
@@ -5298,15 +5363,16 @@ def main():
                                         next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                         human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
                                         if practice_mode != "eight_letter":
-                                            # --- ADDED: Calculate and print drawn tile value and luck ---
+                                            # --- Calculate and print drawn tile value and luck ---
+                                            luck_factor = 0.0
                                             if drawn_tiles:
                                                 drawn_leave_value = evaluate_leave(drawn_tiles)
                                                 expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                                 luck_factor = drawn_leave_value - expected_draw_value_simple
                                                 drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                            # --- END ADDED ---
-                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                            # --- END Luck Calculation ---
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                             current_replay_turn = len(move_history)
                                             last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                             turn = next_turn
@@ -5347,15 +5413,16 @@ def main():
                                         if selected_move.get('is_bingo', False) and selected_move['score'] >= max_bingo_score:
                                             next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                             human_played = True; showing_all_words = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                            # --- ADDED: Calculate and print drawn tile value and luck ---
+                                            # --- Calculate and print drawn tile value and luck ---
+                                            luck_factor = 0.0
                                             if drawn_tiles:
                                                 drawn_leave_value = evaluate_leave(drawn_tiles)
                                                 expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                                 luck_factor = drawn_leave_value - expected_draw_value_simple
                                                 drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                            # --- END ADDED ---
-                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                            # --- END Luck Calculation ---
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                             current_replay_turn = len(move_history)
                                             last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                             turn = next_turn
@@ -5365,15 +5432,16 @@ def main():
                                         next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                         human_played = True; showing_all_words = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
                                         if practice_mode != "eight_letter":
-                                            # --- ADDED: Calculate and print drawn tile value and luck ---
+                                            # --- Calculate and print drawn tile value and luck ---
+                                            luck_factor = 0.0
                                             if drawn_tiles:
                                                 drawn_leave_value = evaluate_leave(drawn_tiles)
                                                 expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                                 luck_factor = drawn_leave_value - expected_draw_value_simple
                                                 drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                            # --- END ADDED ---
-                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                                print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                            # --- END Luck Calculation ---
+                                            move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                             current_replay_turn = len(move_history)
                                             last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                             turn = next_turn
@@ -5503,15 +5571,16 @@ def main():
                                     if selected_move['score'] >= max_power_score_filtered:
                                         next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                         human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                        # --- ADDED: Calculate and print drawn tile value and luck ---
+                                        # --- Calculate and print drawn tile value and luck ---
+                                        luck_factor = 0.0
                                         if drawn_tiles:
                                             drawn_leave_value = evaluate_leave(drawn_tiles)
                                             expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                             luck_factor = drawn_leave_value - expected_draw_value_simple
                                             drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                        # --- END ADDED ---
-                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                        # --- END Luck Calculation ---
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                         current_replay_turn = len(move_history)
                                         last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                         turn = next_turn
@@ -5523,15 +5592,16 @@ def main():
                                     if selected_move.get('is_bingo', False) and selected_move['score'] >= max_bingo_score:
                                         next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                         human_played = True; hinting = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                        # --- ADDED: Calculate and print drawn tile value and luck ---
+                                        # --- Calculate and print drawn tile value and luck ---
+                                        luck_factor = 0.0
                                         if drawn_tiles:
                                             drawn_leave_value = evaluate_leave(drawn_tiles)
                                             expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                             luck_factor = drawn_leave_value - expected_draw_value_simple
                                             drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                        # --- END ADDED ---
-                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                        # --- END Luck Calculation ---
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                         current_replay_turn = len(move_history)
                                         last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                         turn = next_turn
@@ -5541,15 +5611,16 @@ def main():
                                     next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                     human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
                                     if practice_mode != "eight_letter":
-                                        # --- ADDED: Calculate and print drawn tile value and luck ---
+                                        # --- Calculate and print drawn tile value and luck ---
+                                        luck_factor = 0.0
                                         if drawn_tiles:
                                             drawn_leave_value = evaluate_leave(drawn_tiles)
                                             expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                             luck_factor = drawn_leave_value - expected_draw_value_simple
                                             drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                        # --- END ADDED ---
-                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                        # --- END Luck Calculation ---
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                         current_replay_turn = len(move_history)
                                         last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                         turn = next_turn
@@ -5576,15 +5647,16 @@ def main():
                                     if selected_move.get('is_bingo', False) and selected_move['score'] >= max_bingo_score:
                                         next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                         human_played = True; showing_all_words = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                        # --- ADDED: Calculate and print drawn tile value and luck ---
+                                        # --- Calculate and print drawn tile value and luck ---
+                                        luck_factor = 0.0
                                         if drawn_tiles:
                                             drawn_leave_value = evaluate_leave(drawn_tiles)
                                             expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                             luck_factor = drawn_leave_value - expected_draw_value_simple
                                             drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                        # --- END ADDED ---
-                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                        # --- END Luck Calculation ---
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                         current_replay_turn = len(move_history)
                                         last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                         turn = next_turn
@@ -5594,15 +5666,16 @@ def main():
                                     next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board)
                                     human_played = True; showing_all_words = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
                                     if practice_mode != "eight_letter":
-                                        # --- ADDED: Calculate and print drawn tile value and luck ---
+                                        # --- Calculate and print drawn tile value and luck ---
+                                        luck_factor = 0.0
                                         if drawn_tiles:
                                             drawn_leave_value = evaluate_leave(drawn_tiles)
                                             expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                             luck_factor = drawn_leave_value - expected_draw_value_simple
                                             drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                        # --- END ADDED ---
-                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0}) # Added duration 0
+                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                        # --- END Luck Calculation ---
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}) # Added duration 0, pool quality & luck
                                         current_replay_turn = len(move_history)
                                         last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                                         turn = next_turn
@@ -5791,15 +5864,16 @@ def main():
                                     if play_finalized_normally:
                                         scores[turn-1] += score; first_play = False; drawn_tiles = [bag.pop() for _ in range(len(word_positions)) if bag]; racks[turn-1].extend(drawn_tiles)
                                         if not is_ai[turn-1]: racks[turn-1].sort() # Sort human rack
-                                        # --- ADDED: Calculate and print drawn tile value and luck ---
+                                        # --- Calculate and print drawn tile value and luck ---
+                                        luck_factor = 0.0 # Default luck
                                         if drawn_tiles:
                                             drawn_leave_value = evaluate_leave(drawn_tiles)
                                             # Use pool quality calculated at start of turn
                                             expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles)
                                             luck_factor = drawn_leave_value - expected_draw_value_simple
                                             drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles))
-                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                        # --- END ADDED ---
+                                            print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}") # CONSOLE OUTPUT
+                                        # --- END Luck Calculation ---
                                         # Find the full word and its actual start position/direction
                                         full_word_tiles_hist, main_word_orientation = find_main_word(word_positions, tiles) # Use final board state 'tiles'
                                         full_word_hist = "".join(t[2] for t in full_word_tiles_hist) if full_word_tiles_hist else "ERROR"
@@ -5824,7 +5898,9 @@ def main():
                                             'drawn': drawn_tiles, 'coord': coord_hist, # Use corrected coord
                                             'word_with_blanks': word_with_blanks_hist, 'is_bingo': is_bingo,
                                             'newly_placed': word_positions, # Keep track of only typed tiles if needed elsewhere
-                                            'turn_duration': 0.0 # Human turns don't have duration stored this way
+                                            'turn_duration': 0.0, # Human turns don't have duration stored this way
+                                            'pool_quality_before_draw': current_turn_pool_quality_score, # Store pool quality
+                                            'luck_factor': luck_factor # Store calculated luck
                                         })
                                         current_replay_turn = len(move_history); print(f"Player {turn} played: {full_word_hist} at {coord_hist} for {score} points")
                                         # Update highlight coords after HUMAN move
@@ -6079,6 +6155,8 @@ def main():
     else:
         print("--- main(): Quitting pygame and exiting. ---")
         pygame.quit(); sys.exit()
+
+
 
 
 
