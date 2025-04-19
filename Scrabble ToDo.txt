@@ -31,11 +31,13 @@ To-Do List
   3. I See You Play Scrabble. I Play A Little Scrabble Myself
   4. DEI
 
--- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc.
+-- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc. Locate this within a submenu under Options.
 
 -- Remove debug print for rack tile movement
 
--- Score Preview text encroaches on the Hint button. Hint does the same thing as Suggest, so just remove it.
+-- Score Preview text encroaches on the Hint button.
+
+-- On the Mode Selection screen, the HVH mode button should not be the default selection. Since it is, clicking gives no feedback that it was clicked.
 
 
 
@@ -56,6 +58,9 @@ __________________    DONE    __________________
 -- Allow for paste functionality in the Load Game text box
 
 -- Calculate how good a draw is, based on the tiles drawn compared to the tiles in the pool. This is the "luck" factor.
+
+-- Hint does the same thing as Suggest, so just remove it.
+
 
 
 
