@@ -18,17 +18,11 @@ To-Do List
 
 -- Racks should be alphabetized automatically, this was working but broke
 
--- On Batch statistics printout, within each individual game provide a working link that goes to the game in question. This means each game in a batch is saved automatically before going to the next.
-
 -- Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
 
 -- In Suggest and All Words, if bingo, show probablilty.
 
 -- Show difference between the predicted opponent average move and the actual opponent move. Collate those stats on the Batch stats file. And in the end-of-game stats.
-
--- Calculate how good a draw is, based on the tiles drawn compared to the tiles in the pool.
-
--- Allow for paste functionality in the Load Game text box
 
 -- Allow different AI strengths. From best to worst:
 
@@ -56,6 +50,13 @@ __________________    DONE    __________________
 -- MCST (Monte Carlo Search Tree). Or, at least a 2-ply look-ahead simulation.
 
 -- Change exchange logic. Don't have a minimum score to activate, and don't require the exchange to be x points better. If it's better, it's better.
+
+-- On Batch statistics printout, within each individual game provide a working link that goes to the game in question. This means each game in a batch is saved automatically before going to the next. Edit: not a link, but the file name is saved in each game section.
+
+-- Allow for paste functionality in the Load Game text box
+
+-- Calculate how good a draw is, based on the tiles drawn compared to the tiles in the pool. This is the "luck" factor.
+
 
 
 
