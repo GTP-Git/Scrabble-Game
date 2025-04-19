@@ -39,7 +39,9 @@ To-Do List
 
 -- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc.
 
--- Change exchange logic. Don't have a minimum score to activate, and don't require the exchange to be x points better. If it's better, it's better.
+-- Remove debug print for rack tile movement
+
+-- Score Preview text encroaches on the Hint button. Hint does the same thing as Suggest, so just remove it.
 
 
 
@@ -52,5 +54,8 @@ __________________    DONE    __________________
 -- Bingo, Bango, Bongo bingo finding practice
 
 -- MCST (Monte Carlo Search Tree). Or, at least a 2-ply look-ahead simulation.
+
+-- Change exchange logic. Don't have a minimum score to activate, and don't require the exchange to be x points better. If it's better, it's better.
+
 
 
