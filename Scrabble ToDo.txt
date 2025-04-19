@@ -1,12 +1,10 @@
 To-Do List
 
-1) MCST (Monte Carlo Search Tree). Or, at least a 2-ply look-ahead simulation.
+-- Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
 
-2) Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
+-- Get Endgame Solver working
 
-3) Get Endgame Solver working
-
-4) Add more strategy heuristics
+-- Add more strategy heuristics
 
   Board dynamics
   Offense/Defense
@@ -14,27 +12,45 @@ To-Do List
   Hot Spots
 
 
-6) Ability to specify a rack, like in Quackle, useful for study and repeatability
+-- Ability to specify a rack, like in Quackle, useful for study and repeatability
 
-7) Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
+-- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
 
-8) Racks should be alphabetized automatically, this was working but broke
+-- Racks should be alphabetized automatically, this was working but broke
 
+-- On Batch statistics printout, within each individual game provide a working link that goes to the game in question. This means each game in a batch is saved automatically before going to the next.
 
+-- Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
 
-11) On Batch statistics printout, within each individual game provide a working link that goes to the game in question.
+-- In Suggest and All Words, if bingo, show probablilty.
 
-12) Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
+-- Show difference between the predicted opponent average move and the actual opponent move. Collate those stats on the Batch stats file. And in the end-of-game stats.
 
-13) In Suggest and All Words, if bingo, show probablilty.
+-- Calculate how good a draw is, based on the tiles drawn compared to the tiles in the pool.
+
+-- Allow for paste functionality in the Load Game text box
+
+-- Allow different AI strengths. From best to worst:
+
+  1. My Strength Is Ten-Fold
+  2. I was National Champ in 1989. I Hardly Ever Think About It Anymore
+  3. I See You Play Scrabble. I Play A Little Scrabble Myself
+  4. DEI
+
+-- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc.
+
+-- Change exchange logic. Don't have a minimum score to activate, and don't require the exchange to be x points better. If it's better, it's better.
 
 
 
 __________________    DONE    __________________
 
-10) Make length in Power Tiles mode 2-5 checked by default.
+-- Make length in Power Tiles mode 2-5 checked by default.
 
-9) Make Endgame Solver checkbox unchecked by default
+-- Make Endgame Solver checkbox unchecked by default
 
-5) Bingo, Bango, Bongo bingo finding practice
+-- Bingo, Bango, Bongo bingo finding practice
+
+-- MCST (Monte Carlo Search Tree). Or, at least a 2-ply look-ahead simulation.
+
 
