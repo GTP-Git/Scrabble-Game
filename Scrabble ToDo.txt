@@ -11,9 +11,6 @@ To-Do List
   Leading/Trailing
   Hot Spots
 
-
--- Ability to specify a rack, like in Quackle, useful for study and repeatability
-
 -- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
 
 -- Racks should be alphabetized automatically, this was working but broke
@@ -35,9 +32,6 @@ To-Do List
 
 -- Remove debug print for rack tile movement
 
--- Score Preview text encroaches on the Hint button.
-
--- On the Mode Selection screen, the HVH mode button should not be the default selection. Since it is, clicking gives no feedback that it was clicked.
 
 
 
@@ -60,6 +54,15 @@ __________________    DONE    __________________
 -- Calculate how good a draw is, based on the tiles drawn compared to the tiles in the pool. This is the "luck" factor.
 
 -- Hint does the same thing as Suggest, so just remove it.
+
+-- Ability to specify a rack, like in Quackle, useful for study and repeatability
+
+-- Score Preview text encroaches on the Hint button.
+
+-- On the Mode Selection screen, the HVH mode button should not be the default selection. Since it is, clicking gives no feedback that it was clicked.
+
+
+
 
 
 
