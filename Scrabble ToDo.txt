@@ -30,13 +30,15 @@ To-Do List
 
 -- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc. Locate this within a submenu under Options.
 
--- Show Remaining Tiles as AAAA, BB, DD instead of A: 4, B: 2 D: 2
-
 -- Remove debug print for rack tile movement
 
 -- Refactor main(), as it's way to big and sprawling and likely very inefficient
 
 -- Is there an automatic code testing library for Python?
+
+-- In Only Fives mode, the Suggest button should only show 5-letter words.
+
+-- Allow user to set up a board. I wonder: could the program take as input a photo of a Scrabble board and set the board up automatically for me? Mabye Grok/Gemini can take a photo of a Scrabble board, convert the pieces on the board to a text format, and then in my program I can either manually set the board up or just paste the text and the program will fill the board in automatically. It would need blank handling (so manual input for this) and the ability to deduce which tiles are still in the bag/on your opponent's rack.
 
 -- Add tool tips and contextual help. Set up in a separate file:
 # tooltip_data.py
@@ -109,6 +111,9 @@ __________________    DONE    __________________
 -- On the Mode Selection screen, the HVH mode button should not be the default selection. Since it is, clicking gives no feedback that it was clicked.
 
 -- Does Simulate This Move use the full simulation code? Ex, does it consider an exchange?
+
+-- Show Remaining Tiles as AAAA, BB, DD instead of A: 4, B: 2 D: 2
+
 
 
 
