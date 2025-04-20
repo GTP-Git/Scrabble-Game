@@ -2,7 +2,7 @@ To-Do List
 
 -- Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
 
--- Get Endgame Solver working
+-- Get Endgame Solver working more efficiently
 
 -- Add more strategy heuristics
 
@@ -36,8 +36,6 @@ To-Do List
 
 -- Refactor main(), as it's way to big and sprawling and likely very inefficient
 
--- Does Simulate This Move use the full simulation code? Ex, does it consider an exchange?
-
 -- Is there an automatic code testing library for Python?
 
 -- Add tool tips and contextual help. Set up in a separate file:
@@ -54,7 +52,6 @@ TOOLTIP_TEXTS = {
 +__________+
 
 -- Refactor critical functions to C:
-
 
 Cython
 Cython is a superset of Python that allows adding C data types to Python code. It compiles to C code, which can then be compiled into a Python extension module. This is a popular choice for optimizing performance-critical sections of Python code. Maximum Speed: To get the absolute maximum speedup for something like the GADDAG traversal, you might eventually consider defining the GaddagNode itself as a C structure (cdef struct) or Cython extension type (cdef class), but this is a much more significant rewrite.
@@ -110,6 +107,9 @@ __________________    DONE    __________________
 -- Score Preview text encroaches on the Hint button.
 
 -- On the Mode Selection screen, the HVH mode button should not be the default selection. Since it is, clicking gives no feedback that it was clicked.
+
+-- Does Simulate This Move use the full simulation code? Ex, does it consider an exchange?
+
 
 
 
