@@ -13,6 +13,8 @@ To-Do List
 
 -- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
 
+-- In Replay Mode, allow user to double-clcik a listed move and the board state will appear for that move.
+
 -- Racks should be alphabetized automatically, this was working but broke
 
 -- Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
