@@ -17,6 +17,8 @@ To-Do List
 
 -- Racks should be alphabetized automatically, this was working but broke
 
+-- How does the code evaluate exchanging? Does it check every possible combination of the letters on the rack, checking each against the leave table?
+
 -- Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
 
 -- In Suggest and All Words, if bingo, show probablilty.
