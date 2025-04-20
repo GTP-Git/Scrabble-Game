@@ -30,7 +30,57 @@ To-Do List
 
 -- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc. Locate this within a submenu under Options.
 
+-- Show Remaining Tiles as AAAA, BB, DD instead of A: 4, B: 2 D: 2
+
 -- Remove debug print for rack tile movement
+
+-- Refactor main(), as it's way to big and sprawling and likely very inefficient
+
+-- Does Simulate This Move use the full simulation code? Ex, does it consider an exchange?
+
+-- Is there an automatic code testing library for Python?
+
+-- Add tool tips and contextual help. Set up in a separate file:
+# tooltip_data.py
+TOOLTIP_TEXTS = {
+    "sim_ai_candidates": "Number of top raw-scoring moves the AI considers before simulation.",
+    "sim_opp_sims": "How many random opponent racks are simulated for each AI candidate move.",
+    "sim_post_sim": "How many moves are evaluated with leave value after the simulation phase.",
+    # Add more tooltips here using unique keys
+}
+
+-- use cProfile (and snakeviz to visualize) where my program is slow and inefficient
+
++__________+
+
+-- Refactor critical functions to C:
+
+
+Cython
+Cython is a superset of Python that allows adding C data types to Python code. It compiles to C code, which can then be compiled into a Python extension module. This is a popular choice for optimizing performance-critical sections of Python code. Maximum Speed: To get the absolute maximum speedup for something like the GADDAG traversal, you might eventually consider defining the GaddagNode itself as a C structure (cdef struct) or Cython extension type (cdef class), but this is a much more significant rewrite.
+
+*******
+xcode-select --install (I installed this, not sure yet how to use it)
+xcode-select: note: install requested for command line developer tools
+*******
+
+CFFI (C Foreign Function Interface)
+CFFI provides a way to call C code from Python and vice versa. It focuses on interfacing with existing C libraries, rather than directly translating Python code. It requires writing C declarations that describe the functions and data structures in the C library.
+
+ctypes
+ctypes is a built-in Python library for interacting with C libraries. Similar to CFFI, it allows loading and calling functions from shared libraries. It's generally considered lower-level than CFFI, requiring more manual management of data types and memory.
+
+Shed Skin
+Shed Skin is an experimental compiler that translates a subset of Python code into C++. It requires that the Python code be statically typed (types must be inferable at compile time). It can generate standalone executables or extension modules.
+
+Numba
+Numba is a just-in-time compiler that translates Python functions into optimized machine code at runtime. While it doesn't produce C code directly, it can significantly speed up numerical computations, often achieving performance comparable to C. Numba is best suited for code that uses NumPy arrays and mathematical operations.
+
+It's also worth noting that tools like PyPy (an alternative Python implementation with a JIT compiler) and Nuitka (a compiler that translates Python to C or C++ and then compiles it) can also improve performance, although they don't provide C code as an output.
+
++__________+
+
+
 
 
 
