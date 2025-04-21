@@ -13,6 +13,8 @@ To-Do List
 
 -- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
 
+-- Cursor focus should default to thh first text box in any dialog
+
 -- In Simulation return results, both in the console and in the dialog, show board coordinates.
 
 -- Get rid of the () after bingos in the dialogs.
