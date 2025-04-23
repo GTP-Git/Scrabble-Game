@@ -2,6 +2,8 @@ To-Do List
 
 -- Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
 
+-- The board should load before anything else, when a game/mode/practice is selected, otherwise while the computer things we have to stare at the Mode Selection screen.
+
 -- Get Endgame Solver working more efficiently
 
 -- Add more strategy heuristics
