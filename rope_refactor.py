@@ -13,23 +13,24 @@ from rope.refactor.extract import ExtractMethod
 # --- Project and File ---
 # Assumes rope_refactor.py is in the SAME directory as scrabble_game.py
 PROJECT_PATH = '.' # Use '.' for the current directory
-FILE_TO_REFACTOR = 'scrabble_game.py'
+FILE_TO_REFACTOR = 'Scrabble Game.py'
 
 # --- Refactoring Details ---
 # ** IMPORTANT: Get these offsets accurately! **
 # Use one of the methods (programmatic search or manual calculation)
 # discussed previously to find the correct character offsets.
-start_offset = 0 # <<< REPLACE WITH ACTUAL START OFFSET
-end_offset = 0   # <<< REPLACE WITH ACTUAL END OFFSET
+start_offset = 435783 # <<< REPLACE WITH ACTUAL START OFFSET
+end_offset = 436211   # <<< REPLACE WITH ACTUAL END OFFSET
 
 # --- Example: Extract Method ---
 # If extracting a method, provide the desired name
-new_method_name = "my_extracted_function" # <<< REPLACE WITH DESIRED NAME
+new_method_name = "draw_board_labels" # <<< REPLACE WITH DESIRED NAME
 
 # --- Example: Rename ---
 # If renaming, you might need the offset of the name to rename
 # rename_offset = 0 # <<< Offset of the variable/function name start
 # new_name = "my_new_name" # <<< The new name
+
 
 # --------------------------------------------------------------------------
 # Rope Execution Logic - Generally leave this section as is
