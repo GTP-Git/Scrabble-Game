@@ -2,28 +2,27 @@ To-Do List
 
 -- Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
 
--- The board should load before anything else, when a game/mode/practice is selected, otherwise while the computer things we have to stare at the Mode Selection screen.
+-- When a game is loaded, the move replay is accurate, but the racks are simply simulated guesses, and do not reflect the actual racks. Because the Options button doesn't work in Replay mode because it conflicts with the replay controls, the user can't specify a rack to match the acutal game, if known.
 
--- Get Endgame Solver working more efficiently
+-- In 8-Letter Bingo mode, Play Again should play again without bringing up the Probability dialog. This interrupts the practice flow.
+
 
 -- Add more strategy heuristics
 
   Board dynamics
   Offense/Defense
+  Open/Closed
   Leading/Trailing
   Hot Spots
 
--- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
 
 -- Cursor focus should default to thh first text box in any dialog
 
 -- In Simulation return results, both in the console and in the dialog, show board coordinates.
 
--- Get rid of the () after bingos in the dialogs.
-
 -- In Replay Mode, allow user to double-clcik a listed move and the board state will appear for that move.
 
--- Racks should be alphabetized automatically, this was working but broke
+-- Racks should be alphabetized automatically, both human and AI, in every mode. This was working but broke
 
 -- How does the code evaluate exchanging? Does it check every possible combination of the letters on the rack, checking each against the leave table?
 
@@ -42,9 +41,12 @@ To-Do List
 
 -- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc. Locate this within a submenu under Options.
 
--- Remove debug print for rack tile movement
+-- In at least somee game modes, allow the user to go back/forward during live games, like Quackle does. Use same Replay functionality and set-up that I have now. Great for endgame what-ifs.
+
 
 -- Refactor main(), as it's way to big and sprawling and likely very inefficient
+
+-- If type a word on the board and then click somewhere else on the board before backspacing, the letter stays on the board and my rack is not replenished, so remains <7 for the remainder of the game.
 
 -- Is there an automatic code testing library for Python?
 
@@ -62,6 +64,9 @@ TOOLTIP_TEXTS = {
 }
 
 -- use cProfile (and snakeviz to visualize) where my program is slow and inefficient
+
+-- Get Endgame Solver working more efficiently. Will likely need to compile this function down to C. "C" below for details.
+
 
 +__________+
 
@@ -95,8 +100,9 @@ It's also worth noting that tools like PyPy (an alternative Python implementatio
 
 
 
-
+________________________________________________
 __________________    DONE    __________________
+________________________________________________
 
 -- Make length in Power Tiles mode 2-5 checked by default.
 
@@ -125,6 +131,15 @@ __________________    DONE    __________________
 -- Does Simulate This Move use the full simulation code? Ex, does it consider an exchange?
 
 -- Show Remaining Tiles as AAAA, BB, DD instead of A: 4, B: 2 D: 2
+
+-- The board should load before anything else, when a game/mode/practice is selected, otherwise while the computer things we have to stare at the Mode Selection screen.
+
+-- Get rid of the () after bingos in the dialogs. (This is not a bug, just signifies no rack leave)
+
+-- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
+
+-- Remove debug print for rack tile movement
+
 
 
 
