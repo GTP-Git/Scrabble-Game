@@ -5580,6 +5580,8 @@ def handle_mouse_down_event(event, state):
 
 
 
+# Function to Modify: main
+
 def main(is_initialized): # Accept initialization status as argument
         # Declare key modified globals ---
         # (Keep all existing global declarations)
@@ -6053,11 +6055,10 @@ def main(is_initialized): # Accept initialization status as argument
                                                 paused_for_bingo_practice = False # Reset pause flag
                                                 turn = 3 - turn # Switch turn
 
-                                                # Check if practice was solved (only for Bingo mode now) and show end dialog
-                                                if practice_solved and practice_mode == "bingo_bango_bongo":
-                                                    # This should now only trigger if practice_solved was set above
-                                                    practice_end_message = f"Correct! Score: {score}"
-                                                    showing_practice_end_dialog = True
+                                                # --- REMOVED practice end dialog trigger for Bingo mode ---
+                                                # if practice_solved and practice_mode == "bingo_bango_bongo":
+                                                #     practice_end_message = f"Correct! Score: {score}"
+                                                #     showing_practice_end_dialog = True
                                             # else: # Revert logic already happened inside practice checks if needed
 
                                         else: # Play was invalid
