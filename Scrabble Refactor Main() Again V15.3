@@ -4879,7 +4879,7 @@ def get_replay_state(turn_idx, initial_racks):
 
 
 
-
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 '''
 ***************************************************************
 ***************************************************************
@@ -4889,6 +4889,8 @@ def get_replay_state(turn_idx, initial_racks):
 ***************************************************************
 ***************************************************************
 '''
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
 
 
 def initialize_game(selected_mode_result, return_data, main_called_flag):
@@ -5144,6 +5146,7 @@ def handle_mouse_down_event(event, state):
     """
     Handles MOUSEBUTTONDOWN events for the main game loop.
     Checks GADDAG status before Suggest/Simulate actions.
+    Adds validation for "Only Fives" mode when playing from dialogs.
     """
     # Unpack necessary state variables from the dictionary
     turn = state['turn']; dropdown_open = state['dropdown_open']; bag_count = state['bag_count']; is_batch_running = state['is_batch_running']; replay_mode = state['replay_mode']; game_over_state = state['game_over_state']; practice_mode = state['practice_mode']; exchanging = state['exchanging']; hinting = state['hinting']; showing_all_words = state['showing_all_words']; specifying_rack = state['specifying_rack']; showing_simulation_config = state['showing_simulation_config']; showing_practice_end_dialog = state['showing_practice_end_dialog']; confirming_override = state['confirming_override']; final_scores = state['final_scores']; player_names = state['player_names']; move_history = state['move_history']; initial_racks = state['initial_racks']; showing_stats = state['showing_stats']; stats_dialog_x = state['stats_dialog_x']; stats_dialog_y = state['stats_dialog_y']; stats_ok_button_rect = state['stats_ok_button_rect']; dialog_x = state['dialog_x']; dialog_y = state['dialog_y']; save_rect = state['save_rect']; quit_rect = state['quit_rect']; replay_rect = state['replay_rect']; play_again_rect = state['play_again_rect']; stats_rect = state['stats_rect']; current_replay_turn = state['current_replay_turn']; replay_start_rect = state['replay_start_rect']; replay_prev_rect = state['replay_prev_rect']; replay_next_rect = state['replay_next_rect']; replay_end_rect = state['replay_end_rect']; options_rect_base = state['options_rect_base']; dropdown_rects_base = state['dropdown_rects_base']; selected_tiles = state['selected_tiles']; is_ai = state['is_ai']; specify_rack_original_racks = state['specify_rack_original_racks']; specify_rack_inputs = state['specify_rack_inputs']; specify_rack_active_input = state['specify_rack_active_input']; specify_rack_proposed_racks = state['specify_rack_proposed_racks']; racks = state['racks']; bag = state['bag']; blanks = state['blanks']; tiles = state['tiles']; scores = state['scores']; paused_for_power_tile = state['paused_for_power_tile']; paused_for_bingo_practice = state['paused_for_bingo_practice']; practice_best_move = state['practice_best_move']; all_moves = state['all_moves']; current_power_tile = state['current_power_tile']; number_checks = state['number_checks']; GADDAG_STRUCTURE = state['GADDAG_STRUCTURE']; board = state['board']; current_turn_pool_quality_score = state['current_turn_pool_quality_score']; first_play = state['first_play']; pass_count = state['pass_count']; exchange_count = state['exchange_count']; consecutive_zero_point_turns = state['consecutive_zero_point_turns']; last_played_highlight_coords = state['last_played_highlight_coords'];
@@ -5153,12 +5156,13 @@ def handle_mouse_down_event(event, state):
     stats_scroll_offset = state['stats_scroll_offset'] # Unpack stats scroll offset
     stats_dialog_drag_offset = state['stats_dialog_drag_offset'] # Unpack stats drag offset
     all_words_scroll_offset = state['all_words_scroll_offset'] # Unpack all words scroll offset
+    restart_practice_mode = state['restart_practice_mode'] # Unpack flag
     # practiced_power_tiles_this_turn = state['practiced_power_tiles_this_turn'] # Still not needed
 
 
     updated_state = {}
     running_inner = True; return_to_mode_selection = False; batch_stop_requested = False; human_played = False
-    restart_practice_mode = False # Initialize flag for this function scope
+    # restart_practice_mode = False # Initialize flag for this function scope - MOVED TO UNPACKING
     x, y = event.pos
 
     # --- Practice End Dialog Handling ---
@@ -5413,7 +5417,6 @@ def handle_mouse_down_event(event, state):
                         else: selected_square = None
 
                 # --- Handle clicks within dialogs (Exchange, Hint, All Words) ---
-                # ... (Dialog click handling - unchanged) ...
                 elif exchanging:
                     clicked_tile = False
                     for i, rect in enumerate(tile_rects):
@@ -5438,27 +5441,36 @@ def handle_mouse_down_event(event, state):
                         else: selected_move = hint_moves[selected_hint_index]
                         if selected_move and isinstance(selected_move, dict):
                             move_rack = racks[turn-1][:]
-                            if paused_for_power_tile:
-                                power_moves_filtered = [ m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[])) and is_word_length_allowed(len(m.get('word','')), number_checks) ]; max_power_score_filtered = max(m['score'] for m in power_moves_filtered) if power_moves_filtered else 0
-                                if selected_move.get('score', -1) >= max_power_score_filtered:
-                                    next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; luck_factor = 0.0;
-                                    if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                    move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
-                                else: show_message_dialog(f"This is not the highest scoring move with {current_power_tile} matching the selected lengths!", "Incorrect Move")
-                            elif paused_for_bingo_practice:
-                                bingo_moves = [m for m in all_moves if m.get('is_bingo', False)]; max_bingo_score = max(m['score'] for m in bingo_moves) if bingo_moves else 0
-                                if selected_move.get('is_bingo', False) and selected_move.get('score', -1) >= max_bingo_score:
-                                    next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; hinting = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; luck_factor = 0.0;
-                                    if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                    move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
-                                else: show_message_dialog(f"This is not the highest scoring bingo! Max score is {max_bingo_score}.", "Incorrect Move")
-                            else:
-                                next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                                if practice_mode != "eight_letter":
-                                    luck_factor = 0.0;
-                                    if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                    move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
-                                else: last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
+                            # --- ADD "Only Fives" Check ---
+                            valid_for_practice = True
+                            if practice_mode == "only_fives":
+                                if not does_move_form_five_letter_word(selected_move, tiles, blanks):
+                                    show_message_dialog("At least one 5-letter word must be formed.", "Invalid Play")
+                                    valid_for_practice = False
+                            # --- END "Only Fives" Check ---
+
+                            if valid_for_practice: # Proceed only if valid for current practice mode
+                                if paused_for_power_tile:
+                                    power_moves_filtered = [ m for m in all_moves if any(letter == current_power_tile for _, _, letter in m.get('newly_placed',[])) and is_word_length_allowed(len(m.get('word','')), number_checks) ]; max_power_score_filtered = max(m['score'] for m in power_moves_filtered) if power_moves_filtered else 0
+                                    if selected_move.get('score', -1) >= max_power_score_filtered:
+                                        next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; luck_factor = 0.0;
+                                        if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
+                                    else: show_message_dialog(f"This is not the highest scoring move with {current_power_tile} matching the selected lengths!", "Incorrect Move")
+                                elif paused_for_bingo_practice:
+                                    bingo_moves = [m for m in all_moves if m.get('is_bingo', False)]; max_bingo_score = max(m['score'] for m in bingo_moves) if bingo_moves else 0
+                                    if selected_move.get('is_bingo', False) and selected_move.get('score', -1) >= max_bingo_score:
+                                        next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; hinting = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; luck_factor = 0.0;
+                                        if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
+                                    else: show_message_dialog(f"This is not the highest scoring bingo! Max score is {max_bingo_score}.", "Incorrect Move")
+                                else: # Standard play or valid "Only Fives" play
+                                    next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; hinting = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
+                                    if practice_mode != "eight_letter":
+                                        luck_factor = 0.0;
+                                        if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
+                                        move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
+                                    else: last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                         elif is_simulation_result and not selected_move: show_message_dialog("Error retrieving move data from selected simulation result.", "Internal Error")
                     elif ok_button_rect and ok_button_rect.collidepoint(x, y): clicked_in_dialog = True; hinting = False
                     elif all_words_button_rect and all_words_button_rect.collidepoint(x, y):
@@ -5481,20 +5493,29 @@ def handle_mouse_down_event(event, state):
                     else: moves_for_all = all_moves
                     if all_words_play_rect and all_words_play_rect.collidepoint(x, y) and selected_hint_index is not None and selected_hint_index < len(moves_for_all):
                         clicked_in_dialog = True; selected_move = moves_for_all[selected_hint_index]; move_rack = racks[turn-1][:];
-                        if paused_for_bingo_practice:
-                            bingo_moves = [m for m in all_moves if m.get('is_bingo', False)]; max_bingo_score = max(m['score'] for m in bingo_moves) if bingo_moves else 0
-                            if selected_move.get('is_bingo', False) and selected_move.get('score', -1) >= max_bingo_score:
-                                next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; showing_all_words = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; luck_factor = 0.0;
-                                if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
-                            else: show_message_dialog(f"This is not the highest scoring bingo! Max score is {max_bingo_score}.", "Incorrect Move")
-                        else:
-                            next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; showing_all_words = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
-                            if practice_mode != "eight_letter":
-                                luck_factor = 0.0;
-                                if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
-                                move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
-                            else: last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
+                        # --- ADD "Only Fives" Check ---
+                        valid_for_practice = True
+                        if practice_mode == "only_fives":
+                            if not does_move_form_five_letter_word(selected_move, tiles, blanks):
+                                show_message_dialog("At least one 5-letter word must be formed.", "Invalid Play")
+                                valid_for_practice = False
+                        # --- END "Only Fives" Check ---
+
+                        if valid_for_practice: # Proceed only if valid for current practice mode
+                            if paused_for_bingo_practice:
+                                bingo_moves = [m for m in all_moves if m.get('is_bingo', False)]; max_bingo_score = max(m['score'] for m in bingo_moves) if bingo_moves else 0
+                                if selected_move.get('is_bingo', False) and selected_move.get('score', -1) >= max_bingo_score:
+                                    next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; showing_all_words = False; paused_for_bingo_practice = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0; luck_factor = 0.0;
+                                    if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
+                                    move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
+                                else: show_message_dialog(f"This is not the highest scoring bingo! Max score is {max_bingo_score}.", "Incorrect Move")
+                            else: # Standard play or valid "Only Fives" play
+                                next_turn, drawn_tiles, newly_placed = play_hint_move(selected_move, tiles, racks, blanks, scores, turn, bag, board); human_played = True; showing_all_words = False; paused_for_power_tile = False; consecutive_zero_point_turns = 0; pass_count = 0; exchange_count = 0
+                                if practice_mode != "eight_letter":
+                                    luck_factor = 0.0;
+                                    if drawn_tiles: drawn_leave_value = evaluate_leave(drawn_tiles); expected_draw_value_simple = current_turn_pool_quality_score * len(drawn_tiles); luck_factor = drawn_leave_value - expected_draw_value_simple; drawn_tiles_str = "".join(sorted(t if t != ' ' else '?' for t in drawn_tiles)); print(f"  Drew: {drawn_tiles_str}, Leave Value: {drawn_leave_value:.2f}, Luck: {luck_factor:+.2f}")
+                                    move_history.append({'player': turn, 'move_type': 'place', 'rack': move_rack, 'positions': selected_move.get('positions',[]), 'blanks': selected_move.get('blanks',set()), 'score': selected_move.get('score',0), 'word': selected_move.get('word','N/A'), 'drawn': drawn_tiles, 'coord': get_coord(selected_move.get('start',(0,0)), selected_move.get('direction','right')), 'word_with_blanks': selected_move.get('word_with_blanks',''), 'is_bingo': selected_move.get('is_bingo',False), 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': luck_factor}); current_replay_turn = len(move_history); last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', [])); turn = next_turn
+                                else: last_played_highlight_coords = set((pos[0], pos[1]) for pos in selected_move.get('positions', []))
                     elif all_words_ok_rect and all_words_ok_rect.collidepoint(x, y): clicked_in_dialog = True; showing_all_words = False
                     elif all_words_rects:
                         for rect, idx in all_words_rects:
@@ -5572,6 +5593,51 @@ def handle_mouse_down_event(event, state):
     })
 
     return updated_state
+
+
+
+
+def does_move_form_five_letter_word(move, current_tiles, current_blanks):
+    """
+    Checks if a given move forms at least one 5-letter word.
+
+    Args:
+        move (dict): The move dictionary containing 'newly_placed' and 'blanks'.
+        current_tiles (list[list[str]]): The current state of the board tiles.
+        current_blanks (set): The current set of blank coordinates on the board.
+
+    Returns:
+        bool: True if the move forms at least one 5-letter word, False otherwise.
+    """
+    newly_placed_details = move.get('newly_placed', [])
+    if not newly_placed_details:
+        return False # Cannot form a word without placing tiles
+
+    # Simulate the move on temporary copies
+    temp_tiles = [row[:] for row in current_tiles]
+    temp_blanks = current_blanks.copy()
+    move_blanks_coords = move.get('blanks', set())
+
+    for r, c, letter in newly_placed_details:
+        if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
+            temp_tiles[r][c] = letter
+            if (r, c) in move_blanks_coords:
+                temp_blanks.add((r, c))
+        else:
+            # Invalid placement within the move data itself
+            print(f"Warning (does_move_form_five_letter_word): Invalid position ({r},{c}) in move data.")
+            return False
+
+    # Find all words formed by this simulated placement
+    words_formed_details = find_all_words_formed(newly_placed_details, temp_tiles)
+
+    # Check if any formed word has length 5
+    for word_detail in words_formed_details:
+        word_len = len("".join(t[2] for t in word_detail))
+        if word_len == 5:
+            return True # Found at least one 5-letter word
+
+    return False # No 5-letter words were formed
 
 
 
@@ -5795,6 +5861,7 @@ def main(is_initialized): # Accept initialization status as argument
                             'practice_solved': practice_solved, # Keep packing
                             'practice_end_message': practice_end_message, 'practice_play_again_rect': practice_play_again_rect, 'practice_main_menu_rect': practice_main_menu_rect, 'practice_quit_rect': practice_quit_rect, 'sim_input_rects': sim_input_rects, 'sim_simulate_rect': sim_simulate_rect, 'sim_cancel_rect': sim_cancel_rect, 'simulation_config_inputs': simulation_config_inputs, 'simulation_config_active_input': simulation_config_active_input, 'p1_input_rect_sr': p1_input_rect_sr, 'p2_input_rect_sr': p2_input_rect_sr, 'p1_reset_rect_sr': p1_reset_rect_sr, 'p2_reset_rect_sr': p2_reset_rect_sr, 'confirm_rect_sr': confirm_rect_sr, 'cancel_rect_sr': cancel_rect_sr, 'go_back_rect_ov': go_back_rect_ov, 'override_rect_ov': override_rect_ov, 'tile_rects': tile_rects, 'exchange_button_rect': exchange_button_rect, 'cancel_button_rect': cancel_button_rect, 'hint_moves': hint_moves, 'selected_hint_index': selected_hint_index, 'play_button_rect': play_button_rect, 'ok_button_rect': ok_button_rect, 'all_words_button_rect': all_words_button_rect, 'all_words_rects': all_words_rects, 'all_words_play_rect': all_words_play_rect, 'all_words_ok_rect': all_words_ok_rect, 'suggest_rect_base': suggest_rect_base, 'simulate_button_rect': simulate_button_rect, 'preview_checkbox_rect': preview_checkbox_rect, 'preview_score_enabled': preview_score_enabled, 'p1_alpha_rect': p1_alpha_rect, 'p1_rand_rect': p1_rand_rect, 'p2_alpha_rect': p2_alpha_rect, 'p2_rand_rect': p2_rand_rect, 'dragged_tile': dragged_tile, 'drag_pos': drag_pos, 'typing': typing, 'word_positions': word_positions, 'original_tiles': original_tiles, 'original_rack': original_rack, 'selected_square': selected_square, 'last_left_click_time': last_left_click_time, 'last_left_click_pos': last_left_click_pos, 'stats_dialog_dragging': stats_dialog_dragging, 'dragging': dragging, 'drag_offset': drag_offset, 'letter_checks': letter_checks, 'hint_rects': hint_rects,
                             'stats_scroll_offset': stats_scroll_offset, 'stats_dialog_drag_offset': stats_dialog_drag_offset, 'all_words_scroll_offset': all_words_scroll_offset, 'gaddag_loading_status': gaddag_loading_status,
+                            'restart_practice_mode': restart_practice_mode # --- ADDED packing ---
                             # 'practiced_power_tiles_this_turn': practiced_power_tiles_this_turn # Still not needed
                         }
                         updated_state = handle_mouse_down_event(event, current_state)
