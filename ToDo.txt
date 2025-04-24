@@ -73,7 +73,7 @@ TOOLTIP_TEXTS = {
 -- Refactor critical functions to C:
 
 Cython
-Cython is a superset of Python that allows adding C data types to Python code. It compiles to C code, which can then be compiled into a Python extension module. This is a popular choice for optimizing performance-critical sections of Python code. Maximum Speed: To get the absolute maximum speedup for something like the GADDAG traversal, you might eventually consider defining the GaddagNode itself as a C structure (cdef struct) or Cython extension type (cdef class), but this is a much more significant rewrite.
+Cython is a superset of Python that allows adding C data types to Python code. It compiles to C code, which can then be compiled into a Python extension module. This is a popular choice for optimizing performance-critical sections of Python code. Maximum Speed: To get the absolute maximum speedup for something like the GADDAG traversal, you might eventually consider defining the GaddagNode itself as a C structure (cdef struct) or Cython extension type (cdef class), but this is a much more significant rewrite. Also consider cimport, saw in video, skips some pre-running checks and speeds up code even more.
 
 *******
 xcode-select --install (I installed this, not sure yet how to use it)
