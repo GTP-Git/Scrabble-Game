@@ -12,6 +12,10 @@ To-Do List
 
 --Power Tiles game over dialog should have a Main button, and the Play Again button should re-runthe Power Tiles mode.
 
+-- Give option for Developer Tools on the Mode Selection screen, where options like Profile, etc. are shown
+
+-- Disable debug print for moves during Batch. No one is watching the batch, so no need to slow things down with printing
+
 
 
 
