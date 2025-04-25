@@ -6179,6 +6179,7 @@ def process_game_events(state, drawn_rects): # Added drawn_rects parameter
 def draw_game_screen(screen, state):
     """
     Draws the entire game screen based on the current state.
+    Prioritizes GADDAG loading message over batch progress message.
 
     Args:
         screen: The Pygame surface to draw on.
@@ -6444,7 +6445,12 @@ def draw_game_screen(screen, state):
     # Draw Indicators (Endgame Solving, Batch Mode, GADDAG Loading)
     if is_solving_endgame:
         draw_endgame_solving_indicator()
-    if is_batch_running:
+
+    # --- Indicator Logic: Prioritize Loading, then Batch ---
+    if gaddag_loading_status == 'loading':
+        # Draw GADDAG loading indicator (uses scoreboard position)
+        draw_loading_indicator(sb_x, sb_y, sb_w)
+    elif is_batch_running: # Only draw batch if NOT loading
         batch_text = f"Running Game: {current_batch_game_num} / {total_batch_games}"
         batch_surf = ui_font.render(batch_text, True, BLUE)
         # Position above scoreboard
@@ -6452,8 +6458,8 @@ def draw_game_screen(screen, state):
         indicator_top_y = sb_y - batch_surf.get_height() - 5 # 5px padding above scoreboard
         batch_rect = batch_surf.get_rect(centerx=indicator_center_x, top=max(5, indicator_top_y)) # Ensure not off top
         screen.blit(batch_surf, batch_rect)
-    # Draw GADDAG loading indicator (uses scoreboard position)
-    draw_loading_indicator(sb_x, sb_y, sb_w)
+    # --- End Indicator Logic ---
+
 
     # --- Draw Dialogs (if active) ---
     # Initialize dialog rects to None
@@ -6781,6 +6787,7 @@ def handle_turn_start_updates(state):
 def handle_ai_turn_trigger(state):
     """
     Checks if it's the AI's turn and conditions are met, then executes the AI turn.
+    If GADDAG is loading, the turn is skipped to prevent infinite loops in batch mode.
     Updates and returns the game state dictionary.
 
     Args:
@@ -6825,18 +6832,24 @@ def handle_ai_turn_trigger(state):
     # --- AI Turn Trigger Logic (Moved from main) ---
     if not game_over_state and not replay_mode and not paused_for_power_tile and not paused_for_bingo_practice and practice_mode != "eight_letter" and 0 <= turn-1 < len(is_ai) and is_ai[turn-1] and not human_played and not is_solving_endgame:
         if gaddag_loading_status == 'loading':
-            print(f"AI {turn} waiting for GADDAG to load...")
+            # --- MODIFICATION: Skip turn instead of passing ---
+            print(f"AI {turn} waiting for GADDAG to load... Skipping turn execution.")
+            # Do nothing, just return the current state. The game won't advance.
+            return state
+            # --- END MODIFICATION ---
         elif gaddag_loading_status == 'error':
             print(f"AI {turn} cannot play, GADDAG failed to load. Passing.")
-            move_rack = racks[turn-1][:]
+            # Force a pass if GADDAG load failed permanently
+            move_rack = racks[turn-1][:] if racks and len(racks) > turn-1 else [] # Safety check
             state['consecutive_zero_point_turns'] += 1
             state['pass_count'] += 1
             state['exchange_count'] = 0
-            state['human_played'] = True # Treat as if human passed to prevent immediate re-trigger
+            # Don't set human_played=True here, let the turn counter handle it
             state['move_history'].append({'player': turn, 'move_type': 'pass', 'rack': move_rack, 'score': 0, 'word': '', 'coord': '', 'blanks': set(), 'positions': [], 'drawn': [], 'is_bingo': False, 'word_with_blanks': '', 'turn_duration': 0.0, 'pool_quality_before_draw': current_turn_pool_quality_score, 'luck_factor': 0.0})
             state['current_replay_turn'] = len(state['move_history'])
             state['turn'] = 3 - turn
             state['last_played_highlight_coords'] = set()
+            return state # Return updated state after forced pass
         elif gaddag_loading_status == 'loaded':
             # Expect 13 return values now
             # Note: ai_turn accesses globals or needs them passed if refactored further
@@ -7481,6 +7494,11 @@ def main(is_initialized): # Accept initialization status as argument
             current_state.update(updated_state)
             # --- End AI Turn Trigger ---
 
+            # --- Add Delay if AI turn skipped due to loading ---
+            # Check gaddag_loading_status and is_ai status from the potentially updated state
+            if current_state['gaddag_loading_status'] == 'loading' and 0 <= current_state['turn'] - 1 < len(current_state['is_ai']) and current_state['is_ai'][current_state['turn'] - 1]:
+                pygame.time.wait(100) # Wait 100ms to yield CPU
+            # --- End Add Delay ---
 
             # --- Practice Mode Message Display ---
             updated_state = handle_practice_messages(current_state)
