@@ -8,6 +8,8 @@ To-Do List
 
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
 
+-- Need a way for the user to stop batch games and AI simulation process. Maybe add button to this effect. Need listeners for it.
+
 
 
 
