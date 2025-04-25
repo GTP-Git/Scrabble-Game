@@ -6,6 +6,10 @@ To-Do List
 
 -- In 8-Letter Bingo mode, Play Again should play again without bringing up the Probability dialog. This interrupts the practice flow.
 
+-- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
+
+
+
 
 -- Add more strategy heuristics
 
