@@ -18,6 +18,10 @@ To-Do List
 
 -- Create a separate CONSTANTS.py file
 
+-- In batch game text file, break bingos played down into quartiles.
+
+
+
 
 
 
