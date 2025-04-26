@@ -16,6 +16,8 @@ To-Do List
 
 -- Disable debug print for moves during Batch. No one is watching the batch, so no need to slow things down with printing
 
+-- Create a separate CONSTANTS.py file
+
 
 
 
