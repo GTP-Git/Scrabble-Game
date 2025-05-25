@@ -20,6 +20,8 @@ To-Do List
 
 -- In batch game text file, break bingos played down into quartiles.
 
+-- Add a feature to save a game in progress for later loading
+
 
 
 
