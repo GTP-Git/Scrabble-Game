@@ -2,8 +2,6 @@ To-Do List
 
 -- Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
 
--- When a game is loaded, the move replay is accurate, but the racks are simply simulated guesses, and do not reflect the actual racks. Because the Options button doesn't work in Replay mode because it conflicts with the replay controls, the user can't specify a rack to match the acutal game, if known.
-
 -- In 8-Letter Bingo mode, Play Again should play again without bringing up the Probability dialog. This interrupts the practice flow.
 
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
@@ -12,15 +10,15 @@ To-Do List
 
 --Power Tiles game over dialog should have a Main button, and the Play Again button should re-runthe Power Tiles mode.
 
--- Give option for Developer Tools on the Mode Selection screen, where options like Profile, etc. are shown
-
 -- Disable debug print for moves during Batch. No one is watching the batch, so no need to slow things down with printing
 
 -- Create a separate CONSTANTS.py file
 
--- In batch game text file, break bingos played down into quartiles.
-
 -- Add a feature to save a game in progress for later loading
+
+-- Make Load Game text box/functionality more robust
+
+-- Does best exchange algo use unseen tiles to inform decision? 
 
 
 
@@ -50,7 +48,7 @@ To-Do List
 
 -- In Suggest and All Words, if bingo, show probablilty.
 
--- Show difference between the predicted opponent average move and the actual opponent move. Collate those stats on the Batch stats file. And in the end-of-game stats.
+-- Show difference between the predicted opponent average score and the actual opponent score. Collate those stats on the Batch stats file. And in the end-of-game stats.
 
 -- Allow different AI strengths. From best to worst:
 
@@ -63,14 +61,11 @@ To-Do List
 
 -- In at least somee game modes, allow the user to go back/forward during live games, like Quackle does. Use same Replay functionality and set-up that I have now. Great for endgame what-ifs.
 
-
--- Refactor main(), as it's way to big and sprawling and likely very inefficient
-
 -- If type a word on the board and then click somewhere else on the board before backspacing, the letter stays on the board and my rack is not replenished, so remains <7 for the remainder of the game.
 
 -- Is there an automatic code testing library for Python?
 
--- In Only Fives mode, the Suggest button should only show 5-letter words.
+-- In Only Fives mode, the Suggest button should only show 5-letter words. Or maybe not? What about 4's added to a single letter to make a five?
 
 -- Allow user to set up a board. I wonder: could the program take as input a photo of a Scrabble board and set the board up automatically for me? Mabye Grok/Gemini can take a photo of a Scrabble board, convert the pieces on the board to a text format, and then in my program I can either manually set the board up or just paste the text and the program will fill the board in automatically. It would need blank handling (so manual input for this) and the ability to deduce which tiles are still in the bag/on your opponent's rack.
 
@@ -159,6 +154,18 @@ ________________________________________________
 -- Play Again after 8-Letter Bingo should just run the game again, not go back to the Main screen.
 
 -- Remove debug print for rack tile movement
+
+-- In batch game text file, break bingos played down into quartiles.
+
+-- Refactor main(), as it's way to big and sprawling and likely very inefficient
+
+-- Give option for Developer Tools on the Mode Selection screen, where options like Profile, etc. are shown
+
+-- When a game is loaded, the move replay is accurate, but the racks are simply simulated guesses, and do not reflect the actual racks. Because the Options button doesn't work in Replay mode because it conflicts with the replay controls, the user can't specify a rack to match the acutal game, if known.
+
+
+
+
 
 
 
