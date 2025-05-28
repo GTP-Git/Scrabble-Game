@@ -18,7 +18,11 @@ To-Do List
 
 -- Make Load Game text box/functionality more robust
 
--- Does best exchange algo use unseen tiles to inform decision? 
+-- Does best exchange algo use unseen tiles to inform decision?
+
+-- add blanks/game on batch .txt file
+
+-- add code for more that a 2-ply look-ahead
 
 
 
