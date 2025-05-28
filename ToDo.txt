@@ -24,6 +24,28 @@ To-Do List
 
 -- add code for more that a 2-ply look-ahead
 
+-- sometimes game in non-responsive upon startup, or temporarily hands during gameplay, once per game. Is there a way to diagnose and fix this?
+
+-- add way to stop a batch run and save progress up to that point
+
+--make suggest dialog movable and make words clicked in box appear on screen
+
+-- how is first play calculated?
+
+-- how is the exchange threshhold used? For raw scores or for final scores? Exchanging way too much
+
+-- should def execute_game_function be w/in main(), or outside as a callable function? Main() is getting large again.
+
+-- AI racks shoudl also be alphabetized, except for when in batch mode
+
+-- player score text is crowding tiles, move up a bit
+
+-- implement the ability to do what-if analyses on board positions
+
+-- ability to set up the board tiles in any configuration
+
+-- Best Move practice game, like in Woogles. But how practical? Have a separate file for saved games that have a "great" move in them? How much utility here?
+
 
 
 
@@ -36,6 +58,7 @@ To-Do List
   Open/Closed
   Leading/Trailing
   Hot Spots
+  Setups?
 
 
 -- Cursor focus should default to thh first text box in any dialog
