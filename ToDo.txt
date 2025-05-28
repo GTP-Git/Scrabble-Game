@@ -1,8 +1,5 @@
 To-Do List
 
--- Get Save/Load working (works now when I load a saved game in my program, but not when I load into, say, Quackle
-
--- In 8-Letter Bingo mode, Play Again should play again without bringing up the Probability dialog. This interrupts the practice flow.
 
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
 
@@ -18,17 +15,13 @@ To-Do List
 
 -- Make Load Game text box/functionality more robust
 
--- Does best exchange algo use unseen tiles to inform decision?
-
 -- add blanks/game on batch .txt file
 
--- add code for more that a 2-ply look-ahead
+-- add code for more than a 2-ply look-ahead
 
 -- sometimes game in non-responsive upon startup, or temporarily hands during gameplay, once per game. Is there a way to diagnose and fix this?
 
 -- add way to stop a batch run and save progress up to that point
-
---make suggest dialog movable and make words clicked in box appear on screen
 
 -- how is first play calculated?
 
@@ -36,15 +29,15 @@ To-Do List
 
 -- should def execute_game_function be w/in main(), or outside as a callable function? Main() is getting large again.
 
--- AI racks shoudl also be alphabetized, except for when in batch mode
-
--- player score text is crowding tiles, move up a bit
-
 -- implement the ability to do what-if analyses on board positions
 
 -- ability to set up the board tiles in any configuration
 
--- Best Move practice game, like in Woogles. But how practical? Have a separate file for saved games that have a "great" move in them? How much utility here?
+-- Best Move Guess practice game, like in Woogles. But how practical? Have a separate file for saved games that have a "great" move in them? How much utility here?
+
+-- create a separate program that iterates through the saved batch game files and uses machine learning to determine which quadrant will end up with the most tiles after the first few turns. How many are required before this can be accurately assessed? Note horiz/vert first plays are mirror images, so no need to do separate analyses.
+
+-- make Load text box more robust. Maybe open in a text dialog in case user wants to back out?
 
 
 
@@ -65,11 +58,7 @@ To-Do List
 
 -- In Simulation return results, both in the console and in the dialog, show board coordinates.
 
--- In Replay Mode, allow user to double-clcik a listed move and the board state will appear for that move.
 
--- Racks should be alphabetized automatically, both human and AI, in every mode. This was working but broke
-
--- How does the code evaluate exchanging? Does it check every possible combination of the letters on the rack, checking each against the leave table?
 
 -- Save Batch statistics to a Google Sheets. I asked Gemini about this and is easily implemented, but requires OAuth flow, etc. I already have account set up so just need to add sheet ID, etc.
 
@@ -84,11 +73,7 @@ To-Do List
   3. I See You Play Scrabble. I Play A Little Scrabble Myself
   4. DEI
 
--- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc. Locate this within a submenu under Options.
-
 -- In at least somee game modes, allow the user to go back/forward during live games, like Quackle does. Use same Replay functionality and set-up that I have now. Great for endgame what-ifs.
-
--- If type a word on the board and then click somewhere else on the board before backspacing, the letter stays on the board and my rack is not replenished, so remains <7 for the remainder of the game.
 
 -- Is there an automatic code testing library for Python?
 
@@ -189,6 +174,34 @@ ________________________________________________
 -- Give option for Developer Tools on the Mode Selection screen, where options like Profile, etc. are shown
 
 -- When a game is loaded, the move replay is accurate, but the racks are simply simulated guesses, and do not reflect the actual racks. Because the Options button doesn't work in Replay mode because it conflicts with the replay controls, the user can't specify a rack to match the acutal game, if known.
+
+-- player score text is crowding tiles, move up a bit
+
+-- If type a word on the board and then click somewhere else on the board before backspacing, the letter stays on the board and my rack is not replenished, so remains <7 for the remainder of the game.
+
+-- Allow user to specify simulation parameters per AI player, like how many words to consider, how many simulations per word., etc. Locate this within a submenu under Options.
+
+-- Get Save/Load working - works using Scrabble Game Special (SGS)
+
+-- In 8-Letter Bingo mode, Play Again should play again without bringing up the Probability dialog. This interrupts the practice flow.
+
+-- Does best exchange algo use unseen tiles to inform decision?
+
+--make suggest dialog movable and make words clicked in box appear on screen
+
+-- In Replay Mode, allow user to double-clcik a listed move and the board state will appear for that move.
+
+-- Racks should be alphabetized automatically, both human and AI, in every mode. This was working but broke
+
+-- How does the code evaluate exchanging? Does it check every possible combination of the letters on the rack, checking each against the leave table?
+
+
+
+
+
+
+
+
 
 
 
