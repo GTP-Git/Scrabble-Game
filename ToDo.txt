@@ -1,13 +1,9 @@
 To-Do List
 
 
--- In the batch .txt file, we need to note the number of bingos in each quartile, not just the percentage, so we can later collate that data
-
--- In BBB mode, give option to limit probability, by both 7s and 8s? 9+'s?
+-- MAJOR CHANGE: reduce move list window by 1/2 vertically. Below it put arrow controls like we have for replay mode. Allow what-if scenarios, where the main_branch_game_state is saved, but players can make different plays, choose different racks, explore endgames, etc., Have a reset button that backs the main_branch_game_state to continue play. Under that window, when in Replay Mode, show 5-15 best moves, like on Woogles, showing score, equity, leave eval, simulate button, the whole shebang.
 
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
-
---Power Tiles game over dialog should have a Main button, and the Play Again button should re-run the Power Tiles mode.
 
 -- Create a separate CONSTANTS.py file
 
@@ -16,10 +12,6 @@ To-Do List
 -- add code for more than a 2-ply look-ahead
 
 -- sometimes game in non-responsive upon startup, or temporarily hands during gameplay, once per game. Is there a way to diagnose and fix this?
-
--- how is first play calculated?
-
--- implement the ability to do what-if analyses on board positions
 
 -- ability to set up the board tiles in any configuration
 
@@ -193,15 +185,21 @@ ________________________________________________
 
 -- def execute_game_session() is a function w/in main(). Should it be refactored out? Main() ain't getting any smaller.
 
--- add blanks/game on batch .txt file
+-- Scrabble SGS V14 - add blanks/game on batch .txt file
 
 -- add way to stop a batch run and save progress up to that point
 
 -- how is the exchange threshhold used? For raw scores or for final scores? Exchanging way too much
 
--- should def execute_game_function be w/in main(), or outside as a callable function? Main() is getting large again.
+-- Scrabble SGS V14 - should def execute_game_function be w/in main(), or outside as a callable function? Main() is getting large again.
 
+-- Scrabble SGS V14 - In the batch .txt file, we need to note the number of bingos in each quartile, not just the percentage, so we can later collate that data
 
+-- Scrabble SGS V14 - Power Tiles game over dialog should have a Main button, and the Play Again button should re-run the Power Tiles mode.
+
+-- Scrabble SGS V14 - how is first play calculated? Discussed, current code catches all cases
+
+-- Scrabble SGS V14 - In BBB mode, give option to limit probability, by both 7s and 8s? 9+'s?
 
 
 
