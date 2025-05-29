@@ -3,7 +3,7 @@
 
 
 #python
-#Scrabble SGS V13 - Stable, added stopping and saving for batch games
+#Scrabble SGS V13 - Stable, added stopping and saving for batch games; added copy button to Game Saved dialog
 #Stable 28MAY25
 
 # Part 1
@@ -249,6 +249,142 @@ def draw_loading_indicator(scoreboard_x, scoreboard_y, scoreboard_width):
 
 
 
+
+def show_load_game_dialog():
+    """
+    Displays a modal dialog for the user to enter the filename of an SGS game to load.
+    Handles text input, paste (Ctrl+V/Cmd+V), Load, and Cancel actions.
+
+    Returns:
+        str or None: The filename entered by the user if "Load" is clicked,
+                     or None if "Cancel" is clicked or the dialog is closed.
+    """
+    global screen, dialog_font, ui_font, button_font, pyperclip_available, pyperclip
+    global DIALOG_COLOR, BLACK, WHITE, BUTTON_COLOR, BUTTON_HOVER, RED # Colors
+
+    dialog_width, dialog_height = 450, 200  # Adjusted size
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    filename_input = ""
+    input_active = True  # Start with input active
+    error_message = None
+    dialog_running = True
+
+    input_rect = pygame.Rect(dialog_x + 20, dialog_y + 80, dialog_width - 40, 35)
+    load_button_rect = pygame.Rect(dialog_x + (dialog_width // 4) - (BUTTON_WIDTH // 2),
+                                   dialog_y + dialog_height - BUTTON_HEIGHT - 20,
+                                   BUTTON_WIDTH, BUTTON_HEIGHT)
+    cancel_button_rect = pygame.Rect(dialog_x + (3 * dialog_width // 4) - (BUTTON_WIDTH // 2),
+                                     dialog_y + dialog_height - BUTTON_HEIGHT - 20,
+                                     BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    while dialog_running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                x_mouse, y_mouse = event.pos
+                input_active = input_rect.collidepoint(x_mouse, y_mouse)
+                error_message = None # Clear error on click
+
+                if load_button_rect.collidepoint(x_mouse, y_mouse):
+                    if filename_input.strip():
+                        return filename_input.strip()
+                    else:
+                        error_message = "Filename cannot be empty."
+                elif cancel_button_rect.collidepoint(x_mouse, y_mouse):
+                    return None # User cancelled
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return None # User cancelled with Escape
+
+                if input_active:
+                    error_message = None # Clear error on key press
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                        if filename_input.strip():
+                            return filename_input.strip()
+                        else:
+                            error_message = "Filename cannot be empty."
+                    elif event.key == pygame.K_BACKSPACE:
+                        filename_input = filename_input[:-1]
+                    elif event.key == pygame.K_v: # Paste
+                        mods = pygame.key.get_mods()
+                        if (mods & pygame.KMOD_CTRL or mods & pygame.KMOD_META) and pyperclip_available and pyperclip:
+                            try:
+                                pasted_text = pyperclip.paste()
+                                if pasted_text:
+                                    # Sanitize pasted text a bit (optional, depends on expected filenames)
+                                    # For now, just append. Consider filtering non-filename chars.
+                                    filename_input += pasted_text.replace('\\n', '').replace('\\r', '')
+                            except Exception as e:
+                                print(f"Error pasting from clipboard: {e}")
+                                error_message = "Paste error."
+                    elif event.unicode.isprintable(): # Allow most printable characters
+                        filename_input += event.unicode
+
+        # --- Drawing ---
+        screen.fill(WHITE) # Redraw background (or mode selection screen if not fully modal)
+                           # For true modal, just draw dialog on top
+
+        # Dialog Box
+        pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+        pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+        # Title
+        title_surf = dialog_font.render("Load SGS Game", True, BLACK)
+        screen.blit(title_surf, (dialog_x + (dialog_width - title_surf.get_width()) // 2, dialog_y + 20))
+
+        # Prompt
+        prompt_surf = ui_font.render("Enter filename (e.g., game.sgs):", True, BLACK)
+        screen.blit(prompt_surf, (dialog_x + 20, dialog_y + 55))
+
+        # Input Text Box
+        pygame.draw.rect(screen, WHITE, input_rect)
+        pygame.draw.rect(screen, BLACK, input_rect, 1 if not input_active else 2)
+        input_text_surf = ui_font.render(filename_input, True, BLACK)
+        screen.blit(input_text_surf, (input_rect.x + 5, input_rect.y + (input_rect.height - input_text_surf.get_height()) // 2))
+
+        # Blinking Cursor
+        if input_active and int(time.time() * 2) % 2 == 0:
+            cursor_x = input_rect.x + 5 + input_text_surf.get_width()
+            cursor_y1 = input_rect.y + 5
+            cursor_y2 = input_rect.y + input_rect.height - 5
+            pygame.draw.line(screen, BLACK, (cursor_x, cursor_y1), (cursor_x, cursor_y2), 1)
+
+        # Error Message
+        if error_message:
+            error_surf = ui_font.render(error_message, True, RED)
+            screen.blit(error_surf, (dialog_x + 20, dialog_y + 120))
+
+        # Buttons
+        # Load Button
+        hover_load = load_button_rect.collidepoint(pygame.mouse.get_pos())
+        color_load = BUTTON_HOVER if hover_load else BUTTON_COLOR
+        pygame.draw.rect(screen, color_load, load_button_rect)
+        load_text_surf = button_font.render("Load", True, BLACK)
+        screen.blit(load_text_surf, load_text_surf.get_rect(center=load_button_rect.center))
+
+        # Cancel Button
+        hover_cancel = cancel_button_rect.collidepoint(pygame.mouse.get_pos())
+        color_cancel = BUTTON_HOVER if hover_cancel else BUTTON_COLOR
+        pygame.draw.rect(screen, color_cancel, cancel_button_rect)
+        cancel_text_surf = button_font.render("Cancel", True, BLACK)
+        screen.blit(cancel_text_surf, cancel_text_surf.get_rect(center=cancel_button_rect.center))
+
+        pygame.display.flip()
+        pygame.time.Clock().tick(30)
+
+    return None # Should not be reached if loop exits via return
+
+
+        
+
+
+
 # --- Load Leave Lookup Table ---
 LEAVE_LOOKUP_TABLE = {} # Global dictionary
 try:
@@ -277,7 +413,7 @@ def draw_checkbox(screen, x, y, checked):
 
 
 
-def save_game_sgs(filename, game_data_to_save, show_success_dialog=True, is_silent_batch_run_param=False): # Added is_silent_batch_run_param
+def save_game_sgs(filename, game_data_to_save, show_success_dialog=True, is_silent_batch_run_param=False):
     """
     Saves the complete game state to a file using pickle.
     Informational print statements are now conditional. Error prints remain.
@@ -289,31 +425,30 @@ def save_game_sgs(filename, game_data_to_save, show_success_dialog=True, is_sile
         is_silent_batch_run_param (bool): If True, suppress informational console output.
     """
     try:
-        with open(filename, 'wb') as f_save: 
+        with open(filename, 'wb') as f_save:
             pickle.dump(game_data_to_save, f_save)
-        if not is_silent_batch_run_param: # Conditional print for success
+        if not is_silent_batch_run_param:
             print(f"Game state saved successfully to {filename}")
-        
+
         if show_success_dialog:
-            show_message_dialog(f"Game saved successfully as:\\n\\n{filename}\\n\\n(You can find this file in the same directory as the game.)", "SGS Game Saved")
+            # MODIFIED: Call new dialog function
+            message = f"Game saved successfully as:\n\n{filename}\n\n(You can find this file in the same directory as the game.)"
+            show_save_success_dialog(message, "SGS Game Saved", filename) # Pass filename for copying
         return True
     except IOError as e:
-        # Error messages should always print
         print(f"Error saving game to {filename}: {e}")
-        if show_success_dialog: 
-            show_message_dialog(f"Error saving game to:\\n{filename}\\n\\nDetails: {e}", "SGS Save Error")
+        if show_success_dialog:
+            show_message_dialog(f"Error saving game to:\n{filename}\n\nDetails: {e}", "SGS Save Error")
         return False
     except pickle.PicklingError as e:
-        # Error messages should always print
         print(f"Error pickling game data to {filename}: {e}")
         if show_success_dialog:
-            show_message_dialog(f"Error serializing game data for:\\n{filename}\\n\\nDetails: {e}", "SGS Save Error")
+            show_message_dialog(f"Error serializing game data for:\n{filename}\n\nDetails: {e}", "SGS Save Error")
         return False
     except Exception as e:
-        # Error messages should always print
         print(f"An unexpected error occurred while saving to {filename}: {e}")
         if show_success_dialog:
-            show_message_dialog(f"Unexpected error saving game to:\\n{filename}\\n\\nDetails: {e}", "SGS Save Error")
+            show_message_dialog(f"Unexpected error saving game to:\n{filename}\n\nDetails: {e}", "SGS Save Error")
         return False
 
 
@@ -333,17 +468,18 @@ def load_game_sgs(filename, is_silent_batch_run_param=False): # Added is_silent_
         dict or None: The loaded game data dictionary, or None if loading fails.
     """
     try:
-        with open(filename, 'rb') as f_load: 
+        with open(filename, 'rb') as f_load:
             loaded_data = pickle.load(f_load)
         if not is_silent_batch_run_param: # Conditional print for success
             print(f"Game state loaded successfully from {filename}")
-        
+
         if not isinstance(loaded_data, dict) or 'sgs_version' not in loaded_data:
             # Error messages should always print
             print(f"Error: {filename} is not a valid SGS file or is corrupted (missing version).")
-            show_message_dialog(f"Error: Not a valid SGS file or corrupted:\\n{filename}", "SGS Load Error")
+            # MODIFIED: Changed \\\\n to \n
+            show_message_dialog(f"Error: Not a valid SGS file or corrupted:\n{filename}", "SGS Load Error")
             return None
-        
+
         # Version check print can also be conditional if desired, or kept for info
         # if loaded_data['sgs_version'] != "1.0":
         #     if not is_silent_batch_run_param:
@@ -352,17 +488,183 @@ def load_game_sgs(filename, is_silent_batch_run_param=False): # Added is_silent_
     except FileNotFoundError:
         # Error messages should always print (or be handled by caller)
         print(f"Error: SGS file not found '{filename}'")
-        raise 
+        raise # Re-raise for mode_selection_screen to handle with its own dialog
     except (pickle.UnpicklingError, EOFError) as e:
         # Error messages should always print
         print(f"Error unpickling game data from {filename}: {e}")
-        show_message_dialog(f"Error reading SGS file (corrupted or invalid format):\\n{filename}\\n\\nDetails: {e}", "SGS Load Error")
+        # MODIFIED: Changed \\\\n to \n
+        show_message_dialog(f"Error reading SGS file (corrupted or invalid format):\n{filename}\n\nDetails: {e}", "SGS Load Error")
         return None
     except Exception as e:
         # Error messages should always print
         print(f"An unexpected error occurred while loading {filename}: {e}")
-        show_message_dialog(f"Unexpected error loading SGS file:\\n{filename}\\n\\nDetails: {e}", "SGS Load Error")
+        # MODIFIED: Changed \\\\n to \n
+        show_message_dialog(f"Unexpected error loading SGS file:\n{filename}\n\nDetails: {e}", "SGS Load Error")
         return None
+
+
+
+
+def show_save_success_dialog(message, title, filename_to_copy):
+    """
+    Displays a success message dialog with an "OK" button and a "Copy File Name" button.
+    Dynamically adjusts height based on the message content.
+
+    Args:
+        message (str): The main message to display.
+        title (str): The title of the dialog.
+        filename_to_copy (str): The filename that will be copied to the clipboard.
+    """
+    global screen, dialog_font, ui_font, button_font, pyperclip_available, pyperclip
+    global DIALOG_COLOR, BLACK, WHITE, BUTTON_COLOR, BUTTON_HOVER, GREEN # Colors
+
+    base_dialog_width = 450 # Slightly wider to accommodate two buttons comfortably
+    min_dialog_height = 180 # Minimum height
+    padding = 15
+    line_spacing = 5
+    button_area_height = BUTTON_HEIGHT + padding * 2
+
+    # 1. Wrap text
+    words = message.split(' ')
+    lines = []
+    current_line = ''
+    max_line_width = base_dialog_width - padding * 2 - 10
+
+    for word in words:
+        if '\n' in word: # Handle explicit newlines
+            parts = word.split('\n')
+            for i, part in enumerate(parts):
+                if not part:
+                    if current_line: lines.append(current_line.strip())
+                    lines.append("")
+                    current_line = ""
+                    continue
+                test_line = current_line + part + ' '
+                if ui_font.size(test_line)[0] < max_line_width:
+                    current_line = test_line
+                else:
+                    if current_line: lines.append(current_line.strip())
+                    if ui_font.size(part + ' ')[0] < max_line_width:
+                         current_line = part + ' '
+                    else:
+                         lines.append(part)
+                         current_line = ""
+                if i < len(parts) - 1:
+                     if current_line: lines.append(current_line.strip())
+                     lines.append("")
+                     current_line = ""
+        else:
+            test_line = current_line + word + ' '
+            if ui_font.size(test_line)[0] < max_line_width:
+                current_line = test_line
+            else:
+                if current_line: lines.append(current_line.strip())
+                if ui_font.size(word + ' ')[0] < max_line_width:
+                     current_line = word + ' '
+                else:
+                     lines.append(word)
+                     current_line = ""
+    if current_line:
+        lines.append(current_line.strip())
+
+    # 2. Calculate required height
+    title_height_val = dialog_font.get_linesize()
+    text_height_val = len(lines) * ui_font.get_linesize() + max(0, len(lines) - 1) * line_spacing
+    required_height = title_height_val + text_height_val + button_area_height + padding * 3
+    dialog_height = max(min_dialog_height, required_height)
+    dialog_width = base_dialog_width
+
+    dialog_x = (WINDOW_WIDTH - dialog_width) // 2
+    dialog_y = (WINDOW_HEIGHT - dialog_height) // 2
+
+    # Button Setup
+    copy_button_width = 150 # Wider for "Copy File Name"
+    ok_button_rect = pygame.Rect(
+        dialog_x + (dialog_width // 2) + (BUTTON_GAP // 2),
+        dialog_y + dialog_height - BUTTON_HEIGHT - padding,
+        BUTTON_WIDTH, BUTTON_HEIGHT
+    )
+    copy_button_rect = pygame.Rect(
+        dialog_x + (dialog_width // 2) - copy_button_width - (BUTTON_GAP // 2),
+        dialog_y + dialog_height - BUTTON_HEIGHT - padding,
+        copy_button_width, BUTTON_HEIGHT
+    )
+    copy_button_text_str = "Copy File Name"
+    copy_button_feedback_timer = 0 # For "Copied!" message
+
+    dialog_running = True
+    while dialog_running:
+        current_time = pygame.time.get_ticks()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if ok_button_rect.collidepoint(event.pos):
+                    dialog_running = False
+                elif copy_button_rect.collidepoint(event.pos):
+                    if pyperclip_available and pyperclip:
+                        try:
+                            pyperclip.copy(filename_to_copy)
+                            copy_button_text_str = "Copied!"
+                            copy_button_feedback_timer = current_time + 1000 # Show for 1 second
+                            print(f"Filename '{filename_to_copy}' copied to clipboard.")
+                        except Exception as e:
+                            print(f"Error copying to clipboard: {e}")
+                            copy_button_text_str = "Copy Failed"
+                            copy_button_feedback_timer = current_time + 1500
+                    else:
+                        copy_button_text_str = "Pyperclip N/A"
+                        copy_button_feedback_timer = current_time + 1500
+                        print("Pyperclip not available for copying.")
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER or event.key == pygame.K_ESCAPE:
+                    dialog_running = False
+
+        # Reset copy button text after feedback timer
+        if copy_button_feedback_timer > 0 and current_time > copy_button_feedback_timer:
+            copy_button_text_str = "Copy File Name"
+            copy_button_feedback_timer = 0
+
+        # --- Drawing ---
+        pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x, dialog_y, dialog_width, dialog_height))
+        pygame.draw.rect(screen, BLACK, (dialog_x, dialog_y, dialog_width, dialog_height), 2)
+
+        title_surf = dialog_font.render(title, True, BLACK)
+        screen.blit(title_surf, (dialog_x + padding, dialog_y + padding))
+
+        y_offset = dialog_y + padding + title_height_val + padding
+        for line in lines:
+            text_surf = ui_font.render(line, True, BLACK)
+            screen.blit(text_surf, (dialog_x + padding, y_offset))
+            y_offset += ui_font.get_linesize() + line_spacing
+
+        # OK Button
+        hover_ok = ok_button_rect.collidepoint(pygame.mouse.get_pos())
+        color_ok = BUTTON_HOVER if hover_ok else BUTTON_COLOR
+        pygame.draw.rect(screen, color_ok, ok_button_rect)
+        ok_text_surf = button_font.render("OK", True, BLACK)
+        screen.blit(ok_text_surf, ok_text_surf.get_rect(center=ok_button_rect.center))
+
+        # Copy File Name Button
+        hover_copy = copy_button_rect.collidepoint(pygame.mouse.get_pos())
+        color_copy_bg = BUTTON_COLOR
+        if copy_button_text_str == "Copied!":
+            color_copy_bg = DARK_GREEN # Green feedback
+        elif "Failed" in copy_button_text_str or "N/A" in copy_button_text_str:
+            color_copy_bg = RED # Red feedback
+        elif hover_copy:
+            color_copy_bg = BUTTON_HOVER
+
+        pygame.draw.rect(screen, color_copy_bg, copy_button_rect)
+        copy_text_surf = button_font.render(copy_button_text_str, True, BLACK)
+        screen.blit(copy_text_surf, copy_text_surf.get_rect(center=copy_button_rect.center))
+
+        pygame.display.flip()
+        pygame.time.Clock().tick(30)
+
+
 
 
 
@@ -1154,112 +1456,130 @@ def is_word_length_allowed(word_len, number_checks):
 
 
 def mode_selection_screen():
-    """Display and handle the game mode selection screen, including Load Game via text input."""
+    """Display and handle the game mode selection screen, including Load Game via a dedicated dialog."""
     print("--- mode_selection_screen() entered ---")
-    global main_called 
-    global pyperclip_available, pyperclip
-    global DEV_CPROFILE_ENABLED_SESSION, DEV_VISUALIZE_BATCH_ENABLED_SESSION 
+    global main_called
+    global pyperclip_available, pyperclip # Used by show_load_game_dialog
+    global DEV_CPROFILE_ENABLED_SESSION, DEV_VISUALIZE_BATCH_ENABLED_SESSION
 
     try:
         print("--- mode_selection_screen(): Attempting to load background image... ---")
-        image = pygame.image.load("Scrabble_S.png").convert_alpha(); content_width = WINDOW_WIDTH - 200; image = pygame.transform.scale(image, (content_width, WINDOW_HEIGHT)); image.set_alpha(128); content_left = (WINDOW_WIDTH - content_width) // 2
+        image = pygame.image.load("Scrabble_S.png").convert_alpha()
+        content_width = WINDOW_WIDTH - 200
+        image = pygame.transform.scale(image, (content_width, WINDOW_HEIGHT))
+        image.set_alpha(128)
+        content_left = (WINDOW_WIDTH - content_width) // 2
         print("--- mode_selection_screen(): Background image loaded and processed. ---")
     except pygame.error as e:
         print(f"--- mode_selection_screen(): WARNING - Could not load background image 'Scrabble_S.png': {e} ---")
-        image = None; content_width = WINDOW_WIDTH; content_left = 0
+        image = None
+        content_width = WINDOW_WIDTH
+        content_left = 0
 
-    modes = [MODE_HVH, MODE_HVA, MODE_AVA]; selected_mode = None; player_names = ["Player 1", "Player 2"]; human_player = 1; input_active = [False, False]; current_input = 0
-    practice_mode = None; dropdown_open = False; showing_power_tiles_dialog = False
-    letter_checks = [True, True, True, True] 
-    number_checks = [True, True, True, True, False, False] 
+    modes = [MODE_HVH, MODE_HVA, MODE_AVA]
+    selected_mode = None
+    player_names = ["Player 1", "Player 2"]
+    human_player = 1
+    input_active = [False, False] # For player name input
+    current_input = 0 # Index for selected mode in 'modes' list
+
+    practice_mode = None
+    dropdown_open = False
+    showing_power_tiles_dialog = False
+    letter_checks = [True, True, True, True]
+    number_checks = [True, True, True, True, False, False]
     practice_state = None
-    loaded_game_data = None
-    use_endgame_solver_checked = False
-    use_ai_simulation_checked = False # This triggers the new dialog
+    loaded_game_data = None # Will store data if a game is loaded
 
-    # --- NEW: State for AI Simulation Config Dialog ---
+    use_endgame_solver_checked = False
+    use_ai_simulation_checked = False
+
     showing_ai_sim_config_dialog = False
-    ai_sim_config_inputs = ["", "", ""] # For the three text fields
+    ai_sim_config_inputs = ["", "", ""]
     ai_sim_config_active_input = None
-    # Store configured values, initialized to defaults
     ai_sim_num_candidates = DEFAULT_AI_CANDIDATES
     ai_sim_num_opponent_sims = DEFAULT_OPPONENT_SIMULATIONS
     ai_sim_num_post_sim_candidates = DEFAULT_POST_SIM_CANDIDATES
     ai_sim_config_rects = []
     ai_sim_config_ok_rect = None
     ai_sim_config_cancel_rect = None
-    # --- END NEW ---
 
-    showing_load_input = False; load_filename_input = ""; load_input_active = False
-    load_confirm_button_rect = None; load_input_rect = None; load_cancel_button_rect = None
+    # REMOVED: showing_load_input, load_filename_input, load_input_active
+    # REMOVED: load_confirm_button_rect, load_input_rect, load_cancel_button_rect (for inline input)
 
     showing_dev_tools_dialog = False
-    dev_cprofile_checked = DEV_CPROFILE_ENABLED_SESSION 
+    dev_cprofile_checked = DEV_CPROFILE_ENABLED_SESSION
     dev_visualize_batch_checked = DEV_VISUALIZE_BATCH_ENABLED_SESSION
     dev_cprofile_checkbox_rect = None
     dev_visualize_checkbox_rect = None
     dev_ok_button_rect = None
-    
+
     print("--- mode_selection_screen(): Entering main loop (while selected_mode is None:)... ---")
     loop_count = 0
     while selected_mode is None:
         loop_count += 1
-        pygame.event.pump()
+        pygame.event.pump() # Process internal Pygame events
 
-        option_rects = []
+        option_rects = [] # For practice mode dropdown
         name_rect_x = content_left + (content_width - 200) // 2
-        
+
+        # --- Button Definitions (positions might need slight adjustments after removing inline load) ---
         play_later_rect = pygame.Rect(WINDOW_WIDTH - BUTTON_WIDTH - 10, WINDOW_HEIGHT - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
         load_game_button_rect = pygame.Rect(play_later_rect.left - BUTTON_GAP - BUTTON_WIDTH, play_later_rect.top, BUTTON_WIDTH, BUTTON_HEIGHT)
         batch_game_button_rect = pygame.Rect(load_game_button_rect.left - BUTTON_GAP - BUTTON_WIDTH, play_later_rect.top, BUTTON_WIDTH, BUTTON_HEIGHT)
         start_game_button_rect = pygame.Rect(batch_game_button_rect.left - BUTTON_GAP - BUTTON_WIDTH, play_later_rect.top, BUTTON_WIDTH, BUTTON_HEIGHT)
-        
-        dev_tools_button_width = 150 
+
+        dev_tools_button_width = 150
         dev_tools_button_rect = pygame.Rect(10, WINDOW_HEIGHT - BUTTON_HEIGHT - 10, dev_tools_button_width, BUTTON_HEIGHT)
 
-        load_input_width = 300; load_input_x = load_game_button_rect.left; load_input_y = load_game_button_rect.top - BUTTON_GAP - BUTTON_HEIGHT
-        load_input_rect = pygame.Rect(load_input_x, load_input_y, load_input_width, BUTTON_HEIGHT)
-        load_confirm_button_rect = pygame.Rect(load_input_x + load_input_width + BUTTON_GAP, load_input_y, BUTTON_WIDTH, BUTTON_HEIGHT)
-        load_cancel_button_rect = pygame.Rect(load_confirm_button_rect.right + BUTTON_GAP, load_input_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+        # REMOVED: Inline load input rect definitions
 
-        last_mode_button_y = 100 + (len(modes) - 1) * 60 + BUTTON_HEIGHT
-        checkbox_x_base = content_left + (content_width - 250) // 2
-        checkbox_gap = 25
+        # --- Checkbox and Name Input Layout (relative to mode buttons) ---
+        last_mode_button_y = 100 + (len(modes) - 1) * 60 + BUTTON_HEIGHT # Y-pos of the bottom of the last mode button
+        checkbox_x_base = content_left + (content_width - 250) // 2 # Centering helper
+        checkbox_gap = 25 # Vertical gap between checkboxes
 
         endgame_checkbox_x = checkbox_x_base
-        endgame_checkbox_y = last_mode_button_y + 20
+        endgame_checkbox_y = last_mode_button_y + 20 # Position below mode buttons
         endgame_checkbox_rect = pygame.Rect(endgame_checkbox_x, endgame_checkbox_y, 20, 20)
         endgame_label_x = endgame_checkbox_x + 25
         endgame_label_y = endgame_checkbox_y + 2
 
         simulation_checkbox_x = checkbox_x_base
-        simulation_checkbox_y = endgame_checkbox_y + checkbox_gap
+        simulation_checkbox_y = endgame_checkbox_y + checkbox_gap # Below endgame checkbox
         simulation_checkbox_rect = pygame.Rect(simulation_checkbox_x, simulation_checkbox_y, 20, 20)
         simulation_label_x = simulation_checkbox_x + 25
         simulation_label_y = simulation_checkbox_y + 2
 
-        name_input_gap = 30
+        name_input_gap = 30 # Gap below checkboxes to name inputs
         p1_y_pos = simulation_checkbox_y + simulation_checkbox_rect.height + name_input_gap
-        player_name_gap = 40
+        player_name_gap = 40 # Gap between P1 and P2 name inputs
         p2_y_pos = p1_y_pos + BUTTON_HEIGHT + player_name_gap
 
-        hva_button_row_y = p2_y_pos + BUTTON_HEIGHT + 10
-        hva_buttons_total_width = (BUTTON_WIDTH * 2 + 20)
+        # HVA mode: P1/P2 selection buttons
+        hva_button_row_y = p2_y_pos + BUTTON_HEIGHT + 10 # Below name inputs
+        hva_buttons_total_width = (BUTTON_WIDTH * 2 + 20) # Two buttons + gap
         hva_buttons_start_x = content_left + (content_width - hva_buttons_total_width) // 2
         p1_rect_hva = pygame.Rect(hva_buttons_start_x, hva_button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
         p2_rect_hva = pygame.Rect(hva_buttons_start_x + BUTTON_WIDTH + 20, hva_button_row_y, BUTTON_WIDTH, BUTTON_HEIGHT)
 
+        # Practice dropdown for HVH
         if modes[current_input] == MODE_HVH and dropdown_open:
-            dropdown_x = name_rect_x
-            dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
-            dropdown_y = dropdown_button_y + 30
+            dropdown_x = name_rect_x # Align with name inputs
+            dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10 # Below P2 name input
+            dropdown_y = dropdown_button_y + 30 # Actual dropdown items start below button
             options = ["Power Tiles", "8-Letter Bingos", "Bingo, Bango, Bongo", "Only Fives", "End Game"]
-            for i, option in enumerate(options): option_rect = pygame.Rect(dropdown_x, dropdown_y + 30 * i, 200, 30); option_rects.append(option_rect)
+            for i, option in enumerate(options):
+                option_rect = pygame.Rect(dropdown_x, dropdown_y + 30 * i, 200, 30)
+                option_rects.append(option_rect)
 
+        # --- Event Handling ---
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-            # --- NEW: AI Simulation Config Dialog Event Handling ---
+            # AI Simulation Config Dialog Event Handling
             if showing_ai_sim_config_dialog:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     x_sim_cfg, y_sim_cfg = event.pos
@@ -1306,12 +1626,12 @@ def mode_selection_screen():
                             ai_sim_config_inputs[idx_sim_cfg] += event.unicode
                     elif event.key == pygame.K_ESCAPE: # Allow escape to cancel dialog
                         showing_ai_sim_config_dialog = False
-                        use_ai_simulation_checked = False 
+                        use_ai_simulation_checked = False
                         ai_sim_config_inputs = ["", "", ""]
                         ai_sim_config_active_input = None
                 continue # Skip other event handling if AI sim config dialog is active
-            # --- END NEW ---
 
+            # Developer Tools Dialog Event Handling
             if showing_dev_tools_dialog:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     x_dev, y_dev = event.pos
@@ -1326,224 +1646,277 @@ def mode_selection_screen():
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                         showing_dev_tools_dialog = False
                         print(f"Dev Tools (closed with key): cProfile={'Enabled' if dev_cprofile_checked else 'Disabled'}, Visualize Batch={'Enabled' if dev_visualize_batch_checked else 'Disabled'}")
-                continue 
-            
-            if showing_load_input:
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    x, y = event.pos
-                    if load_input_rect.collidepoint(x, y): load_input_active = True
-                    else: load_input_active = False
-                    if load_confirm_button_rect.collidepoint(x, y):
-                        filepath = load_filename_input.strip()
-                        if filepath:
-                             print(f"--- mode_selection_screen(): Attempting to load SGS file: {filepath} ---")
-                             try:
-                                 sgs_data = load_game_sgs(filepath)
-                                 if sgs_data: 
-                                     print(f"--- mode_selection_screen(): SGS loaded successfully. Moves: {len(sgs_data.get('full_move_history', []))} ---")
-                                     selected_mode = "LOADED_GAME"
-                                     loaded_game_data = sgs_data 
-                                     showing_load_input = False; load_input_active = False; break
-                                 else:
-                                     print(f"--- mode_selection_screen(): load_game_sgs returned None for '{filepath}' ---")
-                                     load_input_active = True 
-                             except FileNotFoundError: 
-                                 print(f"--- mode_selection_screen(): Error: File not found '{filepath}' ---")
-                                 show_message_dialog(f"Error: File not found:\\n{filepath}", "Load Error")
-                                 load_input_active = True
-                             except Exception as e: 
-                                 print(f"--- mode_selection_screen(): Error loading SGS file '{filepath}': {e} ---")
-                                 show_message_dialog(f"Error loading file:\\n{e}", "Load Error")
-                                 load_input_active = True
-                        else: show_message_dialog("Please enter a filename.", "Load Error"); load_input_active = True
-                    elif load_cancel_button_rect.collidepoint(x,y):
-                         showing_load_input = False; load_input_active = False; load_filename_input = ""
-                    if not load_input_rect.collidepoint(x,y): input_active = [False, False]
-                elif event.type == pygame.KEYDOWN and load_input_active:
-                    if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
-                         if load_confirm_button_rect: pygame.event.post(pygame.event.Event(pygame.MOUSEBUTTONDOWN, {'pos': load_confirm_button_rect.center, 'button': 1}))
-                    elif event.key == pygame.K_BACKSPACE: load_filename_input = load_filename_input[:-1]
-                    elif event.key == pygame.K_v:
-                        mods = pygame.key.get_mods()
-                        if (mods & pygame.KMOD_CTRL or mods & pygame.KMOD_META) and pyperclip_available:
-                            try:
-                                pasted_text = pyperclip.paste()
-                                if pasted_text:
-                                    load_filename_input += pasted_text
-                            except Exception as e: 
-                                print(f"Error pasting from clipboard: {e}")
-                    elif event.unicode.isprintable(): load_filename_input += event.unicode
-                continue
+                continue # Skip other event handling if dev tools dialog is active
 
-            elif event.type == pygame.MOUSEBUTTONDOWN:
+            # REMOVED: Event handling for inline load input
+
+            # Main Mode Selection Screen Event Handling (if no other dialog is active)
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 x, y = event.pos
-                if showing_power_tiles_dialog:
-                    dialog_x_pt = (WINDOW_WIDTH - 300) // 2; dialog_y_pt = (WINDOW_HEIGHT - 250) // 2 
+                if showing_power_tiles_dialog: # Power Tiles practice options dialog
+                    dialog_x_pt = (WINDOW_WIDTH - 300) // 2
+                    dialog_y_pt = (WINDOW_HEIGHT - 250) // 2
                     letter_rects = [pygame.Rect(dialog_x_pt + 20, dialog_y_pt + 40 + i*30, 20, 20) for i in range(4)]
                     number_rects = [pygame.Rect(dialog_x_pt + 150, dialog_y_pt + 40 + i*30, 20, 20) for i in range(6)]
                     go_rect = pygame.Rect(dialog_x_pt + 50, dialog_y_pt + 220, 100, 30)
                     cancel_rect = pygame.Rect(dialog_x_pt + 160, dialog_y_pt + 220, 100, 30)
-                    for i, rect in enumerate(letter_rects):
-                        if rect.collidepoint(x, y): letter_checks[i] = not letter_checks[i]
-                    for i, rect in enumerate(number_rects):
-                        if rect.collidepoint(x, y): number_checks[i] = not number_checks[i]
+                    for i_pt_dialog, rect_pt_dialog in enumerate(letter_rects):
+                        if rect_pt_dialog.collidepoint(x, y):
+                            letter_checks[i_pt_dialog] = not letter_checks[i_pt_dialog]
+                    for i_pt_dialog, rect_pt_dialog in enumerate(number_rects):
+                        if rect_pt_dialog.collidepoint(x, y):
+                            number_checks[i_pt_dialog] = not number_checks[i_pt_dialog]
                     if go_rect.collidepoint(x, y):
                         if not any(letter_checks):
                             show_message_dialog("Please select at least one Power Tile (J, Q, X, Z).", "Selection Required")
                         elif not any(number_checks):
                              show_message_dialog("Please select at least one word length.", "Selection Required")
                         else:
-                            practice_mode = "power_tiles"; selected_mode = MODE_AVA; showing_power_tiles_dialog = False
+                            practice_mode = "power_tiles"
+                            selected_mode = MODE_AVA # Power Tiles practice is AI vs AI
+                            showing_power_tiles_dialog = False
                             print(f"--- mode_selection_screen(): Mode selected via Power Tiles Go: {selected_mode} ---")
-                            break
-                    elif cancel_rect.collidepoint(x, y): showing_power_tiles_dialog = False
-                else: 
+                            break # Exit mode selection loop
+                    elif cancel_rect.collidepoint(x, y):
+                        showing_power_tiles_dialog = False
+                else: # Not showing power_tiles_dialog, handle main screen clicks
                     mode_rects = []
-                    for i, mode_text in enumerate(modes): 
-                        y_pos_mode = 100 + i * 60
-                        rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, y_pos_mode, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT); mode_rects.append(rect)
-                    for i, rect in enumerate(mode_rects):
-                        if rect.collidepoint(x, y):
-                            current_input = i; dropdown_open = False
-                            if i == 0: player_names = ["Player 1", "Player 2"]; input_active = [False, False]
-                            elif i == 1: player_names = ["Player 1", "AI"] if human_player == 1 else ["AI", "Player 2"]; input_active = [True, False] if human_player == 1 else [False, True]
-                            elif i == 2: player_names = ["AI 1", "AI 2"]; input_active = [False, False]
+                    for i_mode_sel, mode_text_sel in enumerate(modes):
+                        y_pos_mode = 100 + i_mode_sel * 60
+                        rect_mode_sel = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, y_pos_mode, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT)
+                        mode_rects.append(rect_mode_sel)
+                    for i_mode_sel, rect_mode_sel in enumerate(mode_rects):
+                        if rect_mode_sel.collidepoint(x, y):
+                            current_input = i_mode_sel
+                            dropdown_open = False # Close practice dropdown if mode changes
+                            if i_mode_sel == 0: # HVH
+                                player_names = ["Player 1", "Player 2"]
+                                input_active = [False, False]
+                            elif i_mode_sel == 1: # HVA
+                                player_names = ["Player 1", "AI"] if human_player == 1 else ["AI", "Player 2"]
+                                input_active = [True, False] if human_player == 1 else [False, True]
+                            elif i_mode_sel == 2: # AVA
+                                player_names = ["AI 1", "AI 2"]
+                                input_active = [False, False]
 
                     if endgame_checkbox_rect.collidepoint(x, y):
                         use_endgame_solver_checked = not use_endgame_solver_checked
                     elif simulation_checkbox_rect.collidepoint(x, y):
                         use_ai_simulation_checked = not use_ai_simulation_checked
-                        if use_ai_simulation_checked: # MODIFIED: Show dialog if checked
+                        if use_ai_simulation_checked:
                             showing_ai_sim_config_dialog = True
-                            ai_sim_config_inputs = [str(DEFAULT_AI_CANDIDATES), str(DEFAULT_OPPONENT_SIMULATIONS), str(DEFAULT_POST_SIM_CANDIDATES)] # Reset to defaults or previous
+                            ai_sim_config_inputs = [str(DEFAULT_AI_CANDIDATES), str(DEFAULT_OPPONENT_SIMULATIONS), str(DEFAULT_POST_SIM_CANDIDATES)]
                             ai_sim_config_active_input = None
-                        # else: # Optionally reset configured params if unchecked
-                        #     ai_sim_num_candidates = DEFAULT_AI_CANDIDATES
-                        #     ai_sim_num_opponent_sims = DEFAULT_OPPONENT_SIMULATIONS
-                        #     ai_sim_num_post_sim_candidates = DEFAULT_POST_SIM_CANDIDATES
-                    elif dev_tools_button_rect.collidepoint(x, y): 
-                        print("--- mode_selection_screen(): Developer Tools button clicked ---") 
+                    elif dev_tools_button_rect.collidepoint(x, y):
+                        print("--- mode_selection_screen(): Developer Tools button clicked ---")
                         showing_dev_tools_dialog = True
-                        dev_cprofile_checkbox_rect, dev_visualize_checkbox_rect, dev_ok_button_rect = None, None, None
+                        dev_cprofile_checkbox_rect, dev_visualize_checkbox_rect, dev_ok_button_rect = None, None, None # Will be set by draw_dev_tools_dialog
                     elif batch_game_button_rect.collidepoint(x, y):
                         print("--- mode_selection_screen(): Batch Games button clicked ---")
                         current_selected_game_mode = modes[current_input]
                         if current_selected_game_mode == MODE_HVH:
                              show_message_dialog("Batch mode not available for Human vs Human.", "Mode Error")
                         else:
-                            num_games = get_batch_game_dialog()
+                            num_games = get_batch_game_dialog() # This is a modal dialog
                             if num_games is not None:
-                                if not (True and not dev_visualize_batch_checked): 
+                                if not (True and not dev_visualize_batch_checked):
                                     print(f"--- mode_selection_screen(): Starting batch of {num_games} games ---")
                                 selected_mode = "BATCH_MODE"
                                 loaded_game_data = (current_selected_game_mode, player_names, human_player, \
                                                     use_endgame_solver_checked, use_ai_simulation_checked, num_games,\
                                                     dev_cprofile_checked, dev_visualize_batch_checked, \
-                                                    ai_sim_num_candidates, ai_sim_num_opponent_sims, ai_sim_num_post_sim_candidates) # MODIFIED: Add sim params
-                                break
+                                                    ai_sim_num_candidates, ai_sim_num_opponent_sims, ai_sim_num_post_sim_candidates)
+                                break # Exit mode selection loop
                             else:
-                                print("--- mode_selection_screen(): Batch game setup cancelled ---") 
+                                print("--- mode_selection_screen(): Batch game setup cancelled ---")
                     elif start_game_button_rect.collidepoint(x, y):
                         selected_mode = modes[current_input]
-                        is_starting_batch_silent = (selected_mode == MODE_AVA and not dev_visualize_batch_checked) 
-                        if not is_starting_batch_silent : 
+                        is_starting_batch_silent = (selected_mode == MODE_AVA and not dev_visualize_batch_checked)
+                        if not is_starting_batch_silent :
                              print(f"--- mode_selection_screen(): Start Game clicked. Mode: {selected_mode} ---")
-                        break
+                        break # Exit mode selection loop
                     elif load_game_button_rect.collidepoint(x, y):
-                        print("--- mode_selection_screen(): Load Game button clicked, showing input ---") 
-                        showing_load_input = True; load_input_active = True; load_filename_input = ""
-                        continue
-                    elif play_later_rect.collidepoint(x, y): 
-                        print("--- mode_selection_screen(): Play Later clicked. Exiting. ---") 
-                        pygame.quit(); sys.exit()
-                    else: 
+                        print("--- mode_selection_screen(): Load Game button clicked, showing dialog ---")
+                        # MODIFIED: Call new dialog function
+                        filename_to_load = show_load_game_dialog()
+                        if filename_to_load:
+                            filepath = filename_to_load.strip()
+                            if filepath:
+                                print(f"--- mode_selection_screen(): Attempting to load SGS file: {filepath} ---")
+                                try:
+                                    sgs_data = load_game_sgs(filepath) # load_game_sgs handles its own error dialogs
+                                    if sgs_data:
+                                        print(f"--- mode_selection_screen(): SGS loaded successfully. Moves: {len(sgs_data.get('full_move_history', []))} ---")
+                                        selected_mode = "LOADED_GAME"
+                                        loaded_game_data = sgs_data
+                                        break # Exit mode selection loop
+                                    else:
+                                        print(f"--- mode_selection_screen(): load_game_sgs returned None for '{filepath}' ---")
+                                        # show_load_game_dialog or load_game_sgs should handle user feedback
+                                except FileNotFoundError:
+                                    print(f"--- mode_selection_screen(): Error: File not found '{filepath}' (should be handled by load_game_sgs) ---")
+                                    # load_game_sgs raises FileNotFoundError, which can be caught by main or here
+                                    show_message_dialog(f"Error: File not found:\n{filepath}", "Load Error")
+                                except Exception as e_load:
+                                    print(f"--- mode_selection_screen(): Error loading SGS file '{filepath}': {e_load} ---")
+                                    show_message_dialog(f"Error loading file:\n{e_load}", "Load Error")
+                            else:
+                                show_message_dialog("Please enter a filename.", "Load Error")
+                        else:
+                            print("--- mode_selection_screen(): Load game dialog cancelled. ---")
+                        # End of new load game logic
+                    elif play_later_rect.collidepoint(x, y):
+                        print("--- mode_selection_screen(): Play Later clicked. Exiting. ---")
+                        pygame.quit()
+                        sys.exit()
+                    else: # Handle clicks on name inputs or practice dropdown
                         clicked_name_input = False
                         p1_name_rect = pygame.Rect(name_rect_x, p1_y_pos, 200, BUTTON_HEIGHT)
                         p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, 200, BUTTON_HEIGHT) if modes[current_input] == MODE_HVH else None
 
                         if modes[current_input] == MODE_HVH:
-                            if p1_name_rect.collidepoint(x, y): input_active = [True, False]; clicked_name_input = True
-                            elif p2_name_rect and p2_name_rect.collidepoint(x, y): input_active = [False, True]; clicked_name_input = True
+                            if p1_name_rect.collidepoint(x, y):
+                                input_active = [True, False]
+                                clicked_name_input = True
+                            elif p2_name_rect and p2_name_rect.collidepoint(x, y):
+                                input_active = [False, True]
+                                clicked_name_input = True
                         elif modes[current_input] == MODE_HVA:
-                            if human_player == 1 and p1_name_rect.collidepoint(x, y): input_active = [True, False]; clicked_name_input = True
+                            if human_player == 1 and p1_name_rect.collidepoint(x, y):
+                                input_active = [True, False]
+                                clicked_name_input = True
                             elif human_player == 2:
-                                p2_name_rect_hva = pygame.Rect(name_rect_x, p2_y_pos, 200, BUTTON_HEIGHT)
-                                if p2_name_rect_hva.collidepoint(x,y): input_active = [False, True]; clicked_name_input = True
+                                p2_name_rect_hva = pygame.Rect(name_rect_x, p2_y_pos, 200, BUTTON_HEIGHT) # Define for HVA P2
+                                if p2_name_rect_hva.collidepoint(x,y):
+                                    input_active = [False, True]
+                                    clicked_name_input = True
+                            # HVA P1/P2 selection buttons
                             if p1_rect_hva.collidepoint(x, y):
-                                human_player = 1; player_names = ["Player 1", "AI"]; input_active = [True, False]
+                                human_player = 1
+                                player_names = ["Player 1", "AI"]
+                                input_active = [True, False] # P1 name input active
                             elif p2_rect_hva.collidepoint(x, y):
-                                human_player = 2; player_names = ["AI", "Player 2"]; input_active = [False, True]
+                                human_player = 2
+                                player_names = ["AI", "Player 2"]
+                                input_active = [False, True] # P2 name input active
 
+                        # Practice Dropdown for HVH
                         if modes[current_input] == MODE_HVH:
                             dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
                             dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30)
-                            if dropdown_rect.collidepoint(x, y): dropdown_open = not dropdown_open
-                            elif dropdown_open:
+                            if dropdown_rect.collidepoint(x, y):
+                                dropdown_open = not dropdown_open
+                            elif dropdown_open: # If dropdown is open, check clicks on its items
                                 clicked_option = False
                                 current_options = ["Power Tiles", "8-Letter Bingos", "Bingo, Bango, Bongo", "Only Fives", "End Game"]
-                                for i, option_rect_dd in enumerate(option_rects): 
+                                for i_dd_option, option_rect_dd in enumerate(option_rects): # option_rects defined at start of loop
                                     if option_rect_dd.collidepoint(x, y):
-                                        clicked_option = True; dropdown_open = False
-                                        selected_practice_option = current_options[i]
+                                        clicked_option = True
+                                        dropdown_open = False
+                                        selected_practice_option = current_options[i_dd_option]
                                         if selected_practice_option == "Power Tiles":
                                             showing_power_tiles_dialog = True
                                         elif selected_practice_option == "8-Letter Bingos":
                                             print("--- mode_selection_screen(): 8-Letter Bingo practice selected. Calling eight_letter_practice()... ---")
                                             proceed, p_board, p_tiles, p_racks, p_blanks, p_bag, eight_letter_prob_input = eight_letter_practice()
                                             if proceed:
-                                                practice_mode = "eight_letter"; selected_mode = MODE_HVH; player_names = ["Player 1", ""]; human_player = 1
+                                                practice_mode = "eight_letter"
+                                                selected_mode = MODE_HVH # 8-Letter is a form of HVH
+                                                player_names = ["Player 1", ""] # P2 not actively playing
+                                                human_player = 1 # P1 is human
                                                 practice_state = {
-                                                    "board": p_board, "tiles": p_tiles, "racks": p_racks, 
-                                                    "blanks": p_blanks, "bag": p_bag, "first_play": False, 
+                                                    "board": p_board, "tiles": p_tiles, "racks": p_racks,
+                                                    "blanks": p_blanks, "bag": p_bag, "first_play": False,
                                                     "scores": [0, 0], "turn": 1,
-                                                    "eight_letter_probability_input": eight_letter_prob_input 
+                                                    "eight_letter_probability_input": eight_letter_prob_input
                                                 }
                                                 print(f"--- mode_selection_screen(): 8-Letter practice setup successful. Selected mode: {selected_mode} ---")
-                                                break
-                                            else: print("--- mode_selection_screen(): 8-Letter practice setup cancelled or failed. ---")
+                                                break # Exit mode selection loop
+                                            else:
+                                                print("--- mode_selection_screen(): 8-Letter practice setup cancelled or failed. ---")
                                         elif selected_practice_option == "Bingo, Bango, Bongo":
                                             print("--- mode_selection_screen(): Bingo, Bango, Bongo practice selected. ---")
-                                            practice_mode = "bingo_bango_bongo"; selected_mode = MODE_AVA; player_names = ["AI 1", "AI 2"]; practice_state = None
+                                            practice_mode = "bingo_bango_bongo"
+                                            selected_mode = MODE_AVA # This practice is AI vs AI
+                                            player_names = ["AI 1", "AI 2"]
+                                            practice_state = None # No specific board setup needed
                                             print(f"--- mode_selection_screen(): Bingo, Bango, Bongo setup successful. Selected mode: {selected_mode} ---")
                                             break
                                         elif selected_practice_option == "Only Fives":
                                             print("--- mode_selection_screen(): Only Fives practice selected. ---")
-                                            practice_mode = "only_fives"; selected_mode = MODE_HVA; human_player = 1; player_names = ["Player 1", "AI"]; practice_state = None
+                                            practice_mode = "only_fives"
+                                            selected_mode = MODE_HVA # Human vs AI for this
+                                            human_player = 1
+                                            player_names = ["Player 1", "AI"]
+                                            practice_state = None
                                             print(f"--- mode_selection_screen(): Only Fives setup successful. Selected mode: {selected_mode} ---")
                                             break
                                         elif selected_practice_option == "End Game":
-                                            print("End Game practice selected - Not implemented yet") 
-                                        break
-                                if not clicked_option and not dropdown_rect.collidepoint(x,y): dropdown_open = False
-                            elif not dropdown_rect.collidepoint(x,y): dropdown_open = False
-                        
+                                            print("End Game practice selected - Not implemented yet")
+                                            # Potentially set up a specific endgame scenario here
+                                        break # Exit options loop
+                                if not clicked_option and not dropdown_rect.collidepoint(x,y): # Clicked outside dropdown area
+                                    dropdown_open = False
+                            elif not dropdown_rect.collidepoint(x,y): # Clicked outside dropdown button when closed
+                                dropdown_open = False
+
+                        # Deactivate name input if clicked elsewhere
                         dropdown_button_y_check = p2_y_pos + BUTTON_HEIGHT + 10
                         dropdown_rect_check = pygame.Rect(name_rect_x, dropdown_button_y_check, 200, 30) if modes[current_input] == MODE_HVH else None
-                        if not clicked_name_input and not (dropdown_open and any(r.collidepoint(x,y) for r in option_rects)) and not p1_name_rect.collidepoint(x,y) and not (p2_name_rect and p2_name_rect.collidepoint(x,y)) and not (dropdown_rect_check and dropdown_rect_check.collidepoint(x,y)) and not endgame_checkbox_rect.collidepoint(x, y) and not simulation_checkbox_rect.collidepoint(x, y):
-                            input_active = [False, False]
+                        if not clicked_name_input and \
+                           not (dropdown_open and any(r.collidepoint(x,y) for r in option_rects)) and \
+                           not p1_name_rect.collidepoint(x,y) and \
+                           not (p2_name_rect and p2_name_rect.collidepoint(x,y)) and \
+                           not (dropdown_rect_check and dropdown_rect_check.collidepoint(x,y)) and \
+                           not endgame_checkbox_rect.collidepoint(x, y) and \
+                           not simulation_checkbox_rect.collidepoint(x, y):
+                            input_active = [False, False] # Deactivate player name inputs
+
             elif event.type == pygame.KEYDOWN:
-                if not showing_load_input and not showing_dev_tools_dialog and not showing_ai_sim_config_dialog: 
+                # Handle player name input if no other dialog is active
+                if not showing_power_tiles_dialog and not showing_dev_tools_dialog and not showing_ai_sim_config_dialog:
                      active_idx = -1
-                     if input_active[0]: active_idx = 0
-                     elif input_active[1] and modes[current_input] == MODE_HVH: active_idx = 1
-                     elif input_active[1] and modes[current_input] == MODE_HVA and human_player == 2: active_idx = 1
-                     if active_idx != -1:
-                        if event.key == pygame.K_BACKSPACE: player_names[active_idx] = player_names[active_idx][:-1]
-                        elif event.key == pygame.K_RETURN: input_active[active_idx] = False
-                        elif event.unicode.isalnum() or event.unicode == ' ':
-                            if len(player_names[active_idx]) < 15: player_names[active_idx] += event.unicode
+                     if input_active[0]:
+                         active_idx = 0
+                     elif input_active[1] and modes[current_input] == MODE_HVH:
+                         active_idx = 1
+                     elif input_active[1] and modes[current_input] == MODE_HVA and human_player == 2: # Only P2 name input for HVA if P2 is human
+                         active_idx = 1
 
-        screen.fill(WHITE);
-        if image: screen.blit(image, (content_left, 0))
-        title_text_surf = dialog_font.render("Select Game Mode", True, BLACK); title_x = content_left + (content_width - title_text_surf.get_width()) // 2; screen.blit(title_text_surf, (title_x, 50)) 
+                     if active_idx != -1: # A name input field is active
+                        if event.key == pygame.K_BACKSPACE:
+                            player_names[active_idx] = player_names[active_idx][:-1]
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                            input_active[active_idx] = False # Deactivate current input
+                        elif event.unicode.isalnum() or event.unicode == ' ': # Allow letters, numbers, space
+                            if len(player_names[active_idx]) < 15: # Limit name length
+                                player_names[active_idx] += event.unicode
+
+        # --- Drawing Logic ---
+        screen.fill(WHITE)
+        if image:
+            screen.blit(image, (content_left, 0))
+
+        title_text_surf = dialog_font.render("Select Game Mode", True, BLACK)
+        title_x = content_left + (content_width - title_text_surf.get_width()) // 2
+        screen.blit(title_text_surf, (title_x, 50))
+
+        # Draw Mode Selection Buttons
         mode_rects = []
-        for i, mode_text in enumerate(modes): 
+        for i, mode_text in enumerate(modes):
             y_pos_mode = 100 + i * 60
-            rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, y_pos_mode, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT); hover = rect.collidepoint(pygame.mouse.get_pos())
-            color = BUTTON_HOVER if i == current_input or hover else BUTTON_COLOR; pygame.draw.rect(screen, color, rect)
-            if i == current_input: pygame.draw.rect(screen, BLACK, rect, 2)
-            text_surf = button_font.render(mode_text, True, BLACK); text_rect = text_surf.get_rect(center=rect.center); screen.blit(text_surf, text_rect); mode_rects.append(rect) 
+            rect = pygame.Rect(content_left + (content_width - (BUTTON_WIDTH * 2 + 20)) // 2, y_pos_mode, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT)
+            hover = rect.collidepoint(pygame.mouse.get_pos())
+            color = BUTTON_HOVER if i == current_input or hover else BUTTON_COLOR
+            pygame.draw.rect(screen, color, rect)
+            if i == current_input: # Highlight selected mode
+                pygame.draw.rect(screen, BLACK, rect, 2)
+            text_surf = button_font.render(mode_text, True, BLACK)
+            text_rect = text_surf.get_rect(center=rect.center)
+            screen.blit(text_surf, text_rect)
+            mode_rects.append(rect) # Store for click detection
 
+        # Draw Checkboxes
         draw_checkbox(screen, endgame_checkbox_rect.x, endgame_checkbox_rect.y, use_endgame_solver_checked)
         endgame_label_surf = ui_font.render("Use AI Endgame Solver", True, BLACK)
         screen.blit(endgame_label_surf, (endgame_label_x, endgame_label_y))
@@ -1552,124 +1925,193 @@ def mode_selection_screen():
         simulation_label_surf = ui_font.render("Use AI 2-ply Simulation", True, BLACK)
         screen.blit(simulation_label_surf, (simulation_label_x, simulation_label_y))
 
-        hover = play_later_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, play_later_rect)
-        play_later_text_surf = button_font.render("Play Later", True, BLACK); play_later_text_rect = play_later_text_surf.get_rect(center=play_later_rect.center); screen.blit(play_later_text_surf, play_later_text_rect) 
+        # Draw Bottom Buttons
+        hover = play_later_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, play_later_rect)
+        play_later_text_surf = button_font.render("Play Later", True, BLACK)
+        play_later_text_rect = play_later_text_surf.get_rect(center=play_later_rect.center)
+        screen.blit(play_later_text_surf, play_later_text_rect)
 
-        hover = load_game_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, load_game_button_rect)
-        load_game_text_surf = button_font.render("Load Game", True, BLACK); load_game_text_rect = load_game_text_surf.get_rect(center=load_game_button_rect.center); screen.blit(load_game_text_surf, load_game_text_rect) 
+        hover = load_game_button_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, load_game_button_rect)
+        load_game_text_surf = button_font.render("Load Game", True, BLACK)
+        load_game_text_rect = load_game_text_surf.get_rect(center=load_game_button_rect.center)
+        screen.blit(load_game_text_surf, load_game_text_rect)
 
-        hover = batch_game_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, batch_game_button_rect)
-        batch_game_text_surf = button_font.render("Batch Games", True, BLACK); batch_game_text_rect = batch_game_text_surf.get_rect(center=batch_game_button_rect.center); screen.blit(batch_game_text_surf, batch_game_text_rect) 
+        hover = batch_game_button_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, batch_game_button_rect)
+        batch_game_text_surf = button_font.render("Batch Games", True, BLACK)
+        batch_game_text_rect = batch_game_text_surf.get_rect(center=batch_game_button_rect.center)
+        screen.blit(batch_game_text_surf, batch_game_text_rect)
 
-        hover = start_game_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, start_game_button_rect)
-        start_game_text_surf = button_font.render("Start Game", True, BLACK); start_game_text_rect = start_game_text_surf.get_rect(center=start_game_button_rect.center); screen.blit(start_game_text_surf, start_game_text_rect) 
+        hover = start_game_button_rect.collidepoint(pygame.mouse.get_pos())
+        color = BUTTON_HOVER if hover else BUTTON_COLOR
+        pygame.draw.rect(screen, color, start_game_button_rect)
+        start_game_text_surf = button_font.render("Start Game", True, BLACK)
+        start_game_text_rect = start_game_text_surf.get_rect(center=start_game_button_rect.center)
+        screen.blit(start_game_text_surf, start_game_text_rect)
 
         hover_dev = dev_tools_button_rect.collidepoint(pygame.mouse.get_pos())
         color_dev = BUTTON_HOVER if hover_dev else BUTTON_COLOR
         pygame.draw.rect(screen, color_dev, dev_tools_button_rect)
-        dev_tools_text_surf = button_font.render("Developer Tools", True, BLACK) 
+        dev_tools_text_surf = button_font.render("Developer Tools", True, BLACK)
         dev_tools_text_rect = dev_tools_text_surf.get_rect(center=dev_tools_button_rect.center)
         screen.blit(dev_tools_text_surf, dev_tools_text_rect)
-        
-        if showing_load_input:
-             pygame.draw.rect(screen, WHITE, load_input_rect); pygame.draw.rect(screen, BLACK, load_input_rect, 1 if not load_input_active else 2)
-             input_surf = ui_font.render(load_filename_input, True, BLACK); screen.blit(input_surf, (load_input_rect.x + 5, load_input_rect.y + 5))
-             if load_input_active and int(time.time() * 2) % 2 == 0:
-                  cursor_x = load_input_rect.x + 5 + input_surf.get_width(); cursor_y1 = load_input_rect.y + 5; cursor_y2 = load_input_rect.y + load_input_rect.height - 5
-                  pygame.draw.line(screen, BLACK, (cursor_x, cursor_y1), (cursor_x, cursor_y2), 1)
-             hover = load_confirm_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR
-             pygame.draw.rect(screen, color, load_confirm_button_rect); text_surf = button_font.render("Load File", True, BLACK); text_rect = text_surf.get_rect(center=load_confirm_button_rect.center); screen.blit(text_surf, text_rect) 
-             hover = load_cancel_button_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR
-             pygame.draw.rect(screen, color, load_cancel_button_rect); text_surf = button_font.render("Cancel", True, BLACK); text_rect = text_surf.get_rect(center=load_cancel_button_rect.center); screen.blit(text_surf, text_rect) 
 
-        name_rect_width = 200;
-        p1_label_text = "Player 1 Name:"; p1_label = ui_font.render(p1_label_text, True, BLACK);
+        # REMOVED: Drawing logic for inline load input
+
+        # Draw Player Name Inputs
+        name_rect_width = 200 # Width of the name input boxes
+        # Player 1 Name
+        p1_label_text = "Player 1 Name:"
+        p1_label = ui_font.render(p1_label_text, True, BLACK)
         p1_name_rect = pygame.Rect(name_rect_x, p1_y_pos, name_rect_width, BUTTON_HEIGHT)
-        p1_label_x = name_rect_x - p1_label.get_width() - 10; screen.blit(p1_label, (p1_label_x, p1_y_pos + 5)); p1_bg_color = LIGHT_BLUE if input_active[0] else (GRAY if modes[current_input] == MODE_AVA else WHITE); pygame.draw.rect(screen, p1_bg_color, p1_name_rect); pygame.draw.rect(screen, BLACK, p1_name_rect, 1)
-        p1_name_text_surf = ui_font.render(player_names[0], True, BLACK); screen.blit(p1_name_text_surf, (p1_name_rect.x + 5, p1_name_rect.y + 5)) 
+        p1_label_x = name_rect_x - p1_label.get_width() - 10 # Position label to the left
+        screen.blit(p1_label, (p1_label_x, p1_y_pos + 5)) # Vertically center label with input box
+        p1_bg_color = LIGHT_BLUE if input_active[0] else (GRAY if modes[current_input] == MODE_AVA else WHITE)
+        pygame.draw.rect(screen, p1_bg_color, p1_name_rect)
+        pygame.draw.rect(screen, BLACK, p1_name_rect, 1) # Border
+        p1_name_text_surf = ui_font.render(player_names[0], True, BLACK)
+        screen.blit(p1_name_text_surf, (p1_name_rect.x + 5, p1_name_rect.y + 5)) # Text inside box
 
+        # Player 2 Name / AI Name / Practice Dropdown (conditional)
         if modes[current_input] == MODE_HVH:
-            p2_label_text = "Player 2 Name:"; p2_label = ui_font.render(p2_label_text, True, BLACK);
+            p2_label_text = "Player 2 Name:"
+            p2_label = ui_font.render(p2_label_text, True, BLACK)
             p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
-            p2_label_x = name_rect_x - p2_label.get_width() - 10; screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
-            pygame.draw.rect(screen, WHITE if not input_active[1] else LIGHT_BLUE, p2_name_rect); pygame.draw.rect(screen, BLACK, p2_name_rect, 1); p2_name_text_surf = ui_font.render(player_names[1], True, BLACK); screen.blit(p2_name_text_surf, (p2_name_rect.x + 5, p2_name_rect.y + 5)) 
-            dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
-            dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30); hover = dropdown_rect.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else BUTTON_COLOR; pygame.draw.rect(screen, color, dropdown_rect)
-            text_surf = button_font.render("Practice", True, BLACK); text_rect = text_surf.get_rect(center=dropdown_rect.center); screen.blit(text_surf, text_rect) 
-            if dropdown_open:
-                current_options = ["Power Tiles", "8-Letter Bingos", "Bingo, Bango, Bongo", "Only Fives", "End Game"]
-                for i, option_rect_dd_draw in enumerate(option_rects): 
-                     hover = option_rect_dd_draw.collidepoint(pygame.mouse.get_pos()); color = BUTTON_HOVER if hover else DROPDOWN_COLOR; pygame.draw.rect(screen, color, option_rect_dd_draw);
-                     text_surf = button_font.render(current_options[i], True, BLACK); text_rect = text_surf.get_rect(center=option_rect_dd_draw.center); screen.blit(text_surf, text_rect) 
-        elif modes[current_input] == MODE_HVA:
-            p2_label_text = "AI Name:"; p2_label = ui_font.render(p2_label_text, True, BLACK);
-            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
-            p2_label_x = name_rect_x - p2_label.get_width() - 10; screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
-            pygame.draw.rect(screen, GRAY, p2_name_rect); pygame.draw.rect(screen, BLACK, p2_name_rect, 1); p2_name_text_surf = ui_font.render(player_names[1], True, BLACK); screen.blit(p2_name_text_surf, (p2_name_rect.x + 5, p2_name_rect.y + 5)) 
-            p1_hover = p1_rect_hva.collidepoint(pygame.mouse.get_pos()); p2_hover = p2_rect_hva.collidepoint(pygame.mouse.get_pos()); pygame.draw.rect(screen, BUTTON_HOVER if p1_hover else BUTTON_COLOR, p1_rect_hva);
-            if human_player == 1: pygame.draw.rect(screen, BLACK, p1_rect_hva, 2)
-            pygame.draw.rect(screen, BUTTON_HOVER if p2_hover else BUTTON_COLOR, p2_rect_hva);
-            if human_player == 2: pygame.draw.rect(screen, BLACK, p2_rect_hva, 2)
-            p1_text_surf = button_font.render("Play as P1", True, BLACK); p2_text_surf = button_font.render("Play as P2", True, BLACK); p1_text_rect = p1_text_surf.get_rect(center=p1_rect_hva.center); p2_text_rect = p2_text_surf.get_rect(center=p2_rect_hva.center); screen.blit(p1_text_surf, p1_text_rect); screen.blit(p2_text_surf, p2_text_rect) 
-        elif modes[current_input] == MODE_AVA:
-            p2_label_text = "AI 2 Name:"; p2_label = ui_font.render(p2_label_text, True, BLACK);
-            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
-            p2_label_x = name_rect_x - p2_label.get_width() - 10; screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
-            pygame.draw.rect(screen, GRAY, p2_name_rect); pygame.draw.rect(screen, BLACK, p2_name_rect, 1); p2_name_text_surf = ui_font.render(player_names[1], True, BLACK); screen.blit(p2_name_text_surf, (p2_name_rect.x + 5, p2_name_rect.y + 5)) 
-            pygame.draw.rect(screen, GRAY, p1_name_rect); pygame.draw.rect(screen, BLACK, p1_name_rect, 1); p1_name_text_surf = ui_font.render(player_names[0], True, BLACK); screen.blit(p1_name_text_surf, (p1_name_rect.x + 5, p1_name_rect.y + 5)) 
+            p2_label_x = name_rect_x - p2_label.get_width() - 10
+            screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
+            pygame.draw.rect(screen, WHITE if not input_active[1] else LIGHT_BLUE, p2_name_rect)
+            pygame.draw.rect(screen, BLACK, p2_name_rect, 1)
+            p2_name_text_surf = ui_font.render(player_names[1], True, BLACK)
+            screen.blit(p2_name_text_surf, (p2_name_rect.x + 5, p2_name_rect.y + 5))
 
+            # Practice Dropdown Button for HVH
+            dropdown_button_y = p2_y_pos + BUTTON_HEIGHT + 10
+            dropdown_rect = pygame.Rect(name_rect_x, dropdown_button_y, 200, 30)
+            hover = dropdown_rect.collidepoint(pygame.mouse.get_pos())
+            color = BUTTON_HOVER if hover else BUTTON_COLOR
+            pygame.draw.rect(screen, color, dropdown_rect)
+            text_surf = button_font.render("Practice", True, BLACK)
+            text_rect = text_surf.get_rect(center=dropdown_rect.center)
+            screen.blit(text_surf, text_rect)
+            if dropdown_open: # Draw dropdown items if open
+                current_options = ["Power Tiles", "8-Letter Bingos", "Bingo, Bango, Bongo", "Only Fives", "End Game"]
+                for i_dd_draw, option_rect_dd_draw in enumerate(option_rects): # option_rects defined at start of loop
+                     hover = option_rect_dd_draw.collidepoint(pygame.mouse.get_pos())
+                     color = BUTTON_HOVER if hover else DROPDOWN_COLOR
+                     pygame.draw.rect(screen, color, option_rect_dd_draw)
+                     text_surf = button_font.render(current_options[i_dd_draw], True, BLACK)
+                     text_rect = text_surf.get_rect(center=option_rect_dd_draw.center)
+                     screen.blit(text_surf, text_rect)
+        elif modes[current_input] == MODE_HVA:
+            # P2 is AI, display AI name (non-editable or P2 name if human_player == 2)
+            p2_label_text = "Player 2 Name:" if human_player == 2 else "AI Name:"
+            p2_label = ui_font.render(p2_label_text, True, BLACK)
+            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
+            p2_label_x = name_rect_x - p2_label.get_width() - 10
+            screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
+            p2_bg_color = LIGHT_BLUE if input_active[1] and human_player == 2 else GRAY
+            pygame.draw.rect(screen, p2_bg_color, p2_name_rect)
+            pygame.draw.rect(screen, BLACK, p2_name_rect, 1)
+            p2_name_text_surf = ui_font.render(player_names[1], True, BLACK)
+            screen.blit(p2_name_text_surf, (p2_name_rect.x + 5, p2_name_rect.y + 5))
+
+            # HVA: P1/P2 selection buttons
+            p1_hover = p1_rect_hva.collidepoint(pygame.mouse.get_pos())
+            p2_hover = p2_rect_hva.collidepoint(pygame.mouse.get_pos())
+            pygame.draw.rect(screen, BUTTON_HOVER if p1_hover else BUTTON_COLOR, p1_rect_hva)
+            if human_player == 1: pygame.draw.rect(screen, BLACK, p1_rect_hva, 2) # Highlight if P1 is human
+            pygame.draw.rect(screen, BUTTON_HOVER if p2_hover else BUTTON_COLOR, p2_rect_hva)
+            if human_player == 2: pygame.draw.rect(screen, BLACK, p2_rect_hva, 2) # Highlight if P2 is human
+            p1_text_surf = button_font.render("Play as P1", True, BLACK)
+            p2_text_surf = button_font.render("Play as P2", True, BLACK)
+            p1_text_rect = p1_text_surf.get_rect(center=p1_rect_hva.center)
+            p2_text_rect = p2_text_surf.get_rect(center=p2_rect_hva.center)
+            screen.blit(p1_text_surf, p1_text_rect)
+            screen.blit(p2_text_surf, p2_text_rect)
+        elif modes[current_input] == MODE_AVA:
+            # P2 is AI 2
+            p2_label_text = "AI 2 Name:"
+            p2_label = ui_font.render(p2_label_text, True, BLACK)
+            p2_name_rect = pygame.Rect(name_rect_x, p2_y_pos, name_rect_width, BUTTON_HEIGHT)
+            p2_label_x = name_rect_x - p2_label.get_width() - 10
+            screen.blit(p2_label, (p2_label_x, p2_y_pos + 5))
+            pygame.draw.rect(screen, GRAY, p2_name_rect) # Non-editable
+            pygame.draw.rect(screen, BLACK, p2_name_rect, 1)
+            p2_name_text_surf = ui_font.render(player_names[1], True, BLACK)
+            screen.blit(p2_name_text_surf, (p2_name_rect.x + 5, p2_name_rect.y + 5))
+            # P1 is AI 1 (already drawn with GRAY background due to mode check for p1_bg_color)
+
+        # Draw Power Tiles Dialog if active
         if showing_power_tiles_dialog:
-            dialog_width_ptd, dialog_height_ptd = 300, 250; dialog_x_ptd = (WINDOW_WIDTH - dialog_width_ptd) // 2; dialog_y_ptd = (WINDOW_HEIGHT - dialog_height_ptd) // 2 
+            dialog_width_ptd, dialog_height_ptd = 300, 250
+            dialog_x_ptd = (WINDOW_WIDTH - dialog_width_ptd) // 2
+            dialog_y_ptd = (WINDOW_HEIGHT - dialog_height_ptd) // 2
             pygame.draw.rect(screen, DIALOG_COLOR, (dialog_x_ptd, dialog_y_ptd, dialog_width_ptd, dialog_height_ptd))
             pygame.draw.rect(screen, BLACK, (dialog_x_ptd, dialog_y_ptd, dialog_width_ptd, dialog_height_ptd), 2)
-            title_text_surf = dialog_font.render("Power Tiles Options", True, BLACK); screen.blit(title_text_surf, (dialog_x_ptd + 10, dialog_y_ptd + 10)); letters_pt = ['J', 'Q', 'X', 'Z'] 
-            for i, letter_pt_item in enumerate(letters_pt): draw_checkbox(screen, dialog_x_ptd + 20, dialog_y_ptd + 40 + i*30, letter_checks[i]); text_surf = ui_font.render(letter_pt_item, True, BLACK); screen.blit(text_surf, (dialog_x_ptd + 50, dialog_y_ptd + 40 + i*30)) 
+            title_text_surf = dialog_font.render("Power Tiles Options", True, BLACK)
+            screen.blit(title_text_surf, (dialog_x_ptd + 10, dialog_y_ptd + 10))
+            letters_pt = ['J', 'Q', 'X', 'Z']
+            for i_pt_draw, letter_pt_item in enumerate(letters_pt):
+                draw_checkbox(screen, dialog_x_ptd + 20, dialog_y_ptd + 40 + i_pt_draw*30, letter_checks[i_pt_draw])
+                text_surf = ui_font.render(letter_pt_item, True, BLACK)
+                screen.blit(text_surf, (dialog_x_ptd + 50, dialog_y_ptd + 40 + i_pt_draw*30))
             numbers_pt = ['2', '3', '4', '5', '6', '7+']
-            for i, num_pt_item in enumerate(numbers_pt): draw_checkbox(screen, dialog_x_ptd + 150, dialog_y_ptd + 40 + i*30, number_checks[i]); text_surf = ui_font.render(num_pt_item, True, BLACK); screen.blit(text_surf, (dialog_x_ptd + 180, dialog_y_ptd + 40 + i*30)) 
-            go_rect_ptd = pygame.Rect(dialog_x_ptd + 50, dialog_y_ptd + 220, 100, 30); cancel_rect_ptd = pygame.Rect(dialog_x_ptd + 160, dialog_y_ptd + 220, 100, 30) 
-            pygame.draw.rect(screen, BUTTON_COLOR, go_rect_ptd); pygame.draw.rect(screen, BUTTON_COLOR, cancel_rect_ptd)
-            go_text_surf = button_font.render("Go", True, BLACK); cancel_text_surf = button_font.render("Cancel", True, BLACK)
-            screen.blit(go_text_surf, go_text_surf.get_rect(center=go_rect_ptd.center)); screen.blit(cancel_text_surf, cancel_text_surf.get_rect(center=cancel_rect_ptd.center)) 
+            for i_pt_draw, num_pt_item in enumerate(numbers_pt):
+                draw_checkbox(screen, dialog_x_ptd + 150, dialog_y_ptd + 40 + i_pt_draw*30, number_checks[i_pt_draw])
+                text_surf = ui_font.render(num_pt_item, True, BLACK)
+                screen.blit(text_surf, (dialog_x_ptd + 180, dialog_y_ptd + 40 + i_pt_draw*30))
+            go_rect_ptd = pygame.Rect(dialog_x_ptd + 50, dialog_y_ptd + 220, 100, 30)
+            cancel_rect_ptd = pygame.Rect(dialog_x_ptd + 160, dialog_y_ptd + 220, 100, 30)
+            pygame.draw.rect(screen, BUTTON_COLOR, go_rect_ptd)
+            pygame.draw.rect(screen, BUTTON_COLOR, cancel_rect_ptd)
+            go_text_surf = button_font.render("Go", True, BLACK)
+            cancel_text_surf = button_font.render("Cancel", True, BLACK)
+            screen.blit(go_text_surf, go_text_surf.get_rect(center=go_rect_ptd.center))
+            screen.blit(cancel_text_surf, cancel_text_surf.get_rect(center=cancel_rect_ptd.center))
 
+        # Draw Developer Tools Dialog if active
         if showing_dev_tools_dialog:
-            dev_cprofile_checkbox_rect, dev_visualize_checkbox_rect, dev_ok_button_rect = draw_dev_tools_dialog(screen, dev_cprofile_checked, dev_visualize_batch_checked)
-        
-        # --- NEW: Draw AI Simulation Config Dialog ---
+            dev_cprofile_checkbox_rect, dev_visualize_checkbox_rect, dev_ok_button_rect = \
+                draw_dev_tools_dialog(screen, dev_cprofile_checked, dev_visualize_batch_checked)
+
+        # Draw AI Simulation Config Dialog if active
         if showing_ai_sim_config_dialog:
             sim_defaults = [DEFAULT_AI_CANDIDATES, DEFAULT_OPPONENT_SIMULATIONS, DEFAULT_POST_SIM_CANDIDATES]
             ai_sim_config_rects, ai_sim_config_ok_rect, ai_sim_config_cancel_rect = \
                 draw_simulation_config_dialog_mode_sel(screen, ai_sim_config_inputs, ai_sim_config_active_input, sim_defaults)
-        # --- END NEW ---
 
         pygame.display.flip()
 
-        if selected_mode: break
+        if selected_mode: # If a mode was selected (e.g., Start Game, Load Game, Batch Mode)
+            break # Exit the while loop
 
     print(f"--- mode_selection_screen(): Exiting loop. Returning mode={selected_mode} ---")
     if selected_mode == "LOADED_GAME":
-        # MODIFIED: Add sim params (with defaults, as they aren't loaded from SGS yet)
         return selected_mode, (loaded_game_data, dev_cprofile_checked, dev_visualize_batch_checked,
-                               DEFAULT_AI_CANDIDATES, DEFAULT_OPPONENT_SIMULATIONS, DEFAULT_POST_SIM_CANDIDATES)
+                               ai_sim_num_candidates, ai_sim_num_opponent_sims, ai_sim_num_post_sim_candidates)
     elif selected_mode == "BATCH_MODE":
         # loaded_game_data for BATCH_MODE already includes dev flags and sim params
-        return selected_mode, loaded_game_data 
-    else: 
+        return selected_mode, loaded_game_data
+    else: # Standard game modes (HVH, HVA, AVA) or practice modes
         standard_game_settings = (
-            player_names, 
+            player_names,
             human_player,
             practice_mode,
             letter_checks,
             number_checks,
             use_endgame_solver_checked,
             use_ai_simulation_checked,
-            practice_state, 
-            dev_cprofile_checked, 
+            practice_state,
+            dev_cprofile_checked,
             dev_visualize_batch_checked,
-            # --- NEW: Add configured sim params to return tuple ---
             ai_sim_num_candidates,
             ai_sim_num_opponent_sims,
             ai_sim_num_post_sim_candidates
-            # --- END NEW ---
         )
         return selected_mode, standard_game_settings
 
