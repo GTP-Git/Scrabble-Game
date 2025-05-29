@@ -7,15 +7,11 @@ To-Do List
 
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
 
--- Need a way for the user to stop batch games and AI simulation process. Maybe add button to this effect. Need listeners for it.
-
 --Power Tiles game over dialog should have a Main button, and the Play Again button should re-runthe Power Tiles mode.
 
 -- Create a separate CONSTANTS.py file
 
 -- Add a feature to save a game in progress for later loading
-
--- Make Load Game text box/functionality more robust
 
 -- add blanks/game on batch .txt file
 
@@ -198,6 +194,12 @@ ________________________________________________
 -- How does the code evaluate exchanging? Does it check every possible combination of the letters on the rack, checking each against the leave table?
 
 -- Disable debug print for moves during Batch. No one is watching the batch, so no need to slow things down with printing
+
+-- Need a way for the user to stop batch games and AI simulation process. Maybe add button to this effect. Need listeners for it.
+
+-- Make Load Game text box/functionality more robust
+
+
 
 
 
