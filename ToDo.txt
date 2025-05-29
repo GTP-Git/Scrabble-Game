@@ -1,13 +1,15 @@
 To-Do List
 
 
+-- def execute_game_session() is a function w/in main(). Should it be refactored out? Main() ain't getting any smaller.
+
+-- In BBB mode, give option to limit probability, by both 7s and 8s? 9+'s?
+
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
 
 -- Need a way for the user to stop batch games and AI simulation process. Maybe add button to this effect. Need listeners for it.
 
 --Power Tiles game over dialog should have a Main button, and the Play Again button should re-runthe Power Tiles mode.
-
--- Disable debug print for moves during Batch. No one is watching the batch, so no need to slow things down with printing
 
 -- Create a separate CONSTANTS.py file
 
@@ -194,6 +196,9 @@ ________________________________________________
 -- Racks should be alphabetized automatically, both human and AI, in every mode. This was working but broke
 
 -- How does the code evaluate exchanging? Does it check every possible combination of the letters on the rack, checking each against the leave table?
+
+-- Disable debug print for moves during Batch. No one is watching the batch, so no need to slow things down with printing
+
 
 
 
