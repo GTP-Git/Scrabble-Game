@@ -1,31 +1,23 @@
 To-Do List
 
 
--- def execute_game_session() is a function w/in main(). Should it be refactored out? Main() ain't getting any smaller.
+-- In the batch .txt file, we need to note the number of bingos in each quartile, not just the percentage, so we can later collate that data
 
 -- In BBB mode, give option to limit probability, by both 7s and 8s? 9+'s?
 
 -- In Replay mode, like Woogles does, show the best move that was available, the move the human played, the equity difference, and the running and total equity lost/gained.
 
---Power Tiles game over dialog should have a Main button, and the Play Again button should re-runthe Power Tiles mode.
+--Power Tiles game over dialog should have a Main button, and the Play Again button should re-run the Power Tiles mode.
 
 -- Create a separate CONSTANTS.py file
 
 -- Add a feature to save a game in progress for later loading
 
--- add blanks/game on batch .txt file
-
 -- add code for more than a 2-ply look-ahead
 
 -- sometimes game in non-responsive upon startup, or temporarily hands during gameplay, once per game. Is there a way to diagnose and fix this?
 
--- add way to stop a batch run and save progress up to that point
-
 -- how is first play calculated?
-
--- how is the exchange threshhold used? For raw scores or for final scores? Exchanging way too much
-
--- should def execute_game_function be w/in main(), or outside as a callable function? Main() is getting large again.
 
 -- implement the ability to do what-if analyses on board positions
 
@@ -198,6 +190,21 @@ ________________________________________________
 -- Need a way for the user to stop batch games and AI simulation process. Maybe add button to this effect. Need listeners for it.
 
 -- Make Load Game text box/functionality more robust
+
+-- def execute_game_session() is a function w/in main(). Should it be refactored out? Main() ain't getting any smaller.
+
+-- add blanks/game on batch .txt file
+
+-- add way to stop a batch run and save progress up to that point
+
+-- how is the exchange threshhold used? For raw scores or for final scores? Exchanging way too much
+
+-- should def execute_game_function be w/in main(), or outside as a callable function? Main() is getting large again.
+
+
+
+
+
 
 
 
