@@ -203,6 +203,9 @@ ________________________________________________
 
 -- Scrabble SGS V14 - In BBB mode, give option to limit probability, by both 7s and 8s? 9+'s?
 
+-- Scrabble HMDE Refactor V2 - -- All Words dialog also needs to be movable and clicked words should appear on the board
+
+
 
 
 
