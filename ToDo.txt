@@ -1,6 +1,8 @@
 To-Do List
 
 
+-- When Invalid word detected, provide option to allow anyway?
+
 -- In Replay Mode, the console buttons can still override the Options options, requiring a very precise click to get an option to fire.
 
 -- In All Words, have a search/filter function so you can look up a word from the list, which is updated and sorted in reattime based on text string search
