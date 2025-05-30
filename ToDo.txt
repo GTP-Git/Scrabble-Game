@@ -1,6 +1,10 @@
 To-Do List
 
 
+-- In Replay Mode, the console buttons can still override the Options options, requiring a very precise click to get an option to fire.
+
+-- In All Words, have a search/filter function so you can look up a word from the list, which is updated and sorted in reattime based on text string search
+
 -- Need a way to gracefully stop endgame analysis, retaining the current best sequence.
 
 -- MAJOR CHANGE: reduce move list window by 1/2 vertically. Below it put arrow controls like we have for replay mode. Allow what-if scenarios, where the main_branch_game_state is saved, but players can make different plays, choose different racks, explore endgames, etc., Have a reset button that backs the main_branch_game_state to continue play. Under that window, when in Replay Mode, show 5-15 best moves, like on Woogles, showing score, equity, leave eval, simulate button, the whole shebang.
