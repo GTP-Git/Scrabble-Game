@@ -1,8 +1,6 @@
 To-Do List
 
 
--- When Invalid word detected, provide option to allow anyway?
-
 -- In Replay Mode, the console buttons can still override the Options options, requiring a very precise click to get an option to fire.
 
 -- In All Words, have a search/filter function so you can look up a word from the list, which is updated and sorted in reattime based on text string search
@@ -210,6 +208,9 @@ ________________________________________________
 -- Scrabble SGS V14 - In BBB mode, give option to limit probability, by both 7s and 8s? 9+'s?
 
 -- Scrabble HMDE Refactor V2 - -- All Words dialog also needs to be movable and clicked words should appear on the board
+
+-- When Invalid word detected, provide option to allow anyway?
+
 
 
 
